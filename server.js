@@ -26,22 +26,23 @@ app.use(session({
     }
 }));
 
+// Serve static files first
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'views')));
+
 // Authentication middleware
 const authenticateUser = (req, res, next) => {
-    // Public paths that don't require authentication
-    const publicPaths = [
-        '/static',
-        '/auth',
-        '/login',
-        '/signup',
-        '/signup.html',
-        '/login.html',
-        '/',
-        '/favicon.ico'
-    ];
-
-    // Check if the path starts with any of the public paths
-    if (publicPaths.some(path => req.path.startsWith(path))) {
+    // Skip auth for static files and public routes
+    if (
+        req.path === '/' ||
+        req.path === '/login' ||
+        req.path === '/signup' ||
+        req.path.startsWith('/auth/') ||
+        req.path.endsWith('.html') ||
+        req.path.endsWith('.ico') ||
+        req.path.endsWith('.css') ||
+        req.path.endsWith('.js')
+    ) {
         return next();
     }
 
