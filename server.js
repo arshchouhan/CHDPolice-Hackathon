@@ -1,18 +1,34 @@
 const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
 
 // Middleware
 app.use(express.json());
+app.use(cors({
+    origin: [
+        'https://chdpolice-hackathon.vercel.app',
+        'https://chdpolice-hackathon-git-main-arshchouhan.vercel.app',
+        'https://chdpolice-hackathon-arshchouhan.vercel.app'
+    ],
+    credentials: true
+}));
 
+// Import routes
+const userRoutes = require('./routes/user.route');
+const adminRoutes = require('./routes/admin.route');
+const authRoutes = require('./routes/auth.route');
 
+// API Routes - Mount these before static files
+app.use('/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Serve static files
-app.use(express.static('public'));
-app.use('/static', express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Authentication middleware
 const authenticateUser = (req, res, next) => {
@@ -41,34 +57,7 @@ const authenticateUser = (req, res, next) => {
     next();
 };
 
-// CORS configuration for production
-app.use((req, res, next) => {
-    const allowedOrigins = [
-        'https://chdpolice-hackathon.vercel.app',
-        'https://chdpolice-hackathon-git-main-arshchouhan.vercel.app',
-        'https://chdpolice-hackathon-arshchouhan.vercel.app'
-    ];
-    
-    const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-    }
-    
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-    
-    next();
-});
 
-// API Routes
-app.use('/auth', authRoutes);
-app.use('/api/users', authenticateUser, userRoutes);
-app.use('/api/admin', authenticateUser, adminRoutes);
 
 // Route handlers
 app.get('/', (req, res) => {
@@ -89,11 +78,6 @@ app.get('/dashboard', (req, res) => {
 
 
 
-// Import routes
-const userRoutes = require('./routes/user.route');
-const adminRoutes = require('./routes/admin.route');
-const authRoutes = require('./routes/auth.route');
-
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
@@ -102,9 +86,9 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('Connected to MongoDB'))
 .catch(err => console.error('MongoDB connection error:', err));
 
-// Handle 404s - This should be the last route
-app.use((req, res) => {
-    res.status(404).sendFile(path.join(__dirname, 'public', 'login.html'));
+// All other routes should serve the index.html
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 
