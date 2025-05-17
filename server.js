@@ -12,15 +12,17 @@ app.use(express.json());
 
 // Session configuration
 app.use(session({
-    secret: process.env.JWT_SECRET,
+    secret: process.env.JWT_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
         mongoUrl: process.env.MONGO_URI,
-        ttl: 24 * 60 * 60 // Session TTL (1 day)
+        collectionName: 'sessions',
+        ttl: 24 * 60 * 60, // Session TTL (1 day)
+        autoRemove: 'native'
     }),
     cookie: {
-        secure: process.env.NODE_ENV === 'production',
+        secure: false, // Set to true in production with HTTPS
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000 // 1 day
     }
@@ -154,12 +156,19 @@ const adminRoutes = require('./routes/admin.route');
 const authRoutes = require('./routes/auth.route');
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+const connectDB = async () => {
+    try {
+        const conn = await mongoose.connect(process.env.MONGO_URI);
+        console.log('Connected to MongoDB');
+        return conn;
+    } catch (err) {
+        console.error('MongoDB connection error:', err);
+        process.exit(1);
+    }
+};
+
+// Initialize MongoDB connection
+connectDB();
 
 // API Routes
 app.use('/api/users', authenticateUser, userRoutes);
