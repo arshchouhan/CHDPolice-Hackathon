@@ -3,39 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Detection</title>
+    <title>Dashboard - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            text-align: center;
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
         }
-        h1 {
-            color: #333;
-        }
-        .welcome-message {
-            font-size: 1.2em;
-            color: #666;
-            margin-top: 20px;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body>
-    <nav class="bg-gray-800 p-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-white text-xl font-bold">Email Phishing Detection</h1>
-            <button id="logoutBtn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
-                <i class="fas fa-sign-out-alt mr-2"></i>Logout
-            </button>
+<body class="min-h-screen flex items-center justify-center p-4 bg-gray-900">
+    <!-- Background overlay with subtle pattern -->
+    <div class="fixed inset-0 z-0 opacity-20" style="background-image: url('https://images.unsplash.com/photo-1544197150-b99a580bb7a8?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'); background-size: cover;"></div>
+    <!-- Blue overlay for depth -->
+    <div class="fixed inset-0 z-0 bg-blue-900 opacity-10"></div>
+    
+    <div class="max-w-5xl w-full flex flex-col md:flex-row overflow-hidden rounded-xl shadow-2xl relative z-10">
+        <!-- Main content area -->
+        <div class="w-full bg-white/10 backdrop-blur-lg p-8 space-y-6">
+            <!-- Logo and branding in top corner -->
+            <div class="absolute top-6 left-6 flex items-center space-x-2">
+                <div class="bg-blue-600 p-2 rounded-lg shadow-lg">
+                    <i class="fas fa-shield-alt text-white"></i>
+                </div>
+                <span class="text-white font-bold text-sm">CHD Police</span>
+            </div>
+            
+            <div class="mt-10 text-center">
+                <div class="text-center text-white mb-6">
+                    <i class="fas fa-shield-alt text-4xl text-blue-400 mb-4"></i>
+                    <h2 class="text-3xl font-bold">Email Security Dashboard</h2>
+                    <p class="mt-2 text-sm text-gray-300">Your phishing detection portal</p>
+                </div>
+                
+                <div class="mt-12 flex justify-center">
+                    <button id="logoutBtn" class="group relative flex justify-center py-3 px-6 border border-transparent text-sm font-medium
+                        rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none transition duration-300">
+                        <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                            <i class="fas fa-sign-out-alt text-red-400 group-hover:text-red-300"></i>
+                        </span>
+                        Logout
+                    </button>
+                </div>
+            </div>
         </div>
-    </nav>
-    <h1>Welcome to Email Detection</h1>
-    <div class="welcome-message">
-        <p>Hosting is done on both versel and render</p>
     </div>
 
     <script>
