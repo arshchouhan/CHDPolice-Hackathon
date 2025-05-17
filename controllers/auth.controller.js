@@ -85,8 +85,28 @@ exports.googleSignIn = async (req, res) => {
         }
 
         res.cookie('token', token, cookieOptions);
-
-        return res.redirect('https://email-detection-eight.vercel.app/dashboard');
+        
+        // Set token in localStorage via client-side script that runs automatically after redirect
+        const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Redirecting...</title>
+            <script>
+            // Store the token in localStorage
+            localStorage.setItem('token', '${token}');
+            console.log('Token saved to localStorage');
+            // Redirect to dashboard using relative URL
+            window.location.href = '/dashboard';
+            </script>
+        </head>
+        <body>
+            <p>Signing you in... Please wait.</p>
+        </body>
+        </html>
+        `;
+        
+        return res.send(html);
 
     } catch (error) {
         console.error('Google sign in error:', error);
