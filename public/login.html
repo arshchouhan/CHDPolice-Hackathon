@@ -109,10 +109,9 @@
                 <div id="g_id_onload"
                     data-client_id="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
                     data-context="signin"
-                    data-ux_mode="redirect"
-                    data-login_uri="https://email-detection-eight.vercel.app/auth/google"
-                    data-auto_select="true"
-                    data-itp_support="true">
+                    data-ux_mode="popup"
+                    data-callback="handleGoogleSignIn"
+                    data-auto_prompt="false">
                 </div>
                 <div class="g_id_signin"
                     data-type="standard"
@@ -158,24 +157,32 @@
         async function handleGoogleSignIn(response) {
             showLoading();
             try {
-                const res = await fetch(`${BASE_URL}/auth/google`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        credential: response.credential
-                    })
-                });
+                if (response.credential) {
+                    const res = await fetch(`${BASE_URL}/auth/google`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            credential: response.credential
+                        }),
+                        credentials: 'include'
+                    });
 
-                const data = await res.json();
-                if (res.ok) {
-                    localStorage.setItem('token', data.token);
-                    window.location.href = `${BASE_URL}/dashboard`;
+                    const data = await res.json();
+                    if (res.ok) {
+                        localStorage.setItem('token', data.token);
+                        window.location.href = `${BASE_URL}/dashboard`;
+                    } else {
+                        hideLoading();
+                        const errorMessage = document.getElementById('errorMessage');
+                        errorMessage.textContent = data.message || 'Google sign in failed';
+                        errorMessage.classList.remove('hidden');
+                    }
                 } else {
                     hideLoading();
                     const errorMessage = document.getElementById('errorMessage');
-                    errorMessage.textContent = data.message || 'Google sign in failed';
+                    errorMessage.textContent = 'No credential received from Google';
                     errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
