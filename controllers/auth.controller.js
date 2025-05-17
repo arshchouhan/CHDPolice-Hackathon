@@ -57,10 +57,6 @@ exports.googleSignIn = async (req, res) => {
             await user.save();
         }
 
-        // Create session
-        req.session.userId = user._id;
-        req.session.userEmail = user.email;
-
         // Create JWT token
         const token = jwt.sign(
             { id: user._id, email: user.email },
@@ -68,8 +64,10 @@ exports.googleSignIn = async (req, res) => {
             { expiresIn: '24h' }
         );
 
+        // Return token and user info
         return res.status(200).json({
-            token,
+            success: true,
+            token: token,
             user: {
                 id: user._id,
                 username: user.username,

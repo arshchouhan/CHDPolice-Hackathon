@@ -1,8 +1,6 @@
 const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
-const session = require('express-session');
-const MongoStore = require('connect-mongo');
 require('dotenv').config();
 
 const app = express();
@@ -10,21 +8,7 @@ const app = express();
 // Middleware
 app.use(express.json());
 
-// Session configuration
-app.use(session({
-    secret: process.env.JWT_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    store: MongoStore.create({
-        mongoUrl: process.env.MONGO_URI,
-        ttl: 24 * 60 * 60 // Session TTL (1 day)
-    }),
-    cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000 // 1 day
-    }
-}));
+
 
 // Serve static files first
 app.use(express.static(path.join(__dirname, 'public')));
@@ -46,12 +30,13 @@ const authenticateUser = (req, res, next) => {
         return next();
     }
 
-    // Check for authentication
-    if (!req.session.userId) {
+    // Check for authentication using token from headers
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
         if (req.xhr || req.headers.accept?.includes('application/json')) {
             return res.status(401).json({ message: 'Authentication required' });
         }
-        return res.redirect('/login');
+        return res.redirect('/login.html');
     }
     next();
 };
