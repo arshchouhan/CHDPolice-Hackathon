@@ -56,12 +56,12 @@
         <form id="loginForm" class="mt-8 space-y-6">
             <div class="space-y-4 rounded-md">
                 <div>
-                    <label for="email" class="text-sm font-medium text-gray-300 block mb-2">
-                        <i class="fas fa-envelope mr-2"></i>Email
+                    <label for="emailOrUsername" class="text-sm font-medium text-gray-300 block mb-2">
+                        <i class="fas fa-user mr-2"></i>Email or Username
                     </label>
-                    <input type="email" id="email" name="email" placeholder="Email" required
+                    <input type="text" id="emailOrUsername" name="emailOrUsername" placeholder="Enter email or username" required
                     class="w-full px-4 py-2 rounded bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none"
-                    autocomplete="email">
+                    autocomplete="username">
                 </div>
                 <div>
                     <label for="password" class="text-sm font-medium text-gray-300 block mb-2">
@@ -207,13 +207,13 @@
             e.preventDefault();
             showLoading();
             
-            const email = document.getElementById('email').value;
+            const emailOrUsername = document.getElementById('emailOrUsername').value;
             const password = document.getElementById('password').value;
             const errorMessage = document.getElementById('errorMessage');
 
-            if (!email || !password) {
+            if (!emailOrUsername || !password) {
                 hideLoading();
-                errorMessage.textContent = 'Email and password are required';
+                errorMessage.textContent = 'Username/Email and password are required';
                 errorMessage.classList.remove('hidden');
                 return;
             }
@@ -228,7 +228,7 @@
                         'Accept': 'application/json'
                     },
                     credentials: 'include',
-                    body: { email }
+                    body: { emailOrUsername }
                 });
 
                 const response = await fetch(`${BASE_URL}/auth/login`, {
@@ -239,7 +239,7 @@
                     },
                     credentials: 'include',
                     body: JSON.stringify({
-                        email: email,
+                        emailOrUsername: emailOrUsername,
                         password: password
                     })
                 });

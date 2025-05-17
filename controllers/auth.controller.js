@@ -116,21 +116,35 @@ exports.googleSignIn = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
-    console.log('Login attempt:', { email: req.body.email });
-    const { email, password } = req.body;
+    console.log('Login attempt:', req.body);
+    const { emailOrUsername, password } = req.body;
 
-    if (!email || !password) {
+    if (!emailOrUsername || !password) {
       console.log('Missing credentials');
-      return res.status(400).json({ message: 'Email and password are required.' });
+      return res.status(400).json({ message: 'Username/Email and password are required.' });
     }
 
-    // Check if the user is an admin
-    let account = await Admin.findOne({ email });
-    let role = 'admin';
+    // Check if the input is an email (contains @ symbol)
+    const isEmail = emailOrUsername.includes('@');
+    let account;
+    let role;
 
-    // If not admin, check if it's a regular user
-    if (!account) {
-      account = await User.findOne({ email });
+    // Check for admin first
+    if (isEmail) {
+      account = await Admin.findOne({ email: emailOrUsername });
+    } else {
+      account = await Admin.findOne({ username: emailOrUsername });
+    }
+
+    if (account) {
+      role = 'admin';
+    } else {
+      // If not admin, check if it's a regular user
+      if (isEmail) {
+        account = await User.findOne({ email: emailOrUsername });
+      } else {
+        account = await User.findOne({ username: emailOrUsername });
+      }
       role = 'user';
     }
 
