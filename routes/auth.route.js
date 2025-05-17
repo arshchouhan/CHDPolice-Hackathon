@@ -18,6 +18,7 @@ const asyncHandler = (fn) => (req, res, next) => {
 router.post('/login', asyncHandler(authController.login));  // Single route to handle both roles
 router.post('/signup', asyncHandler(authController.signup)); // Route for user registration
 router.post('/google', asyncHandler(authController.googleSignIn)); // Route for Google Sign-In
+router.get('/google', asyncHandler(authController.googleSignIn)); // Route for Google Sign-In redirect
 router.post('/logout', asyncHandler(authController.logout)); // Route for logout
 router.get('/check-auth', asyncHandler(authController.checkAuth)); // Route to check authentication status
 

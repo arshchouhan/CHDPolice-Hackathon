@@ -25,9 +25,41 @@ async function verifyGoogleToken(token) {
 // Handle Google Sign In
 exports.googleSignIn = async (req, res) => {
     try {
-        const { credential } = req.body;
-
-        if (!credential) {
+        console.log('Google sign-in request received:', {
+            method: req.method,
+            query: req.query,
+            body: req.body
+        });
+        
+        // Handle OAuth redirect flow (GET request)
+        if (req.method === 'GET') {
+            console.log('Processing Google OAuth redirect');
+            
+            if (req.query.error) {
+                console.error('Google OAuth error:', req.query.error);
+                return res.redirect('/login.html?error=' + encodeURIComponent(req.query.error));
+            }
+            
+            if (req.query.code) {
+                // This is the OAuth code exchange flow
+                // For simplicity in this implementation, we'll redirect to login 
+                // with a message to use the direct login flow
+                console.log('Google OAuth code received, redirecting to login');
+                return res.redirect('/login.html?message=please_use_google_button');
+            }
+            
+            // If we get here without a code or credential, redirect to login
+            return res.redirect('/login.html');
+        }
+        
+        // Handle direct sign-in flow (POST request)
+        let credential;
+        
+        if (req.body.credential) {
+            // One-tap or popup mode - credential comes directly in request body
+            credential = req.body.credential;
+        } else {
+            console.log('No credential found in request', req.body);
             return res.status(400).json({ message: 'Google credential not found' });
         }
 
@@ -43,6 +75,7 @@ exports.googleSignIn = async (req, res) => {
         }
 
         const email = payload.email;
+        console.log('Successfully verified Google token for:', email);
 
         // Check if user exists
         let user = await User.findOne({ email });
@@ -96,8 +129,11 @@ exports.googleSignIn = async (req, res) => {
             // Store the token in localStorage
             localStorage.setItem('token', '${token}');
             console.log('Token saved to localStorage');
+            // Store user role
+            localStorage.setItem('userRole', 'user');
+            console.log('User role saved to localStorage');
             // Redirect to dashboard using relative URL
-            window.location.href = '/dashboard';
+            window.location.href = '/index.html';
             </script>
         </head>
         <body>

@@ -120,8 +120,8 @@
                     <div id="g_id_onload"
                         data-client_id="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
                         data-context="signin"
-                        data-ux_mode="popup"
-                        data-callback="handleGoogleSignIn"
+                        data-ux_mode="redirect"
+                        data-login_uri="https://chd-police-hackathon.vercel.app/auth/google"
                         data-auto_prompt="false">
                     </div>
 
@@ -214,11 +214,49 @@
             document.getElementById('loadingOverlay').classList.add('hidden');
         }
 
+        // Check URL parameters for messages or errors
+        function checkUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            const message = urlParams.get('message');
+            
+            if (error) {
+                console.log('Error parameter found:', error);
+                const errorMessage = document.getElementById('errorMessage');
+                if (error === 'unsupported_flow') {
+                    errorMessage.textContent = 'Google sign-in failed. Please try using the Google button below.';
+                } else {
+                    errorMessage.textContent = 'Authentication error: ' + error;
+                }
+                errorMessage.classList.remove('hidden');
+            }
+            
+            if (message) {
+                console.log('Message parameter found:', message);
+                const errorMessage = document.getElementById('errorMessage');
+                if (message === 'please_use_google_button') {
+                    errorMessage.textContent = 'Please use the Google sign-in button below.';
+                } else {
+                    errorMessage.textContent = message;
+                }
+                errorMessage.classList.remove('hidden');
+            }
+        }
+        
         // Check if user is already logged in
         function checkAuthStatus() {
             const token = localStorage.getItem('token');
             if (token) {
-                window.location.href = `${BASE_URL}/dashboard`;
+                // Already logged in, redirect to proper dashboard based on role
+                const userRole = localStorage.getItem('userRole');
+                if (userRole === 'admin') {
+                    window.location.href = '/admin-dashboard.html';
+                } else {
+                    window.location.href = '/index.html';
+                }
+            } else {
+                // Not logged in, check for URL parameters
+                checkUrlParams();
             }
         }
 
@@ -336,7 +374,7 @@
                     } else {
                         console.log('Regular user detected, redirecting to user dashboard');
                         localStorage.setItem('userRole', 'user');
-                        window.location.href = '/dashboard';
+                        window.location.href = '/index.html';
                     }
                 } else {
                     hideLoading();
