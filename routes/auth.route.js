@@ -17,7 +17,11 @@ const asyncHandler = (fn) => (req, res, next) => {
 // Apply error handling to routes
 router.post('/login', asyncHandler(authController.login));  // Single route to handle both roles
 router.post('/signup', asyncHandler(authController.signup)); // Route for user registration
-router.post('/google', asyncHandler(authController.googleSignIn)); // Route for Google Sign-In
+
+// Google Sign-In routes - handle both POST and GET
+router.post('/google', asyncHandler(authController.googleSignIn));
+router.get('/google', asyncHandler(authController.googleSignIn)); // Also handle GET for redirect
+
 router.post('/logout', asyncHandler(authController.logout)); // Route for logout
 router.get('/check-auth', asyncHandler(authController.checkAuth)); // Route to check authentication status
 

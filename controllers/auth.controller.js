@@ -25,11 +25,26 @@ async function verifyGoogleToken(token) {
 // Handle Google Sign In
 exports.googleSignIn = async (req, res) => {
     try {
-        const { credential } = req.body;
+        console.log('Google Sign-In request received:', {
+            method: req.method,
+            query: req.query,
+            body: req.body
+        });
+        
+        // Get credential from either GET (query param) or POST (request body)
+        let credential;
+        if (req.method === 'GET') {
+            credential = req.query.credential || req.query.code || req.query.id_token;
+        } else {
+            credential = req.body.credential || req.body.code || req.body.id_token;
+        }
 
         if (!credential) {
+            console.error('No Google credential found in request');
             return res.status(400).json({ message: 'Google credential not found' });
         }
+        
+        console.log('Found credential, proceeding with authentication');
 
         // Verify Google token
         const ticket = await client.verifyIdToken({
