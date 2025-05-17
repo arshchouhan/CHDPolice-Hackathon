@@ -11,17 +11,7 @@ app.use(express.json());
 
 
 // Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Serve index.html for root path
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Serve login.html for /login path
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
+app.use(express.static('public'));
 app.use('/static', express.static('public'));
 
 // Authentication middleware
