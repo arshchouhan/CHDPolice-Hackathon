@@ -25,15 +25,29 @@ async function verifyGoogleToken(token) {
 // Handle Google Sign In
 exports.googleSignIn = async (req, res) => {
     try {
-        const { credential } = req.body;
+        const { code } = req.query;
         
-        if (!credential) {
-            return res.status(400).json({ message: 'Google credential not found' });
+        // Exchange code for token
+        const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET,
+            'https://chdpolice-hackathon.vercel.app/auth/google/callback'
+        );
+
+        const { tokens } = await oauth2Client.getToken(code);
+        oauth2Client.setCredentials(tokens);
+
+        // Get user info
+        const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+        const { data } = await oauth2.userinfo.get();
+
+        if (!data.email) {
+            return res.redirect('/login?error=Invalid Google account');
         }
 
         // Verify the token
         const ticket = await client.verifyIdToken({
-            idToken: credential,
+            idToken: data.id,
             audience: process.env.GOOGLE_CLIENT_ID
         });
         
@@ -64,17 +78,15 @@ exports.googleSignIn = async (req, res) => {
             { expiresIn: '24h' }
         );
 
-        // Return token and user info
-        return res.status(200).json({
-            success: true,
-            token: token,
-            user: {
-                id: user._id,
-                username: user.username,
-                email: user.email,
-                profilePicture: user.profilePicture
-            }
+        // Set token in cookie and redirect
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000 // 1 day
         });
+
+        return res.redirect('/dashboard');
 
     } catch (error) {
         console.error('Google sign in error:', error);

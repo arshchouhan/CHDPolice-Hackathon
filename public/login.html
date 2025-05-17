@@ -136,8 +136,8 @@
     </div>
 
     <script>
-        // Set base URL based on environment
         const BASE_URL = 'https://chdpolice-hackathon.vercel.app';
+        const GOOGLE_REDIRECT_URI = `${BASE_URL}/auth/google/callback`;
 
         // Show loading overlay
         function showLoading() {
@@ -161,20 +161,12 @@
         async function handleGoogleSignIn(response) {
             showLoading();
             try {
-                const res = await fetch(`${BASE_URL}/auth/google`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        credential: response.credential
-                    })
-                });
+                window.location.href = GOOGLE_REDIRECT_URI;
 
                 const data = await res.json();
                 if (res.ok) {
                     localStorage.setItem('token', data.token);
-                    window.location.href = `${BASE_URL}/index.html`;
+                    window.location.href = `${BASE_URL}/dashboard`;
                 } else {
                     hideLoading();
                     const errorMessage = document.getElementById('errorMessage');
@@ -220,7 +212,7 @@
 
                 if (response.ok) {
                     localStorage.setItem('token', data.token);
-                    window.location.href = `${BASE_URL}/index.html`;
+                    window.location.href = `${BASE_URL}/dashboard`;
                 } else {
                     hideLoading();
                     errorMessage.textContent = data.message || 'Invalid credentials';
