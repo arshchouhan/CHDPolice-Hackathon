@@ -66,16 +66,15 @@ exports.googleSignIn = async (req, res) => {
             { expiresIn: '24h' }
         );
 
-        // Return token and user info
-        return res.status(200).json({
-            success: true,
-            token: token,
-            user: {
-                id: user._id,
-                username: user.username,
-                email: user.email
-            }
+        // Set token in cookie and redirect
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            domain: '.email-detection-eight.vercel.app'
         });
+
+        return res.redirect('https://email-detection-eight.vercel.app/dashboard');
 
     } catch (error) {
         console.error('Google sign in error:', error);

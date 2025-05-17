@@ -10,9 +10,9 @@ const app = express();
 app.use(express.json());
 app.use(cors({
     origin: [
-        'https://chdpolice-hackathon.vercel.app',
-        'https://chdpolice-hackathon-git-main-arshchouhan.vercel.app',
-        'https://chdpolice-hackathon-arshchouhan.vercel.app'
+        'https://email-detection-eight.vercel.app',
+        'https://email-detection-git-main-arshchouhan.vercel.app',
+        'https://email-detection-arshchouhan.vercel.app'
     ],
     credentials: true
 }));
