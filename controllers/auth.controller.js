@@ -118,13 +118,16 @@ exports.login = async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Create session
-    req.session.userId = account._id;
-    req.session.userEmail = account.email;
-    req.session.userRole = role;
+    // Set token in cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      domain: '.email-detection-eight.vercel.app'
+    });
 
     return res.status(200).json({
-      message: 'Login successful',
+      success: true,
       token,
       user: {
         id: account._id,
@@ -173,20 +176,19 @@ exports.signup = async (req, res) => {
 
 // Logout function
 exports.logout = (req, res) => {
-    if (!req.session) {
-        return res.status(401).json({ message: 'No active session' });
-    }
-
     try {
-        req.session.destroy((err) => {
-            if (err) {
-                return res.status(500).json({ message: 'Error logging out' });
-            }
-            res.clearCookie('connect.sid');
-            res.json({ message: 'Logged out successfully' });
+        // Clear the token cookie
+        res.cookie('token', '', {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            domain: '.email-detection-eight.vercel.app',
+            expires: new Date(0)
         });
+
+        return res.status(200).json({ message: 'Logged out successfully' });
     } catch (error) {
         console.error('Logout error:', error);
-        res.status(500).json({ message: 'Error logging out' });
+        return res.status(500).json({ message: 'Error logging out' });
     }
 };

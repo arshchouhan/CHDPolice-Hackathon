@@ -22,13 +22,10 @@ const userRoutes = require('./routes/user.route');
 const adminRoutes = require('./routes/admin.route');
 const authRoutes = require('./routes/auth.route');
 
-// API Routes - Mount these before static files
+// API Routes first
 app.use('/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
 
 // Authentication middleware
 const authenticateUser = (req, res, next) => {
@@ -59,7 +56,23 @@ const authenticateUser = (req, res, next) => {
 
 
 
-// Route handlers
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
+
+// Route handlers - API routes first
+app.use('/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
+
+// Static file serving
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Route handlers for pages
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
@@ -76,19 +89,9 @@ app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-
-
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
-
-// All other routes should serve the index.html
+// All other routes should serve index.html for client-side routing
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 

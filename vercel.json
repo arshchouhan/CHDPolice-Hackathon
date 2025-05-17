@@ -2,14 +2,38 @@
   "version": 2,
   "builds": [
     {
+      "src": "server.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**",
       "use": "@vercel/static"
     }
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/auth/(.*)",
+      "dest": "/server.js"
+    },
+    {
       "src": "/",
       "dest": "/public/login.html"
+    },
+    {
+      "src": "/login",
+      "dest": "/public/login.html"
+    },
+    {
+      "src": "/signup",
+      "dest": "/public/signup.html"
+    },
+    {
+      "src": "/dashboard",
+      "dest": "/public/index.html"
     },
     {
       "src": "/(.*)",
