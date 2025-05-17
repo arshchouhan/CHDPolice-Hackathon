@@ -134,13 +134,10 @@
     </div>
 
     <script>
-        const BASE_URL = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3000' 
-            : window.location.hostname.includes('vercel.app')
-                ? 'https://email-detection-api.onrender.com'
-                : window.location.origin;
+        // Use relative URLs for all API calls to work with any deployment
+        const BASE_URL = '';
         
-        console.log('Using BASE_URL:', BASE_URL);
+        console.log('Using relative URLs for API calls');
 
         // Show loading overlay
         function showLoading() {
