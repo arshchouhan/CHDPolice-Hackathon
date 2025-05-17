@@ -25,7 +25,6 @@
     </style>
 </head>
 <body>
-
     <nav class="bg-gray-800 p-4">
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-white text-xl font-bold">Email Phishing Detection</h1>
@@ -40,22 +39,20 @@
     </div>
 
     <script>
-        // Get base URL based on environment
-        const BASE_URL = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3000'
-            : 'https://chdpolice-hackathon.vercel.app';
+        // Set base URL for production
+        const BASE_URL = 'https://chdpolice-hackathon.vercel.app';
 
         // Check if user is authenticated
         async function checkAuth() {
             try {
                 const token = localStorage.getItem('token');
                 if (!token) {
-                    window.location.href = '/login';
+                    window.location.href = `${BASE_URL}/login.html`;
                     return;
                 }
             } catch (error) {
                 console.error('Auth check error:', error);
-                window.location.href = '/login';
+                window.location.href = `${BASE_URL}/login.html`;
             }
         }
 
@@ -69,7 +66,7 @@
 
                 if (response.ok) {
                     localStorage.removeItem('token');
-                    window.location.href = '/login';
+                    window.location.href = `${BASE_URL}/login.html`;
                 } else {
                     console.error('Logout failed');
                 }
@@ -81,6 +78,5 @@
         // Check authentication when page loads
         checkAuth();
     </script>
-
 </body>
 </html>

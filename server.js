@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 require('dotenv').config();
 
 const app = express();
@@ -11,11 +12,15 @@ app.use(express.json());
 
 // Session configuration
 app.use(session({
-    secret: process.env.JWT_SECRET || 'your-secret-key',
+    secret: process.env.JWT_SECRET,
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGO_URI,
+        ttl: 24 * 60 * 60 // Session TTL (1 day)
+    }),
     cookie: {
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000 // 1 day
     }
@@ -93,31 +98,9 @@ app.get('/auth/logout', (req, res) => {
     });
 });
 
-// Serve static files from the public directory
-app.use(express.static('public'));
-
-// Serve index.html for dashboard route
-app.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Handle index route
-app.get('/index.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Handle 404 - send to login page
-app.use((req, res, next) => {
-    if (req.path.startsWith('/auth/')) {
-        next();
-        return;
-    }
-    if (!req.path.endsWith('.html')) {
-        res.redirect('/login.html');
-        return;
-    }
-    next();
-});
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'views')));
 
 // CORS configuration for production
 app.use((req, res, next) => {
@@ -149,19 +132,12 @@ const adminRoutes = require('./routes/admin.route');
 const authRoutes = require('./routes/auth.route');
 
 // Connect to MongoDB
-const connectDB = async () => {
-    try {
-        const conn = await mongoose.connect(process.env.MONGO_URI);
-        console.log('Connected to MongoDB');
-        return conn;
-    } catch (err) {
-        console.error('MongoDB connection error:', err);
-        process.exit(1);
-    }
-};
-
-// Initialize MongoDB connection
-connectDB();
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
 
 // API Routes
 app.use('/api/users', authenticateUser, userRoutes);

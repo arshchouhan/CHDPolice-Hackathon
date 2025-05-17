@@ -9,11 +9,28 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <script src="https://accounts.google.com/gsi/client" async></script>
     <style>
-
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen flex items-center justify-center p-4">
-
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white/10 backdrop-blur-lg p-6 rounded-lg flex flex-col items-center">
+            <div class="loader mb-4"></div>
+            <p class="text-white">Loading your dashboard...</p>
+        </div>
+    </div>
     <div class="max-w-md w-full space-y-8 bg-white/10 backdrop-blur-lg p-8 rounded-xl shadow-2xl">
         <div>
             <div class="text-center text-white mb-6">
@@ -117,10 +134,18 @@
     </div>
 
     <script>
-        // Get base URL based on environment
-        const BASE_URL = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3000'
-            : 'https://chdpolice-hackathon.vercel.app';
+        // Set base URL based on environment
+        const BASE_URL = 'https://chdpolice-hackathon.vercel.app';
+
+        // Show loading overlay
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+
+        // Hide loading overlay
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
 
         // Check if user is already logged in
         function checkAuthStatus() {
@@ -132,7 +157,7 @@
 
         // Handle Google Sign In
         async function handleGoogleSignIn(response) {
-
+            showLoading();
             try {
                 const res = await fetch(`${BASE_URL}/auth/google`, {
                     method: 'POST',
@@ -145,16 +170,17 @@
                 });
 
                 const data = await res.json();
-                if (res.ok && data.success) {
-                    window.location.href = data.redirect;
+                if (res.ok) {
+                    localStorage.setItem('token', data.token);
+                    window.location.href = `${BASE_URL}/index.html`;
                 } else {
-        
+                    hideLoading();
                     const errorMessage = document.getElementById('errorMessage');
                     errorMessage.textContent = data.message || 'Google sign in failed';
                     errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
-    
+                hideLoading();
                 const errorMessage = document.getElementById('errorMessage');
                 errorMessage.textContent = 'Error connecting to server';
                 errorMessage.classList.remove('hidden');
@@ -164,7 +190,7 @@
         // Handle form submission
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-
+            showLoading();
             
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
@@ -192,14 +218,14 @@
 
                 if (response.ok) {
                     localStorage.setItem('token', data.token);
-                    window.location.href = '/index.html';
+                    window.location.href = `${BASE_URL}/index.html`;
                 } else {
-        
+                    hideLoading();
                     errorMessage.textContent = data.message || 'Invalid credentials';
                     errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
-    
+                hideLoading();
                 errorMessage.textContent = 'Error connecting to server';
                 errorMessage.classList.remove('hidden');
             }

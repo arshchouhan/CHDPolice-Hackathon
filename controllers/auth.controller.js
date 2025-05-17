@@ -68,18 +68,14 @@ exports.googleSignIn = async (req, res) => {
             { expiresIn: '24h' }
         );
 
-        // Set user info in session
-        req.session.user = {
-            id: user._id,
-            email: user.email,
-            token: token
-        };
-        
-        // Return success with redirect
         return res.status(200).json({
-            success: true,
-            token: token,
-            redirect: '/index.html'
+            token,
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                profilePicture: user.profilePicture
+            }
         });
 
     } catch (error) {
