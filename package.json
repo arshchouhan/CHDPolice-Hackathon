@@ -1,12 +1,15 @@
 {
   "name": "email-detection",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Email Detection System",
+  "main": "server.js",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "build": "npm install"
+    "build": "npm install",
+    "vercel-build": "npm install"
   },
   "keywords": [],
   "author": "",
