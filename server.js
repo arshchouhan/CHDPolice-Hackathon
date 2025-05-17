@@ -10,9 +10,9 @@ app.use(express.json());
 
 
 
-// Serve static files first
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(path.join(__dirname, 'views')));
+// Serve static files
+app.use(express.static('public'));
+app.use('/static', express.static('public'));
 
 // Authentication middleware
 const authenticateUser = (req, res, next) => {
@@ -46,18 +46,21 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// Serve signup page
-app.get(['/signup', '/signup.html'], (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
-});
-
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// Logout route
-app.get('/auth/logout', (req, res) => {
-    res.status(200).json({ message: 'Logged out successfully' });
+app.get('/signup', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Handle 404s
+app.use((req, res) => {
+    res.status(404).sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 // CORS configuration for production
