@@ -31,18 +31,25 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function(origin, callback) {
+        console.log('Request origin:', origin);
         // allow requests with no origin (like mobile apps or curl requests)
         if(!origin) return callback(null, true);
         if(allowedOrigins.indexOf(origin) === -1){
+            console.log('Origin not allowed:', origin);
             const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
             return callback(new Error(msg), false);
         }
+        console.log('Origin allowed:', origin);
         return callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
+    exposedHeaders: ['Set-Cookie'],
     credentials: true
 }));
+
+// Add cookie parser
+app.use(cookieParser());
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));

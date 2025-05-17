@@ -134,7 +134,7 @@
     </div>
 
     <script>
-        const BASE_URL = 'https://email-detection-eight.vercel.app';
+        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://email-detection-api.onrender.com';
 
         // Show loading overlay
         function showLoading() {
@@ -159,21 +159,25 @@
             showLoading();
             try {
                 if (response.credential) {
+                    console.log('Attempting Google sign-in to:', `${BASE_URL}/auth/google`);
                     const res = await fetch(`${BASE_URL}/auth/google`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Accept': 'application/json'
                         },
+                        credentials: 'include',
                         body: JSON.stringify({
                             credential: response.credential
-                        }),
-                        credentials: 'include'
+                        })
                     });
 
                     const data = await res.json();
+                    console.log('Google sign-in response:', data);
+
                     if (res.ok) {
-                        localStorage.setItem('token', data.token);
-                        window.location.href = `${BASE_URL}/dashboard`;
+                        // No need to store token in localStorage as it's in the cookie
+                        window.location.href = '/dashboard';
                     } else {
                         hideLoading();
                         const errorMessage = document.getElementById('errorMessage');
@@ -187,9 +191,10 @@
                     errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
+                console.error('Google sign-in error:', error);
                 hideLoading();
                 const errorMessage = document.getElementById('errorMessage');
-                errorMessage.textContent = 'Error connecting to server';
+                errorMessage.textContent = 'Error connecting to server. Please try again.';
                 errorMessage.classList.remove('hidden');
             }
         }
@@ -204,17 +209,21 @@
             const errorMessage = document.getElementById('errorMessage');
 
             if (!email || !password) {
+                hideLoading();
                 errorMessage.textContent = 'Email and password are required';
                 errorMessage.classList.remove('hidden');
                 return;
             }
 
             try {
+                console.log('Attempting login to:', `${BASE_URL}/auth/login`);
                 const response = await fetch(`${BASE_URL}/auth/login`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
+                    credentials: 'include',
                     body: JSON.stringify({
                         email: email,
                         password: password
@@ -222,18 +231,20 @@
                 });
 
                 const data = await response.json();
+                console.log('Login response:', data);
 
                 if (response.ok) {
-                    localStorage.setItem('token', data.token);
-                    window.location.href = `${BASE_URL}/dashboard`;
+                    // No need to store token in localStorage as it's in the cookie
+                    window.location.href = '/dashboard';
                 } else {
                     hideLoading();
                     errorMessage.textContent = data.message || 'Invalid credentials';
                     errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
+                console.error('Login error:', error);
                 hideLoading();
-                errorMessage.textContent = 'Error connecting to server';
+                errorMessage.textContent = 'Error connecting to server. Please try again.';
                 errorMessage.classList.remove('hidden');
             }
         });
