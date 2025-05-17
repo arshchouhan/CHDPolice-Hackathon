@@ -262,9 +262,17 @@
                         localStorage.setItem('token', 'authenticated-user');
                         console.log('Authentication marker saved to localStorage');
                     }
-                    // Redirect to dashboard
-                    console.log('Redirecting to dashboard');
-                    window.location.href = '/dashboard';
+                    
+                    // Check user role and redirect to appropriate dashboard
+                    if (data.user && data.user.role === 'admin') {
+                        console.log('Admin user detected, redirecting to admin dashboard');
+                        localStorage.setItem('userRole', 'admin');
+                        window.location.href = '/admin-dashboard.html';
+                    } else {
+                        console.log('Regular user detected, redirecting to user dashboard');
+                        localStorage.setItem('userRole', 'user');
+                        window.location.href = '/dashboard';
+                    }
                 } else {
                     hideLoading();
                     const message = data.message || 'Invalid credentials';
