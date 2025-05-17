@@ -24,13 +24,16 @@ const authRoutes = require('./routes/auth.route');
 
 // Enable CORS for all routes
 app.use(cors({
-    origin: '*',
+    origin: ['https://email-detection-eight.vercel.app', 'http://localhost:3000'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
 
-// API Routes first
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// API Routes
 app.use('/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
@@ -65,12 +68,20 @@ const authenticateUser = (req, res, next) => {
 
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+const connectDB = async () => {
+    try {
+        await mongoose.connect(process.env.MONGO_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true
+        });
+        console.log('Connected to MongoDB');
+    } catch (err) {
+        console.error('MongoDB connection error:', err);
+        process.exit(1);
+    }
+};
+
+connectDB();
 
 // Route handlers - API routes first
 app.use('/auth', authRoutes);
