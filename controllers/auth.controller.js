@@ -25,35 +25,27 @@ async function verifyGoogleToken(token) {
 // Handle Google Sign In
 exports.googleSignIn = async (req, res) => {
     try {
-        const { access_token } = req.query;
-        
-        if (!access_token) {
-            return res.redirect('/login?error=No access token');
+        const { credential } = req.body;
+
+        if (!credential) {
+            return res.status(400).json({ message: 'Google credential not found' });
         }
 
-        // Get user info using access token
-        const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: { Authorization: `Bearer ${access_token}` }
-        });
-
-        const data = await response.json();
-        if (!data.email) {
-            return res.redirect('/login?error=Invalid Google account');
-        }
-
-        // Verify the token
+        // Verify Google token
         const ticket = await client.verifyIdToken({
-            idToken: data.id,
+            idToken: credential,
             audience: process.env.GOOGLE_CLIENT_ID
         });
         
         const payload = ticket.getPayload();
-        if (!payload) {
-            return res.status(401).json({ message: 'Invalid Google token' });
+        if (!payload.email) {
+            return res.status(400).json({ message: 'Invalid Google account' });
         }
 
+        const email = payload.email;
+
         // Check if user exists
-        let user = await User.findOne({ email: payload.email });
+        let user = await User.findOne({ email });
 
         // If user doesn't exist, create new user
         if (!user) {
@@ -74,15 +66,16 @@ exports.googleSignIn = async (req, res) => {
             { expiresIn: '24h' }
         );
 
-        // Set token in cookie and redirect
-        res.cookie('token', token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'strict',
-            maxAge: 24 * 60 * 60 * 1000 // 1 day
+        // Return token and user info
+        return res.status(200).json({
+            success: true,
+            token: token,
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email
+            }
         });
-
-        return res.redirect('/dashboard');
 
     } catch (error) {
         console.error('Google sign in error:', error);

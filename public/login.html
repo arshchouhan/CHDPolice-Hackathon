@@ -109,10 +109,8 @@
                 <div id="g_id_onload"
                     data-client_id="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
                     data-context="signin"
-                    data-ux_mode="redirect"
-                    data-login_uri="https://chdpolice-hackathon.vercel.app/auth/google"
-                    data-auto_select="true"
-                    data-itp_support="true">
+                    data-callback="handleGoogleSignIn"
+                    data-auto_prompt="false">
                 </div>
                 <div class="g_id_signin"
                     data-type="standard"
@@ -135,7 +133,6 @@
 
     <script>
         const BASE_URL = 'https://chdpolice-hackathon.vercel.app';
-        const GOOGLE_REDIRECT_URI = `${BASE_URL}/auth/google/callback`;
 
         // Show loading overlay
         function showLoading() {
@@ -151,7 +148,7 @@
         function checkAuthStatus() {
             const token = localStorage.getItem('token');
             if (token) {
-                window.location.href = '/index.html';
+                window.location.href = `${BASE_URL}/dashboard`;
             }
         }
 
@@ -159,7 +156,15 @@
         async function handleGoogleSignIn(response) {
             showLoading();
             try {
-                window.location.href = GOOGLE_REDIRECT_URI;
+                const res = await fetch(`${BASE_URL}/auth/google`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        credential: response.credential
+                    })
+                });
 
                 const data = await res.json();
                 if (res.ok) {
