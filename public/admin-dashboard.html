@@ -289,47 +289,86 @@
         // Check if user is authenticated as admin
         async function checkAuth() {
             try {
-                // Check if token exists
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    window.location.href = '/login.html';
-                    return;
-                }
+                console.log('Checking admin authentication...');
                 
-                // Validate with server
+                // Validate with server - we'll try with cookies first and token as backup
                 const response = await fetch(`${BASE_URL}/auth/check-auth`, {
                     method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    },
-                    credentials: 'include'
+                    credentials: 'include' // Send cookies first
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Authentication failed');
-                }
-                
-                const data = await response.json();
-                
-                // Check if user is admin
-                if (!data.user || data.user.role !== 'admin') {
-                    alert('You do not have admin privileges');
-                    window.location.href = '/dashboard';
+                    console.log('Cookie authentication failed, checking localStorage token...');
+                    // Try with token in localStorage as fallback
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        console.log('No token in localStorage, redirecting to login');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    
+                    // Try with token in Authorization header
+                    const tokenResponse = await fetch(`${BASE_URL}/auth/check-auth`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        credentials: 'include'
+                    });
+                    
+                    if (!tokenResponse.ok) {
+                        console.log('Token authentication also failed');
+                        localStorage.removeItem('token'); // Clear invalid token
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    
+                    // We got a valid response with token auth
+                    const data = await tokenResponse.json();
+                    console.log('Authentication successful with token:', data);
+                    handleAuthResponse(data);
                     return;
                 }
                 
-                // Set admin name if available
-                if (data.user.username) {
-                    document.getElementById('adminName').textContent = data.user.username;
+                // We got a valid response with cookie auth
+                const data = await response.json();
+                console.log('Authentication successful with cookie:', data);
+                
+                // Set token in localStorage if it doesn't exist but cookie auth worked
+                if (data.token && !localStorage.getItem('token')) {
+                    localStorage.setItem('token', data.token);
                 }
                 
-                // Fetch admin dashboard data
-                fetchDashboardData();
+                // Process the auth response
+                handleAuthResponse(data);
                 
             } catch (error) {
                 console.error('Auth check error:', error);
                 window.location.href = '/login.html';
             }
+        }
+        
+        // Handle the authentication response data
+        function handleAuthResponse(data) {
+            console.log('Processing auth response:', data);
+            
+            // Check if user is admin
+            if (!data.user || data.user.role !== 'admin') {
+                console.log('User does not have admin role:', data.user);
+                alert('You do not have admin privileges');
+                window.location.href = '/index.html';
+                return;
+            }
+            
+            console.log('Admin authentication successful:', data.user);
+            
+            // Set admin name if available
+            if (data.user.username) {
+                document.getElementById('adminName').textContent = data.user.username;
+            }
+            
+            // Fetch admin dashboard data
+            fetchDashboardData();
         }
         
         // Fetch dashboard data

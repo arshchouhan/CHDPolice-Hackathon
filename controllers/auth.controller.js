@@ -117,7 +117,13 @@ exports.googleSignIn = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     console.log('Login attempt:', req.body);
-    const { emailOrUsername, password } = req.body;
+    
+    // Handle both the old 'email' parameter and the new 'emailOrUsername' parameter
+    // This makes the API backwards compatible with existing clients
+    const emailOrUsername = req.body.emailOrUsername || req.body.email;
+    const password = req.body.password;
+    
+    console.log('Normalized credentials:', { emailOrUsername, password: '****' });
 
     if (!emailOrUsername || !password) {
       console.log('Missing credentials');
@@ -126,6 +132,7 @@ exports.login = async (req, res) => {
 
     // Check if the input is an email (contains @ symbol)
     const isEmail = emailOrUsername.includes('@');
+    console.log('Input is identified as:', isEmail ? 'email' : 'username');
     let account;
     let role;
 
@@ -275,32 +282,57 @@ exports.logout = (req, res) => {
 };
 
 // Check if user is authenticated
-exports.checkAuth = (req, res) => {
-    try {
-        const token = req.cookies.token;
-        
-        if (!token) {
-            return res.status(401).json({ authenticated: false, message: 'No authentication token found' });
-        }
-        
-        // Verify the token
-        jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-            if (err) {
-                console.error('Token verification error:', err);
-                return res.status(401).json({ authenticated: false, message: 'Invalid or expired token' });
-            }
-            
-            // Token is valid
-            return res.status(200).json({
-                authenticated: true,
-                user: {
-                    id: decoded.id,
-                    role: decoded.role
-                }
-            });
-        });
-    } catch (error) {
-        console.error('Check auth error:', error);
-        return res.status(500).json({ authenticated: false, message: 'Error checking authentication status' });
+exports.checkAuth = async (req, res) => {
+  try {
+    console.log('Check auth request:', { 
+      cookies: req.cookies, 
+      authorization: req.headers.authorization,
+      method: req.method,
+      url: req.url
+    });
+    
+    const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      console.log('No token provided in cookies or authorization header');
+      return res.status(401).json({ authenticated: false, message: 'No token provided' });
     }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decoded:', { id: decoded.id, role: decoded.role });
+    
+    // Check if the user is an admin
+    let user = await Admin.findById(decoded.id);
+    let role = 'admin';
+
+    // If not admin, check if it's a regular user
+    if (!user) {
+      user = await User.findById(decoded.id);
+      role = 'user';
+    }
+
+    if (!user) {
+      console.log('User not found for id:', decoded.id);
+      return res.status(404).json({ authenticated: false, message: 'User not found' });
+    }
+
+    // Send back user info including role
+    const userData = {
+      id: user._id,
+      username: user.username || user.name || 'User',
+      email: user.email,
+      role: role
+    };
+    
+    console.log('User authenticated:', userData);
+    return res.status(200).json({ 
+      authenticated: true, 
+      message: 'User is authenticated',
+      user: userData,
+      token: token // Return the token back to help with localStorage sync
+    });
+  } catch (error) {
+    console.error('Error in checkAuth:', error);
+    return res.status(401).json({ authenticated: false, message: 'Failed to authenticate token', error: error.message });
+  }
 };
