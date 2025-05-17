@@ -4,20 +4,41 @@ const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const Admin = require('./models/Admin');
+const User = require('./models/Users');
 require('dotenv').config();
 
 const app = express();
 
 // Middleware
 app.use(express.json());
-app.use(cors({
-    origin: [
-        'https://email-detection-eight.vercel.app',
-        'https://email-detection-git-main-arshchouhan.vercel.app',
-        'https://email-detection-arshchouhan.vercel.app'
-    ],
-    credentials: true
-}));
+app.use(cookieParser());
+
+// CORS configuration
+const corsOptions = {
+    origin: function(origin, callback) {
+        const allowedOrigins = [
+            'https://email-detection-eight.vercel.app',
+            'https://email-detection-git-main-arshchouhan.vercel.app',
+            'https://email-detection-arshchouhan.vercel.app',
+            'https://email-detection-api.onrender.com',
+            'http://localhost:3000'
+        ];
+        console.log('Request origin:', origin);
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.log('Origin not allowed:', origin);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
+    exposedHeaders: ['Set-Cookie']
+};
+
+app.use(cors(corsOptions));
 
 // Import routes
 const userRoutes = require('./routes/user.route');
@@ -99,10 +120,28 @@ const connectDB = async () => {
             throw new Error('MONGO_URI environment variable is not set');
         }
         
-        await mongoose.connect(mongoURI);
+        console.log('MongoDB URI:', mongoURI.replace(/mongodb\+srv:\/\/[^:]+:[^@]+@/, 'mongodb+srv://****:****@'));
+        
+        const options = {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+        };
+
+        await mongoose.connect(mongoURI, options);
         console.log('Successfully connected to MongoDB');
+
+        // Test the connection
+        const adminCount = await Admin.countDocuments();
+        const userCount = await User.countDocuments();
+        console.log(`Database stats - Admins: ${adminCount}, Users: ${userCount}`);
+
     } catch (err) {
-        console.error('MongoDB connection error:', err.message);
+        console.error('MongoDB connection error:', err);
+        if (err.name === 'MongoServerSelectionError') {
+            console.error('Could not connect to MongoDB server. Please check your connection string and make sure the server is running.');
+        }
         // Don't exit in production
         if (process.env.NODE_ENV !== 'production') {
             process.exit(1);

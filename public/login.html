@@ -134,7 +134,13 @@
     </div>
 
     <script>
-        const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://email-detection-api.onrender.com';
+        const BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000' 
+            : window.location.hostname.includes('vercel.app')
+                ? 'https://email-detection-api.onrender.com'
+                : window.location.origin;
+        
+        console.log('Using BASE_URL:', BASE_URL);
 
         // Show loading overlay
         function showLoading() {
@@ -217,6 +223,17 @@
 
             try {
                 console.log('Attempting login to:', `${BASE_URL}/auth/login`);
+                console.log('Request details:', {
+                    url: `${BASE_URL}/auth/login`,
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: { email }
+                });
+
                 const response = await fetch(`${BASE_URL}/auth/login`, {
                     method: 'POST',
                     headers: {
@@ -230,15 +247,20 @@
                     })
                 });
 
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
                 const data = await response.json();
                 console.log('Login response:', data);
 
                 if (response.ok) {
-                    // No need to store token in localStorage as it's in the cookie
+                    console.log('Login successful, redirecting to dashboard');
                     window.location.href = '/dashboard';
                 } else {
                     hideLoading();
-                    errorMessage.textContent = data.message || 'Invalid credentials';
+                    const message = data.message || 'Invalid credentials';
+                    console.error('Login failed:', message);
+                    errorMessage.textContent = message;
                     errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
