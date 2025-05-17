@@ -70,18 +70,32 @@ const authenticateUser = (req, res, next) => {
 // Connect to MongoDB
 const connectDB = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        });
-        console.log('Connected to MongoDB');
+        console.log('Attempting to connect to MongoDB...');
+        const mongoURI = process.env.MONGO_URI;
+        if (!mongoURI) {
+            throw new Error('MONGO_URI environment variable is not set');
+        }
+        
+        await mongoose.connect(mongoURI);
+        console.log('Successfully connected to MongoDB');
     } catch (err) {
-        console.error('MongoDB connection error:', err);
-        process.exit(1);
+        console.error('MongoDB connection error:', err.message);
+        // Don't exit in production
+        if (process.env.NODE_ENV !== 'production') {
+            process.exit(1);
+        }
     }
 };
 
-connectDB();
+// Retry connection
+const connectWithRetry = () => {
+    connectDB().catch(err => {
+        console.log('Failed to connect to MongoDB, retrying in 5 seconds...');
+        setTimeout(connectWithRetry, 5000);
+    });
+};
+
+connectWithRetry();
 
 // Route handlers - API routes first
 app.use('/auth', authRoutes);
@@ -115,10 +129,38 @@ app.get('*', (req, res) => {
 
 
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+        success: false,
+        message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
+    });
+});
+
 // Server start
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
     console.log(`Server running on ${HOST}:${PORT}`);
+});
+
+// Handle server errors
+server.on('error', (error) => {
+    console.error('Server error:', error);
+});
+
+// Handle unhandled rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Don't exit in production
+    if (process.env.NODE_ENV !== 'production') {
+        process.exit(1);
+    }
 });
