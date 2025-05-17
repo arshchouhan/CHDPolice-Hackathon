@@ -196,7 +196,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Route handlers for pages
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
 });
 
 app.get('/login', (req, res) => {
