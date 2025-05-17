@@ -3,78 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            background-color: #f5f5f5;
-        }
-        .signup-container {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 400px;
-        }
-        .form-group {
-            margin-bottom: 1rem;
-        }
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: bold;
-        }
-        input {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        button {
-            width: 100%;
-            padding: 0.75rem;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1rem;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .error-message {
-            color: red;
-            margin-top: 1rem;
-            display: none;
-        }
-    </style>
+    <title>Sign Up - Email Security Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 </head>
-<body>
-    <div class="signup-container">
-        <h2>Sign Up</h2>
-        <form id="signupForm">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required>
+<body class="bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-md w-full space-y-8 bg-white/10 backdrop-blur-lg p-8 rounded-xl shadow-2xl">
+        <div>
+            <div class="text-center text-white mb-6">
+                <i class="fas fa-shield-alt text-4xl text-blue-400 mb-4"></i>
+                <h2 class="text-3xl font-bold">Create Account</h2>
+                <p class="mt-2 text-sm text-gray-300">Join our platform to detect and prevent phishing attacks</p>
             </div>
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required>
+        </div>
+        <form id="signupForm" class="mt-8 space-y-6">
+            <div class="space-y-4 rounded-md">
+                <div>
+                    <label for="username" class="text-sm font-medium text-gray-300 block mb-2">
+                        <i class="fas fa-user mr-2"></i>Username
+                    </label>
+                    <input type="text" id="username" name="username" required
+                        class="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-600
+                        bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2
+                        focus:ring-blue-500 focus:border-transparent transition duration-200"
+                        placeholder="Enter your username">
+                </div>
+                <div>
+                    <label for="email" class="text-sm font-medium text-gray-300 block mb-2">
+                        <i class="fas fa-envelope mr-2"></i>Email
+                    </label>
+                    <input type="email" id="email" name="email" required
+                        class="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-600
+                        bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2
+                        focus:ring-blue-500 focus:border-transparent transition duration-200"
+                        placeholder="Enter your email">
+                </div>
+                <div>
+                    <label for="password" class="text-sm font-medium text-gray-300 block mb-2">
+                        <i class="fas fa-lock mr-2"></i>Password
+                    </label>
+                    <input type="password" id="password" name="password" required
+                        class="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-600
+                        bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2
+                        focus:ring-blue-500 focus:border-transparent transition duration-200"
+                        placeholder="Create a strong password">
+                </div>
             </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+
+            <div>
+                <button type="submit"
+                    class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium
+                    rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2
+                    focus:ring-offset-2 focus:ring-blue-500 transition duration-200">
+                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                        <i class="fas fa-user-plus text-blue-400 group-hover:text-blue-300"></i>
+                    </span>
+                    Sign Up
+                </button>
             </div>
-            <button type="submit">Sign Up</button>
-            <div id="errorMessage" class="error-message"></div>
+
+            <div id="errorMessage" class="hidden text-red-500 text-sm bg-red-100/10 p-3 rounded-lg"></div>
+
+            <div class="text-center text-sm text-gray-300">
+                Already have an account?
+                <a href="/static/login.html" class="font-medium text-blue-400 hover:text-blue-300 transition duration-200">
+                    Sign in
+                </a>
+            </div>
         </form>
     </div>
 
