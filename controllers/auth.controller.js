@@ -223,6 +223,7 @@ exports.login = async (req, res) => {
 
 exports.signup = async (req, res) => {
   try {
+    console.log('Signup attempt:', { username: req.body.username, email: req.body.email });
     const { username, email, password } = req.body;
 
     if (!username || !email || !password) {
@@ -243,8 +244,49 @@ exports.signup = async (req, res) => {
     // Create new user
     const newUser = new User({ username, email, password });
     await newUser.save();
+    console.log('New user created:', { id: newUser._id, username, email });
 
-    return res.status(201).json({ message: 'User registered successfully.' });
+    // Automatically log the user in by creating a token
+    const token = jwt.sign(
+      { id: newUser._id, role: 'user' },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Set token in cookie
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    };
+
+    // In production, set domain based on request origin
+    if (process.env.NODE_ENV === 'production') {
+      const origin = req.get('origin');
+      console.log('Request origin:', origin);
+      if (origin && origin.includes('vercel.app')) {
+        cookieOptions.domain = '.email-detection-eight.vercel.app';
+      } else if (origin && origin.includes('render.com')) {
+        cookieOptions.domain = '.onrender.com';
+      }
+    }
+
+    res.cookie('token', token, cookieOptions);
+    console.log('Cookie set on signup');
+
+    // Return success with token
+    return res.status(201).json({ 
+      success: true,
+      message: 'User registered successfully.',
+      token: token,
+      user: {
+        id: newUser._id,
+        username: newUser.username,
+        email: newUser.email,
+        role: 'user'
+      }
+    });
 
   } catch (error) {
     console.error('Signup error:', error.message);

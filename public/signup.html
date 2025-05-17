@@ -190,20 +190,32 @@
                 console.log('Signup response:', data);
                 
                 if (response.ok) {
-                    console.log('Signup successful');
-                    // Store authentication token if provided
+                    console.log('Signup successful', data);
+                    
+                    // Store authentication token
                     if (data.token) {
                         localStorage.setItem('token', data.token);
                         console.log('Token saved to localStorage');
+                        
+                        // Also save user role
+                        if (data.user && data.user.role) {
+                            localStorage.setItem('userRole', data.user.role);
+                            console.log('User role saved:', data.user.role);
+                        } else {
+                            localStorage.setItem('userRole', 'user'); // Default to user role
+                        }
                     } else {
-                        // If server didn't send token in response, create a marker
-                        localStorage.setItem('token', 'authenticated-user');
-                        console.log('Authentication marker saved to localStorage');
+                        console.warn('No token provided in signup response');
+                        // We'll redirect to login instead since we can't auto-login
+                        hideLoading();
+                        alert('Registration successful! Please log in with your new account.');
+                        window.location.href = '/login.html';
+                        return;
                     }
                     
-                    // Redirect to login or dashboard
-                    console.log('Redirecting to dashboard');
-                    window.location.href = '/dashboard';
+                    // Redirect to dashboard
+                    console.log('Auto-login successful, redirecting to dashboard');
+                    window.location.href = '/index.html';
                 } else {
                     hideLoading();
                     const message = data.message || 'Registration failed';
