@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Email Security Platform</title>
+    <title>User Dashboard - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <style>
@@ -19,40 +19,204 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .card {
+            background-color: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            border-radius: 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        .feature-icon {
+            background-color: rgba(59, 130, 246, 0.2);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+        .modal {
+            transition: opacity 0.25s ease;
+        }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 bg-gray-900">
+<body class="min-h-screen bg-gray-900">
     <!-- Background overlay with subtle pattern -->
     <div class="fixed inset-0 z-0 opacity-20" style="background-image: url('https://images.unsplash.com/photo-1544197150-b99a580bb7a8?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'); background-size: cover;"></div>
     <!-- Blue overlay for depth -->
     <div class="fixed inset-0 z-0 bg-blue-900 opacity-10"></div>
     
-    <div class="max-w-5xl w-full flex flex-col md:flex-row overflow-hidden rounded-xl shadow-2xl relative z-10">
-        <!-- Main content area -->
-        <div class="w-full bg-white/10 backdrop-blur-lg p-8 space-y-6">
-            <!-- Logo and branding in top corner -->
-            <div class="absolute top-6 left-6 flex items-center space-x-2">
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white/10 backdrop-blur-lg p-6 rounded-lg flex flex-col items-center">
+            <div class="loader mb-4"></div>
+            <p class="text-white">Processing your request...</p>
+        </div>
+    </div>
+    
+    <!-- Gmail Authorization Modal -->
+    <div id="gmailAuthModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-40 hidden flex items-center justify-center">
+        <div class="bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
+            <div class="border-b border-gray-700 px-6 py-4 flex justify-between items-center">
+                <h3 class="text-lg font-medium text-white">Connect Gmail Account</h3>
+                <button id="closeModal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="text-gray-300 text-sm">
+                    <p class="mb-4">By connecting your Gmail account, you authorize our application to:</p>
+                    <ul class="list-disc pl-5 space-y-2">
+                        <li>Scan your emails for potential phishing threats</li>
+                        <li>Analyze email headers and content for security risks</li>
+                        <li>Detect suspicious links and attachments</li>
+                        <li>Provide real-time alerts about dangerous emails</li>
+                    </ul>
+                    <p class="mt-4 text-blue-300"><i class="fas fa-lock mr-2"></i>We value your privacy and will never share your data with third parties.</p>
+                </div>
+                <div class="flex justify-center mt-6">
+                    <button id="authorizeGmailBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out flex items-center">
+                        <i class="fab fa-google mr-2"></i> Connect Gmail Account
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Container -->
+    <div class="container mx-auto px-4 py-8 relative z-10">
+        <!-- Top Navigation -->
+        <nav class="bg-white/10 backdrop-blur-lg rounded-lg p-4 mb-8 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
                 <div class="bg-blue-600 p-2 rounded-lg shadow-lg">
                     <i class="fas fa-shield-alt text-white"></i>
                 </div>
-                <span class="text-white font-bold text-sm">CHD Police</span>
+                <span class="text-white font-bold">CHD Police Email Security</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="hidden md:flex items-center space-x-1 text-gray-300 text-sm">
+                    <i class="fas fa-user-circle text-blue-400"></i>
+                    <span id="userEmail">user@example.com</span>
+                </div>
+                <button id="logoutBtn" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm font-medium transition duration-150 ease-in-out flex items-center">
+                    <i class="fas fa-sign-out-alt mr-1"></i> Logout
+                </button>
+            </div>
+        </nav>
+
+        <!-- Welcome Section -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-lg p-6 mb-8">
+            <h1 class="text-2xl font-bold text-white mb-2">Welcome to Your Email Security Dashboard</h1>
+            <p class="text-gray-300">Monitor and protect your email communications from phishing threats.</p>
+        </div>
+
+        <!-- Email Connection Status -->
+        <div id="emailConnectionStatus" class="bg-yellow-600/20 backdrop-blur-lg rounded-lg p-6 mb-8 border border-yellow-600/30">
+            <div class="flex items-start space-x-4">
+                <div class="bg-yellow-500/20 p-3 rounded-full">
+                    <i class="fas fa-exclamation-triangle text-yellow-400 text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-white mb-1">Email Account Not Connected</h3>
+                    <p class="text-gray-300 mb-4">Connect your Gmail account to enable email phishing protection.</p>
+                    <button id="connectGmailBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out flex items-center">
+                        <i class="fab fa-google mr-2"></i> Connect Gmail Account
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <h2 class="text-xl font-bold text-white mb-4">Email Protection Features</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Feature 1 -->
+            <div class="card p-6">
+                <div class="feature-icon">
+                    <i class="fas fa-search text-blue-400 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-2">Phishing Detection</h3>
+                <p class="text-gray-300 text-sm">Advanced algorithms identify suspicious emails and phishing attempts in real-time.</p>
             </div>
             
-            <div class="mt-10 text-center">
-                <div class="text-center text-white mb-6">
-                    <i class="fas fa-shield-alt text-4xl text-blue-400 mb-4"></i>
-                    <h2 class="text-3xl font-bold">Email Security Dashboard</h2>
-                    <p class="mt-2 text-sm text-gray-300">Your phishing detection portal</p>
+            <!-- Feature 2 -->
+            <div class="card p-6">
+                <div class="feature-icon">
+                    <i class="fas fa-link-slash text-blue-400 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-2">URL Analysis</h3>
+                <p class="text-gray-300 text-sm">Scans all links in your emails to detect malicious websites and prevent fraud.</p>
+            </div>
+            
+            <!-- Feature 3 -->
+            <div class="card p-6">
+                <div class="feature-icon">
+                    <i class="fas fa-bell text-blue-400 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-2">Real-time Alerts</h3>
+                <p class="text-gray-300 text-sm">Receive immediate notifications when suspicious emails are detected in your inbox.</p>
+            </div>
+        </div>
+
+        <!-- Why We Need Access Section -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-lg p-6 mb-8">
+            <h2 class="text-xl font-bold text-white mb-4">Why We Need Access to Your Email</h2>
+            
+            <div class="space-y-4">
+                <div class="flex items-start space-x-3">
+                    <div class="bg-blue-500/20 p-2 rounded-full mt-1">
+                        <i class="fas fa-shield-virus text-blue-400"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-semibold">Proactive Protection</h4>
+                        <p class="text-gray-300 text-sm">To detect and block phishing attempts before you interact with dangerous content.</p>
+                    </div>
                 </div>
                 
-                <div class="mt-12 flex justify-center">
-                    <button id="logoutBtn" class="group relative flex justify-center py-3 px-6 border border-transparent text-sm font-medium
-                        rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none transition duration-300">
-                        <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                            <i class="fas fa-sign-out-alt text-red-400 group-hover:text-red-300"></i>
-                        </span>
-                        Logout
-                    </button>
+                <div class="flex items-start space-x-3">
+                    <div class="bg-blue-500/20 p-2 rounded-full mt-1">
+                        <i class="fas fa-envelope-open-text text-blue-400"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-semibold">Content Analysis</h4>
+                        <p class="text-gray-300 text-sm">To scan email content, links, and attachments for malicious indicators.</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start space-x-3">
+                    <div class="bg-blue-500/20 p-2 rounded-full mt-1">
+                        <i class="fas fa-user-shield text-blue-400"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-semibold">Personalized Security</h4>
+                        <p class="text-gray-300 text-sm">To learn communication patterns and better identify targeted phishing attempts.</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start space-x-3">
+                    <div class="bg-blue-500/20 p-2 rounded-full mt-1">
+                        <i class="fas fa-chart-line text-blue-400"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-semibold">Threat Intelligence</h4>
+                        <p class="text-gray-300 text-sm">To provide insights about email security threats and improve protection.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 p-4 bg-blue-900/30 rounded-lg border border-blue-500/30">
+                <div class="flex items-start space-x-3">
+                    <div class="text-blue-400 mt-1">
+                        <i class="fas fa-info-circle text-lg"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-semibold">Your Privacy Matters</h4>
+                        <p class="text-gray-300 text-sm">We only analyze email metadata and content for security purposes. Your data is encrypted, never shared with third parties, and you can revoke access at any time.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -61,6 +225,160 @@
     <script>
         // Use relative URLs for API calls to work with current domain
         const BASE_URL = '';
+        
+        // Show loading overlay
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            document.getElementById('loadingOverlay').classList.add('flex');
+        }
+
+        // Hide loading overlay
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            document.getElementById('loadingOverlay').classList.remove('flex');
+        }
+        
+        // Show Gmail authorization modal
+        function showGmailAuthModal() {
+            document.getElementById('gmailAuthModal').classList.remove('hidden');
+            document.getElementById('gmailAuthModal').classList.add('flex');
+        }
+        
+        // Hide Gmail authorization modal
+        function hideGmailAuthModal() {
+            document.getElementById('gmailAuthModal').classList.add('hidden');
+            document.getElementById('gmailAuthModal').classList.remove('flex');
+        }
+        
+        // Update UI based on Gmail connection status
+        function updateGmailConnectionStatus(isConnected, email = '') {
+            const statusElement = document.getElementById('emailConnectionStatus');
+            
+            if (isConnected) {
+                // Update status card to show connected state
+                statusElement.classList.remove('bg-yellow-600/20', 'border-yellow-600/30');
+                statusElement.classList.add('bg-green-600/20', 'border-green-600/30');
+                
+                statusElement.innerHTML = `
+                    <div class="flex items-start space-x-4">
+                        <div class="bg-green-500/20 p-3 rounded-full">
+                            <i class="fas fa-check-circle text-green-400 text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-white mb-1">Gmail Account Connected</h3>
+                            <p class="text-gray-300 mb-2">Your account <span class="text-blue-300 font-medium">${email}</span> is now protected.</p>
+                            <div class="flex space-x-3">
+                                <button id="disconnectGmailBtn" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-xs font-medium transition duration-150 ease-in-out flex items-center">
+                                    <i class="fas fa-unlink mr-1"></i> Disconnect
+                                </button>
+                                <button id="scanNowBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs font-medium transition duration-150 ease-in-out flex items-center">
+                                    <i class="fas fa-search mr-1"></i> Scan Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Add event listeners to new buttons
+                document.getElementById('disconnectGmailBtn').addEventListener('click', disconnectGmail);
+                document.getElementById('scanNowBtn').addEventListener('click', scanEmails);
+                
+                // Update user email in header
+                document.getElementById('userEmail').textContent = email;
+            } else {
+                // Reset to disconnected state (default HTML)
+                statusElement.classList.remove('bg-green-600/20', 'border-green-600/30');
+                statusElement.classList.add('bg-yellow-600/20', 'border-yellow-600/30');
+                
+                statusElement.innerHTML = `
+                    <div class="flex items-start space-x-4">
+                        <div class="bg-yellow-500/20 p-3 rounded-full">
+                            <i class="fas fa-exclamation-triangle text-yellow-400 text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-white mb-1">Email Account Not Connected</h3>
+                            <p class="text-gray-300 mb-4">Connect your Gmail account to enable email phishing protection.</p>
+                            <button id="connectGmailBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out flex items-center">
+                                <i class="fab fa-google mr-2"></i> Connect Gmail Account
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                // Re-add event listener to connect button
+                document.getElementById('connectGmailBtn').addEventListener('click', showGmailAuthModal);
+            }
+        }
+        
+        // Function to handle Gmail connection
+        async function connectGmail() {
+            hideGmailAuthModal();
+            showLoading();
+            
+            try {
+                // In a real implementation, this would redirect to Google OAuth
+                // For demo purposes, we'll simulate a successful connection
+                console.log('Connecting to Gmail...');
+                
+                // Simulate API call delay
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                // Get user email from localStorage or use a default
+                const userEmail = localStorage.getItem('userEmail') || document.getElementById('userEmail').textContent;
+                
+                // Store connected status and email
+                localStorage.setItem('gmailConnected', 'true');
+                localStorage.setItem('userEmail', userEmail);
+                
+                // Update UI
+                updateGmailConnectionStatus(true, userEmail);
+                
+                hideLoading();
+            } catch (error) {
+                console.error('Gmail connection error:', error);
+                hideLoading();
+                alert('Failed to connect Gmail account. Please try again.');
+            }
+        }
+        
+        // Function to disconnect Gmail
+        async function disconnectGmail() {
+            showLoading();
+            
+            try {
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Remove connected status
+                localStorage.removeItem('gmailConnected');
+                
+                // Update UI
+                updateGmailConnectionStatus(false);
+                
+                hideLoading();
+            } catch (error) {
+                console.error('Gmail disconnection error:', error);
+                hideLoading();
+                alert('Failed to disconnect Gmail account. Please try again.');
+            }
+        }
+        
+        // Function to scan emails
+        async function scanEmails() {
+            showLoading();
+            
+            try {
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                hideLoading();
+                alert('Email scan completed. No phishing threats detected.');
+            } catch (error) {
+                console.error('Email scan error:', error);
+                hideLoading();
+                alert('Failed to scan emails. Please try again.');
+            }
+        }
 
         // Check if user is authenticated
         async function checkAuth() {
@@ -105,6 +423,13 @@
                             
                             // User token is valid, stay on user dashboard
                             localStorage.setItem('userRole', 'user');
+                            
+                            // If we have user data, update the email display
+                            if (data.user && data.user.email) {
+                                document.getElementById('userEmail').textContent = data.user.email;
+                                localStorage.setItem('userEmail', data.user.email);
+                            }
+                            
                             return;
                         } else {
                             // Token is invalid
@@ -143,6 +468,13 @@
                     
                     // Otherwise stay on user dashboard
                     localStorage.setItem('userRole', 'user');
+                    
+                    // If we have user data, update the email display
+                    if (data.user && data.user.email) {
+                        document.getElementById('userEmail').textContent = data.user.email;
+                        localStorage.setItem('userEmail', data.user.email);
+                    }
+                    
                     return;
                 }
                 
@@ -156,9 +488,30 @@
             }
         }
 
+        // Initialize the page
+        function initializePage() {
+            // Check Gmail connection status from localStorage
+            const isGmailConnected = localStorage.getItem('gmailConnected') === 'true';
+            const userEmail = localStorage.getItem('userEmail') || 'user@example.com';
+            
+            // Update UI based on connection status
+            updateGmailConnectionStatus(isGmailConnected, userEmail);
+            
+            // Event listeners for Gmail connection
+            const connectBtn = document.getElementById('connectGmailBtn');
+            if (connectBtn) {
+                connectBtn.addEventListener('click', showGmailAuthModal);
+            }
+            
+            // Modal event listeners
+            document.getElementById('closeModal').addEventListener('click', hideGmailAuthModal);
+            document.getElementById('authorizeGmailBtn').addEventListener('click', connectGmail);
+        }
+
         // Handle logout
         document.getElementById('logoutBtn').addEventListener('click', async () => {
             try {
+                showLoading();
                 const response = await fetch(`${BASE_URL}/auth/logout`, {
                     method: 'POST',
                     credentials: 'include'
@@ -166,17 +519,24 @@
 
                 if (response.ok) {
                     localStorage.removeItem('token');
+                    localStorage.removeItem('userRole');
+                    // Don't remove Gmail connection status to persist it between sessions
                     window.location.href = `${BASE_URL}/login.html`;
                 } else {
                     console.error('Logout failed');
+                    hideLoading();
                 }
             } catch (error) {
                 console.error('Logout error:', error);
+                hideLoading();
             }
         });
 
         // Check authentication when page loads
         checkAuth();
+        
+        // Initialize the page after DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', initializePage);
     </script>
 </body>
 </html>
