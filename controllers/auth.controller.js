@@ -96,9 +96,11 @@ exports.googleSignIn = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
+    console.log('Login attempt:', { email: req.body.email });
     const { email, password } = req.body;
 
     if (!email || !password) {
+      console.log('Missing credentials');
       return res.status(400).json({ message: 'Email and password are required.' });
     }
 
@@ -114,12 +116,14 @@ exports.login = async (req, res) => {
 
     // If no account found
     if (!account) {
+      console.log('Account not found:', { email });
       return res.status(404).json({ message: 'Account not found.' });
     }
 
     // Compare password
     const isMatch = await bcrypt.compare(password, account.password);
     if (!isMatch) {
+      console.log('Invalid password for:', { email });
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
@@ -141,29 +145,37 @@ exports.login = async (req, res) => {
     // In production, set domain based on request origin
     if (process.env.NODE_ENV === 'production') {
         const origin = req.get('origin');
+        console.log('Request origin:', origin);
         if (origin && origin.includes('vercel.app')) {
             cookieOptions.domain = '.email-detection-eight.vercel.app';
         } else if (origin && origin.includes('render.com')) {
             cookieOptions.domain = '.onrender.com';
         }
+        console.log('Cookie options:', cookieOptions);
     }
 
     res.cookie('token', token, cookieOptions);
+    console.log('Cookie set successfully');
 
-    return res.status(200).json({
+    const response = {
       success: true,
-      token,
       user: {
         id: account._id,
         username: account.username,
         email: account.email,
         role
       }
-    });
+    };
+    console.log('Sending response:', response);
+    return res.status(200).json(response);
 
   } catch (error) {
-    console.error('Login error:', error.message);
-    return res.status(500).json({ message: 'Server error. Please try again later.' });
+    console.error('Login error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error. Please try again later.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
