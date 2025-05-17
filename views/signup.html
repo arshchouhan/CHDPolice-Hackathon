@@ -74,6 +74,11 @@
     </div>
 
     <script>
+        // Get base URL based on environment
+        const BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000'
+            : 'https://chdpolice-hackathon.vercel.app';
+
         document.getElementById('signupForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -82,8 +87,33 @@
             const password = document.getElementById('password').value;
             const errorMessage = document.getElementById('errorMessage');
 
+            // Reset error message
+            errorMessage.classList.add('hidden');
+
+            // Basic validation
+            if (!username || !email || !password) {
+                errorMessage.textContent = 'All fields are required';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            // Email format validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                errorMessage.textContent = 'Please enter a valid email address';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            // Password strength validation
+            if (password.length < 6) {
+                errorMessage.textContent = 'Password must be at least 6 characters long';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
             try {
-                const response = await fetch('/auth/signup', {
+                const response = await fetch(`${BASE_URL}/auth/signup`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -98,15 +128,24 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    // Redirect to login page or dashboard
-                    window.location.href = '/static/login.html';
+                    // Show success message
+                    const successMessage = document.createElement('div');
+                    successMessage.className = 'text-green-500 text-sm bg-green-100/10 p-3 rounded-lg text-center';
+                    successMessage.textContent = 'Registration successful! Redirecting to login...';
+                    errorMessage.parentNode.insertBefore(successMessage, errorMessage);
+
+                    // Redirect to login page after a short delay
+                    setTimeout(() => {
+                        window.location.href = `${BASE_URL}/login`;
+                    }, 2000);
                 } else {
                     errorMessage.textContent = data.message || 'Error during signup';
-                    errorMessage.style.display = 'block';
+                    errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
-                errorMessage.textContent = 'Error connecting to server';
-                errorMessage.style.display = 'block';
+                console.error('Signup error:', error);
+                errorMessage.textContent = 'Error connecting to server. Please try again.';
+                errorMessage.classList.remove('hidden');
             }
         });
     </script>

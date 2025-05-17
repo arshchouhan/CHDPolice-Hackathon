@@ -2,23 +2,108 @@ const Admin = require('../models/Admin');
 const User = require('../models/Users');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 
 // Login controller (shared for both Admin and User)
+// Google OAuth client
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// Verify Google token
+async function verifyGoogleToken(token) {
+    try {
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID
+        });
+        return ticket.getPayload();
+    } catch (error) {
+        console.error('Error verifying Google token:', error);
+        return null;
+    }
+}
+
+// Handle Google Sign In
+exports.googleSignIn = async (req, res) => {
+    try {
+        const { credential } = req.body;
+        
+        if (!credential) {
+            return res.status(400).json({ message: 'Google credential not found' });
+        }
+
+        // Verify the token
+        const ticket = await client.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID
+        });
+        
+        const payload = ticket.getPayload();
+        if (!payload) {
+            return res.status(401).json({ message: 'Invalid Google token' });
+        }
+
+        // Check if user exists
+        let user = await User.findOne({ email: payload.email });
+
+        // If user doesn't exist, create new user
+        if (!user) {
+            user = new User({
+                username: payload.name,
+                email: payload.email,
+                password: await bcrypt.hash(Math.random().toString(36), 10), // Random password for Google users
+                googleId: payload.sub,
+                profilePicture: payload.picture
+            });
+            await user.save();
+        }
+
+        // Create session
+        req.session.userId = user._id;
+        req.session.userEmail = user.email;
+
+        // Create JWT token
+        const token = jwt.sign(
+            { id: user._id, email: user.email },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        if (res.ok) {
+            req.session.userId = user._id;
+            res.json({ token: token, redirect: '/index.html' });
+        } else {
+            return res.status(200).json({
+                token,
+                user: {
+                    id: user._id,
+                    username: user.username,
+                    email: user.email,
+                    profilePicture: user.profilePicture
+                }
+            });
+        }
+
+    } catch (error) {
+        console.error('Google sign in error:', error);
+        return res.status(500).json({ message: 'Server error during Google sign in' });
+    }
+};
+
 exports.login = async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ message: 'Username and password are required.' });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required.' });
     }
 
     // Check if the user is an admin
-    let account = await Admin.findOne({ username });
+    let account = await Admin.findOne({ email });
     let role = 'admin';
 
     // If not admin, check if it's a regular user
     if (!account) {
-      account = await User.findOne({ username });
+      account = await User.findOne({ email });
       role = 'user';
     }
 
@@ -37,13 +122,23 @@ exports.login = async (req, res) => {
     const token = jwt.sign(
       { id: account._id, role },
       process.env.JWT_SECRET,
-      { expiresIn: '1d' }
+      { expiresIn: '24h' }
     );
+
+    // Create session
+    req.session.userId = account._id;
+    req.session.userEmail = account.email;
+    req.session.userRole = role;
 
     return res.status(200).json({
       message: 'Login successful',
       token,
-      role,
+      user: {
+        id: account._id,
+        username: account.username,
+        email: account.email,
+        role
+      }
     });
 
   } catch (error) {
@@ -81,4 +176,24 @@ exports.signup = async (req, res) => {
     console.error('Signup error:', error.message);
     return res.status(500).json({ message: 'Server error. Please try again later.' });
   }
+};
+
+// Logout function
+exports.logout = (req, res) => {
+    if (!req.session) {
+        return res.status(401).json({ message: 'No active session' });
+    }
+
+    try {
+        req.session.destroy((err) => {
+            if (err) {
+                return res.status(500).json({ message: 'Error logging out' });
+            }
+            res.clearCookie('connect.sid');
+            res.json({ message: 'Logged out successfully' });
+        });
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({ message: 'Error logging out' });
+    }
 };
