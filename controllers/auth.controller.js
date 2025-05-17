@@ -25,22 +25,18 @@ async function verifyGoogleToken(token) {
 // Handle Google Sign In
 exports.googleSignIn = async (req, res) => {
     try {
-        const { code } = req.query;
+        const { access_token } = req.query;
         
-        // Exchange code for token
-        const oauth2Client = new google.auth.OAuth2(
-            process.env.GOOGLE_CLIENT_ID,
-            process.env.GOOGLE_CLIENT_SECRET,
-            'https://chdpolice-hackathon.vercel.app/auth/google/callback'
-        );
+        if (!access_token) {
+            return res.redirect('/login?error=No access token');
+        }
 
-        const { tokens } = await oauth2Client.getToken(code);
-        oauth2Client.setCredentials(tokens);
+        // Get user info using access token
+        const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${access_token}` }
+        });
 
-        // Get user info
-        const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-        const { data } = await oauth2.userinfo.get();
-
+        const data = await response.json();
         if (!data.email) {
             return res.redirect('/login?error=Invalid Google account');
         }
