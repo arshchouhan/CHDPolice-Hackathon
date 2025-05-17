@@ -41,28 +41,6 @@ const authenticateUser = (req, res, next) => {
     next();
 };
 
-// Route handlers
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-app.get('/signup', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
-});
-
-app.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Handle 404s
-app.use((req, res) => {
-    res.status(404).sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
 // CORS configuration for production
 app.use((req, res, next) => {
     const allowedOrigins = [
@@ -87,6 +65,30 @@ app.use((req, res, next) => {
     next();
 });
 
+// API Routes
+app.use('/auth', authRoutes);
+app.use('/api/users', authenticateUser, userRoutes);
+app.use('/api/admin', authenticateUser, adminRoutes);
+
+// Route handlers
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/signup', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+
+
 // Import routes
 const userRoutes = require('./routes/user.route');
 const adminRoutes = require('./routes/admin.route');
@@ -100,15 +102,12 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('Connected to MongoDB'))
 .catch(err => console.error('MongoDB connection error:', err));
 
-// API Routes
-app.use('/api/users', authenticateUser, userRoutes);
-app.use('/api/admin', authenticateUser, adminRoutes);
-app.use('/auth', authRoutes);
-
-// Serve index.html for dashboard route
-app.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Handle 404s - This should be the last route
+app.use((req, res) => {
+    res.status(404).sendFile(path.join(__dirname, 'public', 'login.html'));
 });
+
+
 
 // Server start
 const PORT = process.env.PORT || 3000;
