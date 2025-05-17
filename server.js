@@ -41,52 +41,24 @@ const authenticateUser = (req, res, next) => {
     next();
 };
 
-// Route handlers first
+// Route handlers
 app.get('/', (req, res) => {
-    if (req.session.userId) {
-        res.redirect('/dashboard');
-    } else {
-        res.sendFile(path.join(__dirname, 'public', 'login.html'));
-    }
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 // Serve signup page
 app.get(['/signup', '/signup.html'], (req, res) => {
-    if (req.session.userId) {
-        res.redirect('/dashboard');
-    } else {
-        res.sendFile(path.join(__dirname, 'views', 'signup.html'));
-    }
-});
-
-// Handle 404 for .html extensions
-app.get('*.html', (req, res) => {
-    res.redirect(req.path.replace('.html', ''));
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
 });
 
 app.get('/login', (req, res) => {
-    if (req.session.userId) {
-        res.redirect('/dashboard');
-    } else {
-        res.sendFile(path.join(__dirname, 'public', 'login.html'));
-    }
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 // Logout route
 app.get('/auth/logout', (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            console.error('Logout error:', err);
-            return res.status(500).json({ message: 'Error during logout' });
-        }
-        res.clearCookie('connect.sid');
-        res.redirect('/login');
-    });
+    res.status(200).json({ message: 'Logged out successfully' });
 });
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(path.join(__dirname, 'views')));
 
 // CORS configuration for production
 app.use((req, res, next) => {
