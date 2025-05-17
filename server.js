@@ -23,10 +23,24 @@ const adminRoutes = require('./routes/admin.route');
 const authRoutes = require('./routes/auth.route');
 
 // Enable CORS for all routes
+const allowedOrigins = [
+    'https://email-detection-eight.vercel.app',
+    'https://email-detection-api.onrender.com',
+    'http://localhost:3000'
+];
+
 app.use(cors({
-    origin: ['https://email-detection-eight.vercel.app', 'http://localhost:3000'],
+    origin: function(origin, callback) {
+        // allow requests with no origin (like mobile apps or curl requests)
+        if(!origin) return callback(null, true);
+        if(allowedOrigins.indexOf(origin) === -1){
+            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
     credentials: true
 }));
 

@@ -66,13 +66,25 @@ exports.googleSignIn = async (req, res) => {
             { expiresIn: '24h' }
         );
 
-        // Set token in cookie and redirect
-        res.cookie('token', token, {
+        // Set token in cookie
+        const cookieOptions = {
             httpOnly: true,
-            secure: true,
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            domain: '.email-detection-eight.vercel.app'
-        });
+            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        };
+
+        // In production, set domain based on request origin
+        if (process.env.NODE_ENV === 'production') {
+            const origin = req.get('origin');
+            if (origin && origin.includes('vercel.app')) {
+                cookieOptions.domain = '.email-detection-eight.vercel.app';
+            } else if (origin && origin.includes('render.com')) {
+                cookieOptions.domain = '.onrender.com';
+            }
+        }
+
+        res.cookie('token', token, cookieOptions);
 
         return res.redirect('https://email-detection-eight.vercel.app/dashboard');
 
@@ -119,12 +131,24 @@ exports.login = async (req, res) => {
     );
 
     // Set token in cookie
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      domain: '.email-detection-eight.vercel.app'
-    });
+    const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    };
+
+    // In production, set domain based on request origin
+    if (process.env.NODE_ENV === 'production') {
+        const origin = req.get('origin');
+        if (origin && origin.includes('vercel.app')) {
+            cookieOptions.domain = '.email-detection-eight.vercel.app';
+        } else if (origin && origin.includes('render.com')) {
+            cookieOptions.domain = '.onrender.com';
+        }
+    }
+
+    res.cookie('token', token, cookieOptions);
 
     return res.status(200).json({
       success: true,
@@ -178,13 +202,24 @@ exports.signup = async (req, res) => {
 exports.logout = (req, res) => {
     try {
         // Clear the token cookie
-        res.cookie('token', '', {
+        const cookieOptions = {
             httpOnly: true,
-            secure: true,
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            domain: '.email-detection-eight.vercel.app',
             expires: new Date(0)
-        });
+        };
+
+        // In production, set domain based on request origin
+        if (process.env.NODE_ENV === 'production') {
+            const origin = req.get('origin');
+            if (origin && origin.includes('vercel.app')) {
+                cookieOptions.domain = '.email-detection-eight.vercel.app';
+            } else if (origin && origin.includes('render.com')) {
+                cookieOptions.domain = '.onrender.com';
+            }
+        }
+
+        res.cookie('token', '', cookieOptions);
 
         return res.status(200).json({ message: 'Logged out successfully' });
     } catch (error) {
