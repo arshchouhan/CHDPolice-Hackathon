@@ -4,12 +4,14 @@
   "description": "Email Detection System",
   "main": "server.js",
   "engines": {
-    "node": "18.x"
+    "node": "18.x",
+    "npm": "9.x"
   },
   "scripts": {
     "start": "node server.js",
     "build": "npm install",
-    "vercel-build": "npm install"
+    "vercel-build": "npm install",
+    "render-build": "npm install"
   },
   "keywords": [],
   "author": "",
