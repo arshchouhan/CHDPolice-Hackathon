@@ -157,14 +157,14 @@ exports.login = async (req, res) => {
 
     // If no account found
     if (!account) {
-      console.log('Account not found:', { email });
+      console.log('Account not found:', { emailOrUsername });
       return res.status(404).json({ message: 'Account not found.' });
     }
 
     // Compare password
     const isMatch = await bcrypt.compare(password, account.password);
     if (!isMatch) {
-      console.log('Invalid password for:', { email });
+      console.log('Invalid password for:', { emailOrUsername });
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
@@ -200,6 +200,7 @@ exports.login = async (req, res) => {
 
     const response = {
       success: true,
+      token: token, // Include the token in the response for the client
       user: {
         id: account._id,
         username: account.username,

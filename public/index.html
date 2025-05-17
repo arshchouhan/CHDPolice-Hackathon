@@ -45,24 +45,84 @@
         // Check if user is authenticated
         async function checkAuth() {
             try {
-                // First try checking localStorage
+                // First check the userRole
+                const userRole = localStorage.getItem('userRole');
                 const token = localStorage.getItem('token');
                 
-                if (token) {
-                    console.log('Found token in localStorage');
-                    return; // Token exists, stay on dashboard
+                console.log('Checking auth status - Role:', userRole, 'Token exists:', !!token);
+                
+                // If user is an admin, they should be on admin dashboard
+                if (userRole === 'admin' && token) {
+                    console.log('Admin user detected, redirecting to admin dashboard');
+                    window.location.href = '/admin-dashboard.html';
+                    return;
                 }
                 
-                // If no token in localStorage, check with server
-                console.log('No token in localStorage, checking with server...');
-                const response = await fetch(`${BASE_URL}/auth/check-auth`, {
+                // For regular users, continue with standard auth check
+                if (token) {
+                    console.log('Found token in localStorage');
+                    
+                    // Verify the token is valid
+                    try {
+                        const response = await fetch(`${BASE_URL}/auth/check-auth`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            },
+                            credentials: 'include'
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            console.log('Auth check response:', data);
+                            
+                            // If user is admin, redirect to admin dashboard
+                            if (data.user && data.user.role === 'admin') {
+                                localStorage.setItem('userRole', 'admin');
+                                window.location.href = '/admin-dashboard.html';
+                                return;
+                            }
+                            
+                            // User token is valid, stay on user dashboard
+                            localStorage.setItem('userRole', 'user');
+                            return;
+                        } else {
+                            // Token is invalid
+                            console.log('Token validation failed');
+                            localStorage.removeItem('token');
+                            localStorage.removeItem('userRole');
+                        }
+                    } catch (verifyError) {
+                        console.error('Error verifying token:', verifyError);
+                    }
+                }
+                
+                // If no token in localStorage or validation failed, check with server cookies
+                console.log('Checking with server cookies...');
+                const cookieResponse = await fetch(`${BASE_URL}/auth/check-auth`, {
                     method: 'GET',
                     credentials: 'include' // Send cookies
                 });
                 
-                if (response.ok) {
+                if (cookieResponse.ok) {
                     // User is authenticated via cookies
-                    console.log('User authenticated via cookies');
+                    const data = await cookieResponse.json();
+                    console.log('Cookie auth check response:', data);
+                    
+                    // Store the token if provided
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                    }
+                    
+                    // If user is admin, redirect to admin dashboard
+                    if (data.user && data.user.role === 'admin') {
+                        localStorage.setItem('userRole', 'admin');
+                        window.location.href = '/admin-dashboard.html';
+                        return;
+                    }
+                    
+                    // Otherwise stay on user dashboard
+                    localStorage.setItem('userRole', 'user');
                     return;
                 }
                 
