@@ -2,7 +2,6 @@ const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
 const session = require('express-session');
-const MongoStore = require('connect-mongo');
 require('dotenv').config();
 
 const app = express();
@@ -14,15 +13,9 @@ app.use(express.json());
 app.use(session({
     secret: process.env.JWT_SECRET || 'your-secret-key',
     resave: false,
-    saveUninitialized: false,
-    store: MongoStore.create({
-        mongoUrl: process.env.MONGO_URI,
-        collectionName: 'sessions',
-        ttl: 24 * 60 * 60, // Session TTL (1 day)
-        autoRemove: 'native'
-    }),
+    saveUninitialized: true,
     cookie: {
-        secure: false, // Set to true in production with HTTPS
+        secure: false,
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000 // 1 day
     }
