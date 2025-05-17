@@ -1,14 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const requireRole = require('../middlewares/requireRole');
+const userController = require('../controllers/userController');
 
-// GET all users
-router.get('/', (req, res) => {
-    res.json({ message: 'Get all users' });
-});
-
-// POST new user
-router.post('/', (req, res) => {
-    res.json({ message: 'Create new user' });
-});
+router.get('/dashboard', requireRole('user'), userController.dashboard);
 
 module.exports = router;
