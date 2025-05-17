@@ -22,15 +22,14 @@ const corsOptions = {
             'https://email-detection-git-main-arshchouhan.vercel.app',
             'https://email-detection-arshchouhan.vercel.app',
             'https://email-detection-api.onrender.com',
-            'http://localhost:3000'
+            'https://email-detection.onrender.com',
+            'https://email-detection.public.onrender.com',
+            'http://localhost:3000',
+            '*'
         ];
-        console.log('Request origin:', origin);
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            console.log('Origin not allowed:', origin);
-            callback(new Error('Not allowed by CORS'));
-        }
+        console.log('Request origin:', origin || 'No origin (direct access)');
+        // Always allow requests - for debugging purposes
+        callback(null, true);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -55,15 +54,8 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function(origin, callback) {
-        console.log('Request origin:', origin);
-        // allow requests with no origin (like mobile apps or curl requests)
-        if(!origin) return callback(null, true);
-        if(allowedOrigins.indexOf(origin) === -1){
-            console.log('Origin not allowed:', origin);
-            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-            return callback(new Error(msg), false);
-        }
-        console.log('Origin allowed:', origin);
+        console.log('Request origin:', origin || 'No origin (direct access)');
+        // Always allow all origins for troubleshooting
         return callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
