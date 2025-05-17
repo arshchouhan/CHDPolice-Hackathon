@@ -104,7 +104,7 @@
 
                 if (response.ok) {
                     // Redirect to login page or dashboard
-                    window.location.href = '/login';
+                    window.location.href = '/static/login.html';
                 } else {
                     errorMessage.textContent = data.message || 'Error during signup';
                     errorMessage.style.display = 'block';
