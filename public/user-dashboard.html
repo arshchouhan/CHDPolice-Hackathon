@@ -3,18 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Email Security Platform</title>
+    <title>User Dashboard - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-<body class="bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen text-white">
-    <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white/10 backdrop-blur-lg p-6 rounded-xl shadow-xl flex flex-col items-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-            <p class="text-white text-lg">Loading...</p>
-        </div>
-    </div>
-
+</head>
+<body class="bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen">
     <!-- Navigation Bar -->
     <nav class="bg-gray-800/80 backdrop-blur-sm shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -22,7 +15,7 @@
                 <div class="flex items-center">
                     <div class="flex-shrink-0">
                         <i class="fas fa-shield-alt text-blue-400 mr-2"></i>
-                        <span class="text-xl font-bold">Email Security</span>
+                        <span class="text-xl font-bold text-white">Email Security</span>
                     </div>
                 </div>
                 <div class="flex items-center space-x-4">
@@ -33,7 +26,7 @@
                         </button>
                     </div>
                     <div>
-                        <span class="text-sm text-gray-300">Welcome, <span id="displayUsername" class="font-semibold text-blue-400">User</span></span>
+                        <span class="text-sm text-gray-300">Welcome, <span id="username" class="font-semibold text-blue-400">User</span></span>
                     </div>
                     <button id="logoutBtn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
                         <i class="fas fa-sign-out-alt mr-2"></i>Logout
@@ -43,6 +36,14 @@
         </div>
     </nav>
 
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white/10 backdrop-blur-lg p-6 rounded-xl shadow-xl flex flex-col items-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+            <p class="text-white text-lg">Loading...</p>
+        </div>
+    </div>
+
     <!-- Main Content -->
     <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -51,7 +52,7 @@
                 <div class="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-4">
                     <div class="space-y-4">
                         <div class="border-b border-gray-700 pb-4">
-                            <h3 class="text-lg font-semibold text-white">Dashboard</h3>
+                            <h3 class="text-lg font-semibold text-white">User Dashboard</h3>
                         </div>
                         <ul class="space-y-2">
                             <li>
@@ -69,13 +70,19 @@
                             <li>
                                 <a href="#" class="flex items-center text-gray-300 hover:text-blue-300 p-2 hover:bg-white/10 rounded-lg transition">
                                     <i class="fas fa-shield-alt w-6"></i>
-                                    <span>Security</span>
+                                    <span>Security Report</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="#" class="flex items-center text-gray-300 hover:text-blue-300 p-2 hover:bg-white/10 rounded-lg transition">
+                                    <i class="fas fa-exclamation-triangle w-6"></i>
+                                    <span>Alerts</span>
                                 </a>
                             </li>
                             <li>
                                 <a href="#" class="flex items-center text-gray-300 hover:text-blue-300 p-2 hover:bg-white/10 rounded-lg transition">
                                     <i class="fas fa-user-cog w-6"></i>
-                                    <span>Settings</span>
+                                    <span>Profile Settings</span>
                                 </a>
                             </li>
                         </ul>
@@ -85,6 +92,7 @@
 
             <!-- Main Dashboard Area -->
             <div class="lg:col-span-3 space-y-6">
+                <!-- Email Security Stats -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6">
                         <div class="flex items-center justify-between">
@@ -102,12 +110,12 @@
                     <div class="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-sm text-gray-400">Threats Detected</p>
-                                <h2 id="threatsDetected" class="text-3xl font-bold text-white">0</h2>
+                                <p class="text-sm text-gray-400">Threats Blocked</p>
+                                <h2 id="threatsBlocked" class="text-3xl font-bold text-white">0</h2>
                                 <p class="text-gray-400 text-sm mt-2">This month</p>
                             </div>
-                            <div class="bg-red-500/20 p-4 rounded-full">
-                                <i class="fas fa-shield-alt text-2xl text-red-400"></i>
+                            <div class="bg-green-500/20 p-4 rounded-full">
+                                <i class="fas fa-shield-alt text-2xl text-green-400"></i>
                             </div>
                         </div>
                     </div>
@@ -126,36 +134,60 @@
                     </div>
                 </div>
 
+                <!-- Submit Email For Analysis -->
+                <div class="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6">
+                    <h3 class="text-xl font-semibold text-white mb-4">Analyze Suspicious Email</h3>
+                    <form id="analyzeEmailForm" class="space-y-4">
+                        <div>
+                            <label for="emailSubject" class="text-sm font-medium text-gray-300 block mb-2">Subject</label>
+                            <input type="text" id="emailSubject" 
+                                class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-gray-700 text-white
+                                placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Enter email subject">
+                        </div>
+                        <div>
+                            <label for="emailContent" class="text-sm font-medium text-gray-300 block mb-2">Email Content</label>
+                            <textarea id="emailContent" rows="4"
+                                class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-gray-700 text-white
+                                placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Paste the email content here"></textarea>
+                        </div>
+                        <button type="submit" 
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg
+                            transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <i class="fas fa-search mr-2"></i>Analyze Email
+                        </button>
+                    </form>
+                </div>
+
                 <!-- Recent Activity -->
                 <div class="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6">
                     <h3 class="text-xl font-semibold text-white mb-4">Recent Activity</h3>
                     <div id="recentActivity" class="space-y-4">
                         <div class="text-center text-gray-400 py-4">
                             <i class="fas fa-inbox text-3xl mb-2"></i>
-                            <p>Your activity will appear here</p>
+                            <p>No recent activity to display</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Email Scanner -->
+                <!-- Tips Section -->
                 <div class="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6">
-                    <h3 class="text-xl font-semibold text-white mb-4">Email Analysis Tool</h3>
-                    <p class="text-gray-300 mb-6">Submit an email to check if it contains phishing threats or malicious content</p>
-                    
-                    <form id="emailScanForm" class="space-y-4">
-                        <div>
-                            <label for="emailInput" class="text-sm font-medium text-gray-300 block mb-2">Email Content</label>
-                            <textarea id="emailInput" rows="4"
-                                class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-gray-700 text-white
-                                placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Paste the suspicious email content here"></textarea>
+                    <h3 class="text-xl font-semibold text-white mb-4">Email Security Tips</h3>
+                    <div class="space-y-4">
+                        <div class="bg-blue-500/10 p-4 rounded-lg border border-blue-500/20">
+                            <h4 class="text-blue-400 font-medium mb-2">Check the Sender's Email</h4>
+                            <p class="text-gray-300 text-sm">Always verify the email address of the sender. Phishing emails often use slightly misspelled domain names to trick you.</p>
                         </div>
-                        <button type="submit" 
-                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center
-                            transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <i class="fas fa-search mr-2"></i>Scan Email
-                        </button>
-                    </form>
+                        <div class="bg-blue-500/10 p-4 rounded-lg border border-blue-500/20">
+                            <h4 class="text-blue-400 font-medium mb-2">Beware of Urgent Requests</h4>
+                            <p class="text-gray-300 text-sm">Be cautious of emails creating a sense of urgency. This is a common tactic to make you act without thinking.</p>
+                        </div>
+                        <div class="bg-blue-500/10 p-4 rounded-lg border border-blue-500/20">
+                            <h4 class="text-blue-400 font-medium mb-2">Hover Before Clicking</h4>
+                            <p class="text-gray-300 text-sm">Hover over links before clicking to see the actual URL they lead to. If it looks suspicious, don't click.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -201,8 +233,14 @@
                 
                 const userData = await response.json();
                 
+                // Check if user role is 'user'
+                if (userData.role !== 'user') {
+                    window.location.href = '/login';
+                    return;
+                }
+                
                 // Display username
-                document.getElementById('displayUsername').textContent = userData.username || 'User';
+                document.getElementById('username').textContent = userData.username || 'User';
                 
                 // Fetch dashboard data
                 fetchDashboardData();
@@ -223,13 +261,13 @@
             try {
                 // Simulate data loading (replace with actual API calls)
                 setTimeout(() => {
-                    document.getElementById('emailsScanned').textContent = '15';
-                    document.getElementById('threatsDetected').textContent = '2';
-                    document.getElementById('securityScore').textContent = '92%';
+                    document.getElementById('emailsScanned').textContent = '27';
+                    document.getElementById('threatsBlocked').textContent = '3';
+                    document.getElementById('securityScore').textContent = '85%';
+                    hideLoading();
                     
                     // Add sample activity
                     populateSampleActivity();
-                    hideLoading();
                 }, 1000);
                 
             } catch (error) {
@@ -248,15 +286,22 @@
                     icon: 'fas fa-shield-alt',
                     iconClass: 'text-green-400',
                     bgClass: 'bg-green-500/20',
-                    title: 'Email analysis completed',
-                    time: '5 minutes ago'
+                    title: 'Email scanned and verified safe',
+                    time: '2 hours ago'
                 },
                 {
-                    icon: 'fas fa-envelope',
+                    icon: 'fas fa-exclamation-triangle',
+                    iconClass: 'text-yellow-400',
+                    bgClass: 'bg-yellow-500/20',
+                    title: 'Suspicious link detected and blocked',
+                    time: 'Yesterday'
+                },
+                {
+                    icon: 'fas fa-check-circle',
                     iconClass: 'text-blue-400',
                     bgClass: 'bg-blue-500/20',
-                    title: 'New security report available',
-                    time: 'Today, 9:45 AM'
+                    title: 'Security scan completed',
+                    time: '3 days ago'
                 }
             ];
             
@@ -278,57 +323,51 @@
             });
         }
         
-        // Handle email scan form submission
-        document.getElementById('emailScanForm').addEventListener('submit', function(e) {
+        // Handle email analysis form submission
+        document.getElementById('analyzeEmailForm').addEventListener('submit', function(e) {
             e.preventDefault();
             showLoading();
             
-            const emailContent = document.getElementById('emailInput').value;
+            const emailSubject = document.getElementById('emailSubject').value;
+            const emailContent = document.getElementById('emailContent').value;
             
             // Validate form
-            if (!emailContent) {
-                alert('Please enter email content to scan');
+            if (!emailSubject || !emailContent) {
+                alert('Please fill in all fields');
                 hideLoading();
                 return;
             }
             
-            // Simulate API call for email scanning
+            // Simulate API call
             setTimeout(() => {
                 // Add result to activity
                 const activityContainer = document.getElementById('recentActivity');
                 const newActivity = document.createElement('div');
                 newActivity.className = 'border-b border-gray-700 pb-4';
-                
-                // Random result (safe or suspicious for demo purposes)
-                const isSafe = Math.random() > 0.3;
-                
                 newActivity.innerHTML = `
                     <div class="flex items-start">
-                        <div class="${isSafe ? 'bg-green-500/20' : 'bg-yellow-500/20'} p-2 rounded-full mr-3">
-                            <i class="${isSafe ? 'fas fa-check-circle text-green-400' : 'fas fa-exclamation-triangle text-yellow-400'}"></i>
+                        <div class="bg-green-500/20 p-2 rounded-full mr-3">
+                            <i class="fas fa-check-circle text-green-400"></i>
                         </div>
                         <div>
-                            <p class="text-white">Email scan completed</p>
-                            <p class="${isSafe ? 'text-green-400' : 'text-yellow-400'}">
-                                ${isSafe ? 'No threats detected' : 'Potential phishing attempt detected'}
-                            </p>
+                            <p class="text-white">Email analyzed: "${emailSubject.substring(0, 30)}${emailSubject.length > 30 ? '...' : ''}"</p>
+                            <p class="text-green-400">Result: No threats detected</p>
                             <p class="text-gray-400 text-sm">Just now</p>
                         </div>
                     </div>
                 `;
                 
-                // Insert at the beginning
+                // Add to the top of the list
                 activityContainer.innerHTML = '';
                 activityContainer.appendChild(newActivity);
-                
-                // Re-add existing activities
                 populateSampleActivity();
                 
                 // Clear form
-                document.getElementById('emailInput').value = '';
+                document.getElementById('emailSubject').value = '';
+                document.getElementById('emailContent').value = '';
                 
                 hideLoading();
-            }, 2000);
+            }, 1500);
         });
         
         // Handle logout
