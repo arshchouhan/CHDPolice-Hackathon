@@ -14,3 +14,4 @@ Thumbs.db
 
 # Optional: ignore lock file if needed
 # package-lock.json
+.vercel

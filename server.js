@@ -3,6 +3,8 @@ const path = require('path');
 
 const app = express();
 
+const RENDER_URL = "https://chdpolice-hackathon.onrender.com";
+
 // Middleware
 app.use(express.json());
 
