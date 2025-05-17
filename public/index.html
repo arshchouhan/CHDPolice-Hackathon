@@ -45,14 +45,34 @@
         // Check if user is authenticated
         async function checkAuth() {
             try {
+                // First try checking localStorage
                 const token = localStorage.getItem('token');
-                if (!token) {
-                    window.location.href = `${BASE_URL}/login.html`;
+                
+                if (token) {
+                    console.log('Found token in localStorage');
+                    return; // Token exists, stay on dashboard
+                }
+                
+                // If no token in localStorage, check with server
+                console.log('No token in localStorage, checking with server...');
+                const response = await fetch(`${BASE_URL}/auth/check-auth`, {
+                    method: 'GET',
+                    credentials: 'include' // Send cookies
+                });
+                
+                if (response.ok) {
+                    // User is authenticated via cookies
+                    console.log('User authenticated via cookies');
                     return;
                 }
+                
+                // If neither method authenticated the user, redirect to login
+                console.log('Not authenticated, redirecting to login');
+                window.location.href = `${BASE_URL}/login.html`;
             } catch (error) {
                 console.error('Auth check error:', error);
-                window.location.href = `${BASE_URL}/login.html`;
+                // Don't redirect immediately on error
+                // The server might be temporarily unavailable
             }
         }
 

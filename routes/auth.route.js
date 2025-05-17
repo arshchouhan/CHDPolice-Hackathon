@@ -19,5 +19,6 @@ router.post('/login', asyncHandler(authController.login));  // Single route to h
 router.post('/signup', asyncHandler(authController.signup)); // Route for user registration
 router.post('/google', asyncHandler(authController.googleSignIn)); // Route for Google Sign-In
 router.post('/logout', asyncHandler(authController.logout)); // Route for logout
+router.get('/check-auth', asyncHandler(authController.checkAuth)); // Route to check authentication status
 
 module.exports = router;
