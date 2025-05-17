@@ -7,7 +7,9 @@ services:
     buildCommand: npm install
     startCommand: npm start
     autoDeploy: true
-    healthCheckPath: /
+    healthCheckPath: /health
+    healthCheckTimeout: 180
+    pullRequestPreviewsEnabled: false
     envVars:
       - key: NODE_ENV
         value: production

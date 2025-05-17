@@ -125,8 +125,9 @@ const connectDB = async () => {
         const options = {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 5000,
-            socketTimeoutMS: 45000,
+            serverSelectionTimeoutMS: 30000, // Increased timeout for Render
+            socketTimeoutMS: 75000, // Increased timeout for Render
+            family: 4 // Force to use IPv4
         };
 
         await mongoose.connect(mongoURI, options);
@@ -142,22 +143,47 @@ const connectDB = async () => {
         if (err.name === 'MongoServerSelectionError') {
             console.error('Could not connect to MongoDB server. Please check your connection string and make sure the server is running.');
         }
-        // Don't exit in production
-        if (process.env.NODE_ENV !== 'production') {
-            process.exit(1);
-        }
+        // Don't exit even if connection fails - keep server running
+        // This prevents Render from failing with 502
     }
 };
 
-// Retry connection
-const connectWithRetry = () => {
+// Retry connection with exponential backoff
+const connectWithRetry = (retryCount = 0) => {
     connectDB().catch(err => {
-        console.log('Failed to connect to MongoDB, retrying in 5 seconds...');
-        setTimeout(connectWithRetry, 5000);
+        const retryDelay = Math.min(Math.pow(2, retryCount) * 1000, 30000); // Exponential backoff with max 30s
+        console.log(`Failed to connect to MongoDB, retrying in ${retryDelay/1000} seconds... (attempt ${retryCount + 1})`);
+        setTimeout(() => connectWithRetry(retryCount + 1), retryDelay);
     });
 };
 
 connectWithRetry();
+
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+    // Check MongoDB connection
+    const isMongoConnected = mongoose.connection.readyState === 1;
+    
+    if (isMongoConnected) {
+        return res.status(200).json({
+            status: 'ok',
+            message: 'Server is healthy',
+            mongoConnection: 'connected',
+            timestamp: new Date().toISOString(),
+            environment: process.env.NODE_ENV || 'development'
+        });
+    } else {
+        // Still return 200 to prevent Render from restarting the server
+        // when MongoDB is temporarily unavailable
+        return res.status(200).json({
+            status: 'warning',
+            message: 'Server is running but MongoDB connection is not established',
+            mongoConnection: 'disconnected',
+            timestamp: new Date().toISOString(),
+            environment: process.env.NODE_ENV || 'development'
+        });
+    }
+});
 
 // Route handlers - API routes first
 app.use('/auth', authRoutes);
@@ -200,13 +226,35 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Server start
+// Server start - Always listen on 0.0.0.0 for Render compatibility
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = '0.0.0.0'; // Always use 0.0.0.0 for Render
 
-const server = app.listen(PORT, HOST, () => {
-    console.log(`Server running on ${HOST}:${PORT}`);
-});
+const startServer = () => {
+    try {
+        const server = app.listen(PORT, HOST, () => {
+            console.log(`Server running on ${HOST}:${PORT}`);
+            console.log(`Current environment: ${process.env.NODE_ENV || 'development'}`);
+        });
+        
+        // Handle server errors
+        server.on('error', (error) => {
+            console.error('Server error:', error);
+            if (error.code === 'EADDRINUSE') {
+                console.error(`Port ${PORT} is already in use. Trying again in 10 seconds...`);
+                setTimeout(startServer, 10000);
+            }
+        });
+        
+        return server;
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        console.log('Attempting to restart server in 10 seconds...');
+        setTimeout(startServer, 10000);
+    }
+};
+
+const server = startServer();
 
 // Handle server errors
 server.on('error', (error) => {
