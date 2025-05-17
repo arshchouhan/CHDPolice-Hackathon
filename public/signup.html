@@ -1,133 +1,242 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - Email Detection</title>
+    <title>Sign Up - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <script src="https://accounts.google.com/gsi/client" async></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            text-align: center;
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
         }
-        .container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .form-container {
-            width: 100%;
-            max-width: 400px;
-            margin-top: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-            text-align: left;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            width: 100%;
-            padding: 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        .error {
-            color: red;
-            margin-top: 10px;
-        }
-        .login-link {
-            margin-top: 15px;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1 class="text-2xl font-bold mb-4">Sign Up for Email Detection Service</h1>
-        
-        <div class="form-container">
-            <form id="signupForm">
-                <div class="form-group">
-                    <label for="username">Username:</label>
-                    <input type="text" id="username" name="username" required>
+
+<body class="bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen flex items-center justify-center p-4">
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white/10 backdrop-blur-lg p-6 rounded-lg flex flex-col items-center">
+            <div class="loader mb-4"></div>
+            <p class="text-white">Creating your account...</p>
+        </div>
+    </div>
+
+    <div class="max-w-md w-full space-y-8 bg-white/10 backdrop-blur-lg p-8 rounded-xl shadow-2xl">
+        <div>
+            <div class="text-center text-white mb-6">
+                <i class="fas fa-user-plus text-4xl text-blue-400 mb-4"></i>
+                <h2 class="text-3xl font-bold">Create Account</h2>
+                <p class="mt-2 text-sm text-gray-300">Join our phishing detection platform</p>
+            </div>
+            <div class="flex justify-center space-x-4 mb-6">
+                <div class="text-center">
+                    <i class="fas fa-envelope-shield text-2xl text-blue-400 mb-2"></i>
+                    <p class="text-xs text-gray-400">Email<br>Protection</p>
                 </div>
-                
-                <div class="form-group">
-                    <label for="email">Email:</label>
-                    <input type="email" id="email" name="email" required>
+                <div class="text-center">
+                    <i class="fas fa-virus-slash text-2xl text-blue-400 mb-2"></i>
+                    <p class="text-xs text-gray-400">Threat<br>Detection</p>
                 </div>
-                
-                <div class="form-group">
-                    <label for="password">Password:</label>
-                    <input type="password" id="password" name="password" required>
+                <div class="text-center">
+                    <i class="fas fa-lock text-2xl text-blue-400 mb-2"></i>
+                    <p class="text-xs text-gray-400">Secure<br>Access</p>
                 </div>
-                
-                <button type="submit" class="bg-blue-500 hover:bg-blue-700">Sign Up</button>
-            </form>
-            
-            <div id="errorMessage" class="error"></div>
-            
-            <div class="login-link">
-                Already have an account? <a href="/login.html" class="text-blue-500">Log In</a>
             </div>
         </div>
+
+        <form id="signupForm" class="mt-8 space-y-6">
+            <div class="space-y-4 rounded-md">
+                <div>
+                    <label for="username" class="text-sm font-medium text-gray-300 block mb-2">
+                        <i class="fas fa-user mr-2"></i>Username
+                    </label>
+                    <input type="text" id="username" name="username" placeholder="Username" required
+                        class="w-full px-4 py-2 rounded bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none"
+                        autocomplete="username">
+                </div>
+
+                <div>
+                    <label for="email" class="text-sm font-medium text-gray-300 block mb-2">
+                        <i class="fas fa-envelope mr-2"></i>Email
+                    </label>
+                    <input type="email" id="email" name="email" placeholder="Email" required
+                        class="w-full px-4 py-2 rounded bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none"
+                        autocomplete="email">
+                </div>
+
+                <div>
+                    <label for="password" class="text-sm font-medium text-gray-300 block mb-2">
+                        <i class="fas fa-lock mr-2"></i>Password
+                    </label>
+                    <div class="relative">
+                        <input type="password" id="password" name="password" placeholder="Password" required
+                            autocomplete="new-password"
+                            class="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-600
+                            bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2
+                            focus:ring-blue-500 focus:border-transparent transition duration-200">
+                        <button type="button" id="togglePassword" 
+                            class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <button type="submit"
+                    class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium
+                    rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition duration-300
+                    disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                        <i class="fas fa-user-plus text-blue-400 group-hover:text-blue-300"></i>
+                    </span>
+                    Create Account
+                </button>
+            </div>
+
+            <div id="errorMessage" class="hidden text-red-400 text-center text-sm"></div>
+
+            <div class="text-center text-sm mt-6">
+                <p class="text-gray-400">
+                    Already have an account?
+                    <a href="/login.html" class="font-medium text-blue-400 hover:text-blue-300 transition duration-200">
+                        Sign in instead
+                    </a>
+                </p>
+            </div>
+        </form>
     </div>
     
     <script>
-        // Use relative URLs for API calls to work with both Render and Vercel
+        // Use relative URLs for all API calls to work with any deployment
+        const BASE_URL = '';
+        
+        console.log('Using relative URLs for API calls');
+
+        // Show loading overlay
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            document.getElementById('loadingOverlay').classList.add('flex');
+        }
+
+        // Hide loading overlay
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            document.getElementById('loadingOverlay').classList.remove('flex');
+        }
+
+        // Check if user is already logged in
+        async function checkAuthStatus() {
+            try {
+                const token = localStorage.getItem('token');
+                if (token) {
+                    // Already logged in, redirect to dashboard
+                    window.location.href = '/dashboard';
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+            }
+        }
+        
+        // Handle form submission
         const signupForm = document.getElementById('signupForm');
         const errorMessage = document.getElementById('errorMessage');
         
         signupForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            showLoading();
             errorMessage.textContent = '';
+            errorMessage.classList.add('hidden');
             
             const username = document.getElementById('username').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             
+            if (!username || !email || !password) {
+                hideLoading();
+                errorMessage.textContent = 'All fields are required';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+            
             try {
-                const response = await fetch('/auth/register', {
+                console.log('Attempting signup to:', `${BASE_URL}/auth/signup`);
+
+                const response = await fetch(`${BASE_URL}/auth/signup`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ username, email, password }),
-                    credentials: 'include'
+                    credentials: 'include',
+                    body: JSON.stringify({ username, email, password })
                 });
                 
+                console.log('Response status:', response.status);
+                
                 const data = await response.json();
+                console.log('Signup response:', data);
                 
                 if (response.ok) {
-                    localStorage.setItem('token', data.token);
+                    console.log('Signup successful');
+                    // Store authentication token if provided
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                        console.log('Token saved to localStorage');
+                    } else {
+                        // If server didn't send token in response, create a marker
+                        localStorage.setItem('token', 'authenticated-user');
+                        console.log('Authentication marker saved to localStorage');
+                    }
+                    
+                    // Redirect to login or dashboard
+                    console.log('Redirecting to dashboard');
                     window.location.href = '/dashboard';
                 } else {
-                    errorMessage.textContent = data.message || 'Registration failed';
+                    hideLoading();
+                    const message = data.message || 'Registration failed';
+                    console.error('Signup failed:', message);
+                    errorMessage.textContent = message;
+                    errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Signup error:', error);
-                errorMessage.textContent = 'An error occurred. Please try again.';
+                hideLoading();
+                errorMessage.textContent = 'Error connecting to server. Please try again.';
+                errorMessage.classList.remove('hidden');
             }
         });
+
+        // Password visibility toggle
+        document.getElementById('togglePassword').addEventListener('click', function() {
+            const password = document.getElementById('password');
+            const icon = this.querySelector('i');
+            
+            if (password.type === 'password') {
+                password.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                password.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        });
+
+        // Check auth status on page load
+        checkAuthStatus();
     </script>
 </body>
 </html>
