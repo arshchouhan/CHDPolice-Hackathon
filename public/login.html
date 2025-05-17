@@ -145,13 +145,8 @@
                 });
 
                 const data = await res.json();
-                if (res.ok) {
-                    localStorage.setItem('token', data.token);
-                    if (data.redirect) {
-                        window.location.href = data.redirect;
-                    } else {
-                        window.location.href = '/index.html';
-                    }
+                if (res.ok && data.success) {
+                    window.location.href = data.redirect;
                 } else {
         
                     const errorMessage = document.getElementById('errorMessage');

@@ -2,9 +2,17 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
 
-router.post('/login', authController.login);  // Single route to handle both roles
-router.post('/signup', authController.signup); // Route for user registration
-router.post('/google', authController.googleSignIn); // Route for Google Sign-In
-router.post('/logout', authController.logout); // Route for logout
+// Google Sign-In route
+router.post('/google', authController.googleSignIn);
+
+// Regular authentication routes
+router.post('/login', authController.login);
+router.post('/signup', authController.signup);
+router.get('/logout', authController.logout);
+
+// Redirect after successful login
+router.get('/success', (req, res) => {
+    res.redirect('/index.html');
+});
 
 module.exports = router;
