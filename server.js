@@ -49,6 +49,7 @@ const authRoutes = require('./routes/auth.route');
 const allowedOrigins = [
     'https://email-detection-eight.vercel.app',
     'https://email-detection-api.onrender.com',
+    'https://email-detection.onrender.com',  // Added potential alternative URL
     'http://localhost:3000'
 ];
 
