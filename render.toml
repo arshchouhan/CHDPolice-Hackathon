@@ -1,0 +1,19 @@
+[build]
+  # Build command to run
+  command = "npm install"
+
+[start]
+  # Command to start the application
+  command = "node server.js"
+  
+[http]
+  # The port your application listens on
+  port = 3000
+  
+[static]
+  # Directory containing static files
+  dir = "public"
+  
+[env]
+  NODE_ENV = "production"
+  HOST = "0.0.0.0"
