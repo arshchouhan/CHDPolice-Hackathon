@@ -22,6 +22,14 @@ const userRoutes = require('./routes/user.route');
 const adminRoutes = require('./routes/admin.route');
 const authRoutes = require('./routes/auth.route');
 
+// Enable CORS for all routes
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
+
 // API Routes first
 app.use('/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -98,7 +106,8 @@ app.get('*', (req, res) => {
 
 // Server start
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Server URL: http://localhost:${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+    console.log(`Server running on ${HOST}:${PORT}`);
 });
