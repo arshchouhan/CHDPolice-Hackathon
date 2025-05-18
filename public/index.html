@@ -582,27 +582,41 @@
             showLoading();
             
             try {
+                console.log('Attempting to disconnect Gmail account...');
+                
                 // Call the disconnect endpoint
                 const response = await fetch(`${BASE_URL}/api/gmail/disconnect`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include' // Include cookies for cross-origin requests
                 });
                 
+                console.log('Disconnect response status:', response.status);
+                
                 if (!response.ok) {
-                    throw new Error('Failed to disconnect Gmail account');
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error('Disconnect error details:', errorData);
+                    throw new Error(`Failed to disconnect Gmail account: ${errorData.message || response.statusText}`);
                 }
+                
+                // Clear Gmail connection status in localStorage
+                localStorage.removeItem('gmailConnected');
                 
                 // Update UI
                 updateGmailConnectionStatus(false);
                 
                 hideLoading();
                 alert('Gmail account disconnected successfully');
+                
+                // Refresh the page to update the UI completely
+                window.location.reload();
             } catch (error) {
                 console.error('Gmail disconnection error:', error);
                 hideLoading();
-                alert('Failed to disconnect Gmail account. Please try again.');
+                alert(`Failed to disconnect Gmail account: ${error.message}`);
             }
         }
         
@@ -755,23 +769,44 @@
         document.getElementById('logoutBtn').addEventListener('click', async () => {
             try {
                 showLoading();
+                console.log('Attempting to logout...');
+                
                 const response = await fetch(`${BASE_URL}/auth/logout`, {
                     method: 'POST',
-                    credentials: 'include'
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    credentials: 'include' // Include cookies for cross-origin requests
                 });
-
-                if (response.ok) {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('userRole');
-                    // Don't remove Gmail connection status to persist it between sessions
+                
+                console.log('Logout response status:', response.status);
+                
+                // Always clear local storage regardless of response
+                localStorage.removeItem('token');
+                localStorage.removeItem('userRole');
+                localStorage.removeItem('gmailConnected');
+                
+                // Force redirect to login page with absolute URL
+                if (BASE_URL) {
                     window.location.href = `${BASE_URL}/login.html`;
                 } else {
-                    console.error('Logout failed');
-                    hideLoading();
+                    window.location.href = '/login.html';
                 }
             } catch (error) {
                 console.error('Logout error:', error);
-                hideLoading();
+                
+                // Even if there's an error, clear storage and redirect
+                localStorage.removeItem('token');
+                localStorage.removeItem('userRole');
+                localStorage.removeItem('gmailConnected');
+                
+                // Force redirect to login page with absolute URL
+                if (BASE_URL) {
+                    window.location.href = `${BASE_URL}/login.html`;
+                } else {
+                    window.location.href = '/login.html';
+                }
             }
         });
 
