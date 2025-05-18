@@ -540,21 +540,43 @@
                     </div>
                 `;
                 
+                // Re-add event listener to connect button
+                document.getElementById('connectGmailBtn').addEventListener('click', showGmailAuthModal);
+            }
+        }
+        
+        // Function to handle Gmail connection
+        async function connectGmail() {
+            hideGmailAuthModal();
+            showLoading();
+            
+            try {
+                // Get the OAuth URL from our backend
+                const response = await fetch(`${BASE_URL}/api/gmail/auth-url`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
                 
-                if (profileResponse.ok) {
-                    const profileData = await profileResponse.json();
-                    updateGmailConnectionStatus(true, profileData.user.email);
-                    
-                    // Show emails section if connected
-                    document.getElementById('emailsSection').classList.remove('hidden');
-                    loadUserEmails();
+                if (!response.ok) {
+                    throw new Error('Failed to get authentication URL');
                 }
-            } else {
+                
+                const data = await response.json();
+                
+                // Redirect to Google OAuth consent screen
+                window.location.href = data.authUrl;
+                
+            } catch (error) {
+                console.error('Gmail connection error:', error);
+                hideLoading();
+                alert('Failed to connect Gmail account. Please try again.');
+            }
+        }
+        
+        // Function to disconnect Gmail
+        async function disconnectGmail() {
             showLoading();
             
             try {
