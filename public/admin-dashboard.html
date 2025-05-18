@@ -346,10 +346,10 @@
     </div>
 
     <script>
-        // Base URL for API requests - detect environment
+        // Base URL for API calls
         const BASE_URL = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3000' 
-            : 'https://email-detection-api.onrender.com';
+            ? 'http://localhost:3000'
+            : window.location.origin;
         
         // Email analysis variables
         let currentEmailPage = 1;
