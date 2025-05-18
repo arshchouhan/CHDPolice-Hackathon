@@ -320,7 +320,14 @@
 
     <script>
         // Use relative URLs for API calls to work with current domain
-        const BASE_URL = '';
+        // Base URL for API calls
+        const BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000'
+            : window.location.hostname.includes('vercel.app')
+                ? 'https://chd-police-hackathon.vercel.app'
+                : window.location.hostname.includes('onrender.com')
+                    ? 'https://email-detection-api.onrender.com'
+                    : window.location.origin; // Fallback to current origin
         
         // Show loading overlay
         function showLoading() {
@@ -564,6 +571,15 @@
                 }
                 
                 const data = await response.json();
+                
+                // Base URL for API calls
+                const BASE_URL = window.location.hostname === 'localhost' 
+                    ? 'http://localhost:3000'
+                    : window.location.hostname.includes('vercel.app')
+                        ? 'https://chd-police-hackathon.vercel.app'
+                        : window.location.hostname.includes('onrender.com')
+                            ? 'https://email-detection-api.onrender.com'
+                            : window.location.origin; // Fallback to current origin
                 
                 // Redirect to Google OAuth consent screen
                 window.location.href = data.authUrl;

@@ -2,33 +2,68 @@ const { google } = require('googleapis');
 const User = require('../models/Users');
 const Email = require('../models/Email');
 
-// Configure OAuth2 client
+// Configure OAuth2 client with dynamic redirect URI based on environment
+const getRedirectUri = () => {
+  // Check if we're in production or development
+  const isProd = process.env.NODE_ENV === 'production';
+  
+  if (isProd) {
+    // Use the production URL from environment variable or default to Render domain
+    return process.env.PROD_REDIRECT_URI || 'https://email-detection-api.onrender.com/api/gmail/callback';
+  } else {
+    // Use the development URL
+    return process.env.DEV_REDIRECT_URI || 'http://localhost:3000/api/gmail/callback';
+  }
+};
+
+// Create OAuth client with dynamic redirect URI
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  process.env.REDIRECT_URI
+  getRedirectUri()
 );
 
 // Generate Gmail OAuth URL
 exports.getAuthUrl = (req, res) => {
   try {
-    // Log environment variables (without exposing secrets)
+    // Log environment variables and configuration (without exposing secrets)
     console.log('OAuth2 Configuration Check:');
     console.log('GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID);
     console.log('GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET);
-    console.log('REDIRECT_URI:', process.env.REDIRECT_URI);
+    console.log('Environment:', process.env.NODE_ENV || 'development');
+    console.log('Current Redirect URI:', getRedirectUri());
     
-    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.REDIRECT_URI) {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
       console.error('Missing required OAuth2 environment variables');
       return res.status(500).json({ 
         message: 'OAuth configuration error', 
-        details: 'Missing required environment variables for Google OAuth2' 
+        details: 'Missing required environment variables for Google OAuth2',
+        missingVars: {
+          clientId: !process.env.GOOGLE_CLIENT_ID,
+          clientSecret: !process.env.GOOGLE_CLIENT_SECRET
+        }
+      });
+    }
+    
+    // Check if user exists and is authenticated
+    if (!req.user || !req.user.id) {
+      console.error('User not authenticated or missing ID');
+      return res.status(401).json({
+        message: 'Authentication required',
+        details: 'You must be logged in to connect Gmail'
       });
     }
     
     const scopes = ['https://www.googleapis.com/auth/gmail.readonly'];
     
-    const authUrl = oauth2Client.generateAuthUrl({
+    // Create a new OAuth client with the current redirect URI to ensure it's up to date
+    const currentOAuth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      getRedirectUri()
+    );
+    
+    const authUrl = currentOAuth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent', // Force to get refresh token
@@ -37,13 +72,19 @@ exports.getAuthUrl = (req, res) => {
     });
     
     console.log('Generated Auth URL:', authUrl);
+    console.log('User ID in state:', req.user.id);
     
-    res.status(200).json({ authUrl });
+    res.status(200).json({ 
+      authUrl,
+      redirectUri: getRedirectUri(),
+      environment: process.env.NODE_ENV || 'development'
+    });
   } catch (error) {
     console.error('Error generating auth URL:', error);
     res.status(500).json({ 
       message: 'Failed to generate authentication URL',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
     });
   }
 };
