@@ -320,8 +320,23 @@
 
     <script>
         // Use relative URLs for API calls to work with current domain
-        // Using production environment only
-        const BASE_URL = 'https://email-detection-api.onrender.com';
+        // Enhanced BASE_URL determination with better error handling
+        const getBaseUrl = () => {
+            const hostname = window.location.hostname;
+            
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://localhost:3000';
+            } else if (hostname.includes('vercel.app')) {
+                return 'https://chd-police-hackathon.vercel.app';
+            } else if (hostname.includes('onrender.com')) {
+                return 'https://email-detection-api.onrender.com';
+            } else {
+                return window.location.origin;
+            }
+        };
+        
+        // Initialize BASE_URL
+        const BASE_URL = getBaseUrl();
         
         // Show loading overlay
         function showLoading() {

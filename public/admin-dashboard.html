@@ -346,8 +346,14 @@
     </div>
 
     <script>
-        // Using production environment only
-        const BASE_URL = 'https://email-detection-api.onrender.com';
+        // Base URL for API calls
+        const BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000'
+            : window.location.hostname.includes('vercel.app')
+                ? 'https://chd-police-hackathon.vercel.app'
+                : window.location.hostname.includes('onrender.com')
+                    ? 'https://email-detection-api.onrender.com'
+                    : window.location.origin; // Fallback to current origin
         
         // Email analysis variables
         let currentEmailPage = 1;
