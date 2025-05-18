@@ -348,17 +348,6 @@ function calculateRiskLevel(score) {
 // Disconnect Gmail
 exports.disconnectGmail = async (req, res) => {
   try {
-    console.log('Disconnect Gmail request received');
-    console.log('Request user:', req.user);
-    
-    if (!req.user || !req.user.id) {
-      console.error('No user ID found in request');
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authentication required' 
-      });
-    }
-    
     const userId = req.user.id;
     console.log('Disconnecting Gmail for user:', userId);
     
@@ -366,30 +355,18 @@ exports.disconnectGmail = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) {
       console.error('User not found for Gmail disconnection:', userId);
-      return res.status(404).json({ 
-        success: false,
-        message: 'User not found' 
-      });
+      return res.status(404).json({ message: 'User not found' });
     }
-    
-    console.log('Current Gmail connection status:', user.gmail_connected);
     
     // Update user to remove Gmail connection
     const updatedUser = await User.findByIdAndUpdate(userId, {
       gmail_access_token: null,
       gmail_refresh_token: null,
       gmail_token_expiry: null,
-      gmail_connected: false,
-      last_email_sync: null
+      gmail_connected: false
     }, { new: true });
     
     console.log('Gmail disconnected successfully for user:', userId);
-    console.log('Updated user Gmail connection status:', updatedUser.gmail_connected);
-    
-    // Set CORS headers for cross-origin requests
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     
     res.status(200).json({ 
       success: true,

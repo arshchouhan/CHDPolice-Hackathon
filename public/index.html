@@ -319,10 +319,8 @@
         </div>
 
     <script>
-        // Set the API base URL based on environment
-        const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? '' // Empty for local development (same origin)
-            : 'https://email-detection-api.onrender.com'; // Render backend URL for production
+        // Use relative URLs for API calls to work with current domain
+        const BASE_URL = '';
         
         // Show loading overlay
         function showLoading() {
@@ -582,41 +580,27 @@
             showLoading();
             
             try {
-                console.log('Attempting to disconnect Gmail account...');
-                
                 // Call the disconnect endpoint
                 const response = await fetch(`${BASE_URL}/api/gmail/disconnect`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include' // Include cookies for cross-origin requests
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
                 });
                 
-                console.log('Disconnect response status:', response.status);
-                
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    console.error('Disconnect error details:', errorData);
-                    throw new Error(`Failed to disconnect Gmail account: ${errorData.message || response.statusText}`);
+                    throw new Error('Failed to disconnect Gmail account');
                 }
-                
-                // Clear Gmail connection status in localStorage
-                localStorage.removeItem('gmailConnected');
                 
                 // Update UI
                 updateGmailConnectionStatus(false);
                 
                 hideLoading();
                 alert('Gmail account disconnected successfully');
-                
-                // Refresh the page to update the UI completely
-                window.location.reload();
             } catch (error) {
                 console.error('Gmail disconnection error:', error);
                 hideLoading();
-                alert(`Failed to disconnect Gmail account: ${error.message}`);
+                alert('Failed to disconnect Gmail account. Please try again.');
             }
         }
         
@@ -769,44 +753,23 @@
         document.getElementById('logoutBtn').addEventListener('click', async () => {
             try {
                 showLoading();
-                console.log('Attempting to logout...');
-                
                 const response = await fetch(`${BASE_URL}/auth/logout`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    credentials: 'include' // Include cookies for cross-origin requests
+                    credentials: 'include'
                 });
-                
-                console.log('Logout response status:', response.status);
-                
-                // Always clear local storage regardless of response
-                localStorage.removeItem('token');
-                localStorage.removeItem('userRole');
-                localStorage.removeItem('gmailConnected');
-                
-                // Force redirect to login page with absolute URL
-                if (BASE_URL) {
+
+                if (response.ok) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('userRole');
+                    // Don't remove Gmail connection status to persist it between sessions
                     window.location.href = `${BASE_URL}/login.html`;
                 } else {
-                    window.location.href = '/login.html';
+                    console.error('Logout failed');
+                    hideLoading();
                 }
             } catch (error) {
                 console.error('Logout error:', error);
-                
-                // Even if there's an error, clear storage and redirect
-                localStorage.removeItem('token');
-                localStorage.removeItem('userRole');
-                localStorage.removeItem('gmailConnected');
-                
-                // Force redirect to login page with absolute URL
-                if (BASE_URL) {
-                    window.location.href = `${BASE_URL}/login.html`;
-                } else {
-                    window.location.href = '/login.html';
-                }
+                hideLoading();
             }
         });
 

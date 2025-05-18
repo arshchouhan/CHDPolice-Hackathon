@@ -347,9 +347,9 @@
 
     <script>
         // Base URL for API calls
-        const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? '' // Empty for local development (same origin)
-            : 'https://email-detection-api.onrender.com'; // Render backend URL for production
+        const BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000'
+            : window.location.origin;
         
         // Email analysis variables
         let currentEmailPage = 1;

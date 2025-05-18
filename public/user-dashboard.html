@@ -238,10 +238,10 @@
     </div>
 
     <script>
-        // Set the API base URL based on environment
-        const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? '' // Empty for local development (same origin)
-            : 'https://email-detection-api.onrender.com'; // Render backend URL for production
+        // Get base URL based on environment
+        const BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000'
+            : window.location.origin;
         
         let currentUser = null;
         let currentPage = 1;

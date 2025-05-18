@@ -48,46 +48,25 @@ const gmailRoutes = require('./routes/gmail.route');
 // Enable CORS for all routes
 const allowedOrigins = [
     'https://email-detection-eight.vercel.app',
-    'https://chd-police-hackathon.vercel.app',
     'https://email-detection-api.onrender.com',
-    'https://email-detection.onrender.com',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000'
+    'https://email-detection.onrender.com',  // Added potential alternative URL
+    'http://localhost:3000'
 ];
 
 app.use(cors({
     origin: function(origin, callback) {
         console.log('Request origin:', origin || 'No origin (direct access)');
-        // Check if origin is in allowedOrigins or if it's null (direct access)
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            console.log('Allowing unknown origin for development:', origin);
-            callback(null, true); // Allow all origins for now
-        }
+        // Always allow all origins for troubleshooting
+        return callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
     exposedHeaders: ['Set-Cookie'],
-    credentials: true,
-    maxAge: 86400 // 24 hours
+    credentials: true
 }));
 
 // Add cookie parser
 app.use(cookieParser());
-
-// Handle CORS preflight requests
-app.options('*', cors());
-
-// Add specific CORS headers for all responses
-app.use((req, res, next) => {
-    // Allow requests from any origin
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    next();
-});
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
