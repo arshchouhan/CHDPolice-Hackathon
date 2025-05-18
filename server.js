@@ -43,6 +43,7 @@ app.use(cors(corsOptions));
 const userRoutes = require('./routes/user.route');
 const adminRoutes = require('./routes/admin.route');
 const authRoutes = require('./routes/auth.route');
+const gmailRoutes = require('./routes/gmail.route');
 
 // Enable CORS for all routes
 const allowedOrigins = [
@@ -74,6 +75,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/gmail', gmailRoutes);
 
 // Authentication middleware
 const authenticateUser = (req, res, next) => {

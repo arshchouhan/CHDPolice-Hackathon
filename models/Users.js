@@ -8,7 +8,13 @@ const userSchema = new mongoose.Schema({
   googleId: { type: String, sparse: true },
   profilePicture: { type: String },
   lastLogin: { type: Date },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  // Gmail integration fields
+  gmail_access_token: { type: String },
+  gmail_refresh_token: { type: String },
+  gmail_token_expiry: { type: Date },
+  gmail_connected: { type: Boolean, default: false },
+  last_email_sync: { type: Date }
 });
 
 // Hash password before saving

@@ -111,12 +111,15 @@
         <div class="bg-white rounded-lg shadow-md overflow-hidden mb-6">
             <div class="flex border-b">
                 <button class="tab-button px-4 py-3 border-b-2 border-blue-500 text-blue-600 font-medium" data-tab="users">
-                    <i class="fas fa-users mr-2"></i>User Management
+                    <i class="fas fa-users mr-2"></i>Users
                 </button>
-                <button class="tab-button px-4 py-3 hover:bg-gray-50 text-gray-600 font-medium" data-tab="analytics">
+                <button class="tab-button px-4 py-3 text-gray-600 hover:text-blue-600 font-medium" data-tab="emails">
+                    <i class="fas fa-envelope mr-2"></i>Analyzed Emails
+                </button>
+                <button class="tab-button px-4 py-3 text-gray-600 hover:text-blue-600 font-medium" data-tab="analytics">
                     <i class="fas fa-chart-line mr-2"></i>Analytics
                 </button>
-                <button class="tab-button px-4 py-3 hover:bg-gray-50 text-gray-600 font-medium" data-tab="settings">
+                <button class="tab-button px-4 py-3 text-gray-600 hover:text-blue-600 font-medium" data-tab="settings">
                     <i class="fas fa-cog mr-2"></i>System Settings
                 </button>
             </div>
@@ -186,7 +189,102 @@
                 </div>
             </div>
 
-            <!-- Analytics Tab (Hidden by Default) -->
+            <!-- Analyzed Emails Tab -->
+            <div id="emailsTab" class="tab-content p-4 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Analyzed Emails</h2>
+                    <div class="flex space-x-2">
+                        <select id="riskFilter" class="border rounded px-3 py-1 text-sm">
+                            <option value="">All Risk Levels</option>
+                            <option value="Low">Low Risk</option>
+                            <option value="Medium">Medium Risk</option>
+                            <option value="High">High Risk</option>
+                            <option value="Critical">Critical Risk</option>
+                        </select>
+                        <select id="statusFilter" class="border rounded px-3 py-1 text-sm">
+                            <option value="">All Statuses</option>
+                            <option value="New">New</option>
+                            <option value="Reviewed">Reviewed</option>
+                            <option value="Quarantined">Quarantined</option>
+                            <option value="Safe">Safe</option>
+                        </select>
+                        <select id="userFilter" class="border rounded px-3 py-1 text-sm">
+                            <option value="">All Users</option>
+                            <!-- User options will be populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Email List -->
+                <div class="overflow-x-auto bg-white rounded-lg shadow">
+                    <table class="min-w-full">
+                        <thead>
+                            <tr class="bg-gray-200 text-gray-700">
+                                <th class="py-2 px-4 text-left">From</th>
+                                <th class="py-2 px-4 text-left">Subject</th>
+                                <th class="py-2 px-4 text-left">User</th>
+                                <th class="py-2 px-4 text-left">Date</th>
+                                <th class="py-2 px-4 text-left">Risk</th>
+                                <th class="py-2 px-4 text-left">Score</th>
+                                <th class="py-2 px-4 text-left">Status</th>
+                                <th class="py-2 px-4 text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="emailsTableBody">
+                            <!-- Emails will be loaded here -->
+                            <tr>
+                                <td colspan="8" class="py-4 text-center text-gray-500">Loading emails...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                <div class="flex justify-between items-center mt-4">
+                    <div>
+                        <span id="emailsCount" class="text-sm text-gray-600">Showing 0 emails</span>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button id="prevPageBtn" class="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <span id="paginationInfo" class="px-3 py-1 bg-gray-100 rounded">Page 1 of 1</span>
+                        <button id="nextPageBtn" class="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Details Modal -->
+            <div id="emailModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-screen overflow-y-auto">
+                    <div class="flex justify-between items-center border-b p-4">
+                        <h3 class="text-lg font-semibold">Email Details</h3>
+                        <button id="closeModalBtn" class="text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div id="emailDetails" class="p-4">
+                        <!-- Email details will be loaded here -->
+                    </div>
+                    <div class="border-t p-4 flex justify-between">
+                        <div>
+                            <button id="markSafeBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded mr-2">
+                                <i class="fas fa-check mr-2"></i>Mark as Safe
+                            </button>
+                            <button id="quarantineBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">
+                                <i class="fas fa-ban mr-2"></i>Quarantine
+                            </button>
+                        </div>
+                        <button id="closeModalBtn2" class="bg-gray-300 hover:bg-gray-400 px-4 py-2 rounded">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
             <div id="analyticsTab" class="tab-content p-4 hidden">
                 <h2 class="text-xl font-bold mb-4">Analytics Dashboard</h2>
                 
@@ -207,6 +305,7 @@
                 </div>
             </div>
 
+            <!-- Settings Tab -->
             <!-- Settings Tab (Hidden by Default) -->
             <div id="settingsTab" class="tab-content p-4 hidden">
                 <h2 class="text-xl font-bold mb-4">System Settings</h2>
@@ -248,18 +347,27 @@
 
     <script>
         // Base URL for API calls
-        const BASE_URL = '';
+        const BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000'
+            : window.location.origin;
         
-        // Show loading overlay
+        // Email analysis variables
+        let currentEmailPage = 1;
+        let totalEmailPages = 1;
+        let currentRiskFilter = '';
+        let currentStatusFilter = '';
+        let currentUserFilter = '';
+        let currentEmailId = null;
+        
+        // Show/hide loading overlay
         function showLoading() {
             document.getElementById('loadingOverlay').classList.remove('hidden');
-            document.getElementById('loadingOverlay').classList.add('flex');
+            document.getElementById('loadingOverlay').style.display = 'flex';
         }
-
-        // Hide loading overlay
+        
         function hideLoading() {
             document.getElementById('loadingOverlay').classList.add('hidden');
-            document.getElementById('loadingOverlay').classList.remove('flex');
+            document.getElementById('loadingOverlay').style.display = 'none';
         }
         
         // Tab switching functionality
@@ -376,16 +484,366 @@
             showLoading();
             
             try {
-                // Simulate data loading (replace with actual API calls)
-                setTimeout(() => {
-                    document.getElementById('totalUsers').textContent = '7';
-                    document.getElementById('emailsScanned').textContent = '142';
-                    document.getElementById('phishingAttempts').textContent = '23';
-                    hideLoading();
-                }, 1000);
+                // Fetch email statistics
+                const statsResponse = await fetch(`${BASE_URL}/api/admin/email-stats`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (statsResponse.ok) {
+                    const statsData = await statsResponse.json();
+                    
+                    // Update dashboard stats
+                    let totalEmails = 0;
+                    let highRiskEmails = 0;
+                    
+                    // Count total emails
+                    statsData.stats.byRisk.forEach(item => {
+                        totalEmails += item.count;
+                        if (item._id === 'High' || item._id === 'Critical') {
+                            highRiskEmails += item.count;
+                        }
+                    });
+                    
+                    // Update UI
+                    document.getElementById('emailsScanned').textContent = totalEmails;
+                    document.getElementById('phishingAttempts').textContent = highRiskEmails;
+                }
+                
+                // Fetch users count
+                const usersResponse = await fetch(`${BASE_URL}/api/admin/users`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (usersResponse.ok) {
+                    const usersData = await usersResponse.json();
+                    document.getElementById('totalUsers').textContent = usersData.users.length;
+                    
+                    // Populate user filter dropdown
+                    const userFilter = document.getElementById('userFilter');
+                    userFilter.innerHTML = '<option value="">All Users</option>';
+                    
+                    usersData.users.forEach(user => {
+                        const option = document.createElement('option');
+                        option.value = user._id;
+                        option.textContent = user.username || user.email;
+                        userFilter.appendChild(option);
+                    });
+                }
+                
+                // Load emails for the emails tab
+                loadAnalyzedEmails();
                 
             } catch (error) {
                 console.error('Error fetching dashboard data:', error);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Load analyzed emails
+        async function loadAnalyzedEmails() {
+            try {
+                showLoading();
+                
+                // Build query parameters
+                const params = new URLSearchParams();
+                params.append('page', currentEmailPage);
+                params.append('limit', 10);
+                
+                if (currentRiskFilter) params.append('risk', currentRiskFilter);
+                if (currentStatusFilter) params.append('status', currentStatusFilter);
+                if (currentUserFilter) params.append('userId', currentUserFilter);
+                
+                const response = await fetch(`${BASE_URL}/api/admin/emails?${params.toString()}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const emailsTableBody = document.getElementById('emailsTableBody');
+                    emailsTableBody.innerHTML = '';
+                    
+                    if (data.emails.length === 0) {
+                        emailsTableBody.innerHTML = `
+                            <tr>
+                                <td colspan="8" class="py-4 text-center text-gray-500">No emails found</td>
+                            </tr>
+                        `;
+                        document.getElementById('emailsCount').textContent = 'Showing 0 emails';
+                        return;
+                    }
+                    
+                    // Update pagination
+                    currentEmailPage = data.page;
+                    totalEmailPages = data.pages;
+                    document.getElementById('paginationInfo').textContent = `Page ${currentEmailPage} of ${totalEmailPages}`;
+                    document.getElementById('prevPageBtn').disabled = currentEmailPage <= 1;
+                    document.getElementById('nextPageBtn').disabled = currentEmailPage >= totalEmailPages;
+                    
+                    // Update emails count
+                    document.getElementById('emailsCount').textContent = `Showing ${data.emails.length} of ${data.total} emails`;
+                    
+                    // Render emails
+                    data.emails.forEach(email => {
+                        const row = document.createElement('tr');
+                        row.className = 'hover:bg-gray-50';
+                        
+                        // Format date
+                        const date = new Date(email.date).toLocaleString();
+                        
+                        // Set risk class
+                        let riskClass = 'bg-green-100 text-green-800';
+                        if (email.phishingRisk === 'Medium') {
+                            riskClass = 'bg-yellow-100 text-yellow-800';
+                        } else if (email.phishingRisk === 'High') {
+                            riskClass = 'bg-orange-100 text-orange-800';
+                        } else if (email.phishingRisk === 'Critical') {
+                            riskClass = 'bg-red-100 text-red-800';
+                        }
+                        
+                        // Set status class
+                        let statusClass = 'bg-blue-100 text-blue-800';
+                        if (email.status === 'Reviewed') {
+                            statusClass = 'bg-purple-100 text-purple-800';
+                        } else if (email.status === 'Quarantined') {
+                            statusClass = 'bg-red-100 text-red-800';
+                        } else if (email.status === 'Safe') {
+                            statusClass = 'bg-green-100 text-green-800';
+                        }
+                        
+                        row.innerHTML = `
+                            <td class="py-2 px-4 border-b">${email.from}</td>
+                            <td class="py-2 px-4 border-b">${email.subject || '(No Subject)'}</td>
+                            <td class="py-2 px-4 border-b">${email.userId?.username || email.userId?.email || 'Unknown'}</td>
+                            <td class="py-2 px-4 border-b">${date}</td>
+                            <td class="py-2 px-4 border-b">
+                                <span class="${riskClass} px-2 py-1 rounded-full text-xs font-medium">
+                                    ${email.phishingRisk}
+                                </span>
+                            </td>
+                            <td class="py-2 px-4 border-b">${email.scores.total}</td>
+                            <td class="py-2 px-4 border-b">
+                                <span class="${statusClass} px-2 py-1 rounded-full text-xs font-medium">
+                                    ${email.status}
+                                </span>
+                            </td>
+                            <td class="py-2 px-4 border-b">
+                                <button class="text-blue-600 hover:text-blue-800 mr-2 view-email-btn" data-id="${email._id}">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                        `;
+                        
+                        emailsTableBody.appendChild(row);
+                    });
+                    
+                    // Add event listeners to view buttons
+                    document.querySelectorAll('.view-email-btn').forEach(button => {
+                        button.addEventListener('click', () => {
+                            const emailId = button.getAttribute('data-id');
+                            viewEmailDetails(emailId);
+                        });
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading emails:', error);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // View email details
+        async function viewEmailDetails(emailId) {
+            try {
+                showLoading();
+                currentEmailId = emailId;
+                
+                const response = await fetch(`${BASE_URL}/api/admin/emails/${emailId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const email = data.email;
+                    
+                    // Format date
+                    const date = new Date(email.date).toLocaleString();
+                    
+                    // Prepare email details HTML
+                    const detailsHTML = `
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-gray-600 text-sm">From:</p>
+                                    <p class="font-medium">${email.from}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-600 text-sm">Date:</p>
+                                    <p class="font-medium">${date}</p>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <p class="text-gray-600 text-sm">Subject:</p>
+                                <p class="font-medium">${email.subject || '(No Subject)'}</p>
+                            </div>
+                            
+                            <div>
+                                <p class="text-gray-600 text-sm">User:</p>
+                                <p class="font-medium">${email.userId?.username || email.userId?.email || 'Unknown'}</p>
+                            </div>
+                            
+                            <div class="border-t pt-4">
+                                <p class="text-gray-600 text-sm font-medium">Phishing Analysis:</p>
+                                <div class="grid grid-cols-5 gap-2 mt-2 text-center">
+                                    <div class="bg-gray-100 p-2 rounded">
+                                        <p class="text-gray-600 text-xs">Header</p>
+                                        <p class="font-medium">${email.scores.header}</p>
+                                    </div>
+                                    <div class="bg-gray-100 p-2 rounded">
+                                        <p class="text-gray-600 text-xs">Text</p>
+                                        <p class="font-medium">${email.scores.text}</p>
+                                    </div>
+                                    <div class="bg-gray-100 p-2 rounded">
+                                        <p class="text-gray-600 text-xs">Metadata</p>
+                                        <p class="font-medium">${email.scores.metadata}</p>
+                                    </div>
+                                    <div class="bg-gray-100 p-2 rounded">
+                                        <p class="text-gray-600 text-xs">Attachments</p>
+                                        <p class="font-medium">${email.scores.attachments}</p>
+                                    </div>
+                                    <div class="bg-gray-100 p-2 rounded">
+                                        <p class="text-gray-600 text-xs">Total</p>
+                                        <p class="font-medium">${email.scores.total}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="border-t pt-4">
+                                <p class="text-gray-600 text-sm">Email Body:</p>
+                                <div class="mt-2 p-3 bg-gray-50 rounded border whitespace-pre-wrap">${email.body || 'No content'}</div>
+                            </div>
+                            
+                            ${email.attachmentInfo && email.attachmentInfo.length > 0 ? `
+                                <div class="border-t pt-4">
+                                    <p class="text-gray-600 text-sm">Attachments:</p>
+                                    <ul class="mt-2 space-y-1">
+                                        ${email.attachmentInfo.map(attachment => `
+                                            <li class="flex items-center">
+                                                <i class="fas fa-paperclip mr-2 text-gray-400"></i>
+                                                <span>${attachment.name}</span>
+                                                <span class="text-xs text-gray-500 ml-2">(${attachment.contentType}, ${formatFileSize(attachment.size)})</span>
+                                            </li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                            
+                            ${email.urls && email.urls.length > 0 ? `
+                                <div class="border-t pt-4">
+                                    <p class="text-gray-600 text-sm">URLs in email:</p>
+                                    <ul class="mt-2 space-y-1">
+                                        ${email.urls.map(url => `
+                                            <li class="flex items-center">
+                                                <i class="fas fa-link mr-2 text-gray-400"></i>
+                                                <span class="${url.suspicious ? 'text-red-600' : ''}">${url.url}</span>
+                                                ${url.suspicious ? '<span class="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded ml-2">Suspicious</span>' : ''}
+                                            </li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="border-t pt-4">
+                                <p class="text-gray-600 text-sm">Current Status:</p>
+                                <p class="font-medium mt-1">
+                                    <span class="${getStatusClass(email.status)} px-2 py-1 rounded-full text-xs font-medium">
+                                        ${email.status}
+                                    </span>
+                                    ${email.actionedBy ? `<span class="text-xs text-gray-500 ml-2">by ${email.actionedBy.username || email.actionedBy.email}</span>` : ''}
+                                </p>
+                                ${email.adminNote ? `
+                                    <p class="text-gray-600 text-sm mt-2">Admin Note:</p>
+                                    <p class="text-gray-800 italic">${email.adminNote}</p>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Update modal content
+                    document.getElementById('emailDetails').innerHTML = detailsHTML;
+                    
+                    // Show modal
+                    document.getElementById('emailModal').classList.remove('hidden');
+                    document.getElementById('emailModal').style.display = 'flex';
+                }
+            } catch (error) {
+                console.error('Error loading email details:', error);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Format file size
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+        
+        // Get status class
+        function getStatusClass(status) {
+            switch (status) {
+                case 'New': return 'bg-blue-100 text-blue-800';
+                case 'Reviewed': return 'bg-purple-100 text-purple-800';
+                case 'Quarantined': return 'bg-red-100 text-red-800';
+                case 'Safe': return 'bg-green-100 text-green-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+        
+        // Update email status
+        async function updateEmailStatus(status, adminNote) {
+            if (!currentEmailId) return;
+            
+            try {
+                showLoading();
+                
+                const response = await fetch(`${BASE_URL}/api/admin/emails/${currentEmailId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ status, adminNote })
+                });
+                
+                if (response.ok) {
+                    // Close modal
+                    document.getElementById('emailModal').classList.add('hidden');
+                    document.getElementById('emailModal').style.display = 'none';
+                    
+                    // Reload emails
+                    loadAnalyzedEmails();
+                    
+                    // Show success message
+                    alert(`Email marked as ${status}`);
+                }
+            } catch (error) {
+                console.error('Error updating email status:', error);
+            } finally {
                 hideLoading();
             }
         }
@@ -407,6 +865,62 @@
                 console.error('Logout error:', error);
                 hideLoading();
             }
+        });
+        
+        // Email tab filter event listeners
+        document.getElementById('riskFilter').addEventListener('change', function() {
+            currentRiskFilter = this.value;
+            currentEmailPage = 1;
+            loadAnalyzedEmails();
+        });
+        
+        document.getElementById('statusFilter').addEventListener('change', function() {
+            currentStatusFilter = this.value;
+            currentEmailPage = 1;
+            loadAnalyzedEmails();
+        });
+        
+        document.getElementById('userFilter').addEventListener('change', function() {
+            currentUserFilter = this.value;
+            currentEmailPage = 1;
+            loadAnalyzedEmails();
+        });
+        
+        // Pagination buttons
+        document.getElementById('prevPageBtn').addEventListener('click', function() {
+            if (currentEmailPage > 1) {
+                currentEmailPage--;
+                loadAnalyzedEmails();
+            }
+        });
+        
+        document.getElementById('nextPageBtn').addEventListener('click', function() {
+            if (currentEmailPage < totalEmailPages) {
+                currentEmailPage++;
+                loadAnalyzedEmails();
+            }
+        });
+        
+        // Email modal close buttons
+        document.getElementById('closeModalBtn').addEventListener('click', function() {
+            document.getElementById('emailModal').classList.add('hidden');
+            document.getElementById('emailModal').style.display = 'none';
+        });
+        
+        document.getElementById('closeModalBtn2').addEventListener('click', function() {
+            document.getElementById('emailModal').classList.add('hidden');
+            document.getElementById('emailModal').style.display = 'none';
+        });
+        
+        // Email action buttons
+        document.getElementById('markSafeBtn').addEventListener('click', function() {
+            const note = prompt('Add a note (optional):');
+            updateEmailStatus('Safe', note || '');
+        });
+        
+        document.getElementById('quarantineBtn').addEventListener('click', function() {
+            const note = prompt('Add a note (optional):');
+            updateEmailStatus('Quarantined', note || '');
         });
         
         // Check authentication when page loads
