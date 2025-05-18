@@ -137,10 +137,10 @@
                     <table class="min-w-full bg-white">
                         <thead>
                             <tr>
-                                <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User</th>
+                                <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
                                 <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-                                <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                                <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Registered</th>
+                                <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Gmail Status</th>
+                                <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Last Sync</th>
                                 <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
@@ -538,9 +538,19 @@
                     usersData.users.forEach(user => {
                         const option = document.createElement('option');
                         option.value = user._id;
-                        option.textContent = user.username || user.email;
+                        
+                        // Use the actual Gmail email if connected, otherwise use username or email
+                        let displayName = user.username || 'User';
+                        let displayEmail = user.email || '';
+                        
+                        // Format the display text to show both name and email
+                        option.textContent = displayName + (displayEmail ? ` (${displayEmail})` : '');
+                        
                         userFilter.appendChild(option);
                     });
+                    
+                    // Load users table
+                    loadUsers(usersData.users);
                 }
                 
                 // Load emails for the emails tab
@@ -551,6 +561,73 @@
             } finally {
                 hideLoading();
             }
+        }
+        
+        // Function to load users table
+        function loadUsers(users) {
+            const userTableBody = document.getElementById('userTableBody');
+            userTableBody.innerHTML = '';
+            
+            if (users.length === 0) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = `
+                    <td colspan="5" class="px-5 py-5 border-b border-gray-200 bg-white text-sm text-center text-gray-500">
+                        No users found
+                    </td>
+                `;
+                userTableBody.appendChild(emptyRow);
+                return;
+            }
+            
+            users.forEach(user => {
+                const row = document.createElement('tr');
+                
+                // Format the user's initials or first letter for the avatar
+                const initials = user.username ? user.username.charAt(0).toUpperCase() : 'U';
+                
+                // Format the Gmail connection status
+                let gmailStatus = '';
+                if (user.gmail_connected) {
+                    gmailStatus = `<span class="px-2 py-1 font-semibold leading-tight text-green-700 bg-green-100 rounded-full">Connected</span>`;
+                } else {
+                    gmailStatus = `<span class="px-2 py-1 font-semibold leading-tight text-red-700 bg-red-100 rounded-full">Not Connected</span>`;
+                }
+                
+                // Format the last sync date
+                const lastSync = user.last_email_sync ? new Date(user.last_email_sync).toLocaleString() : 'Never';
+                
+                row.innerHTML = `
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">${initials}</div>
+                            <div class="ml-3">
+                                <p class="text-gray-900 whitespace-no-wrap">${user.username || 'User'}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <p class="text-gray-900 whitespace-no-wrap">${user.email || 'No email'}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        ${gmailStatus}
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <p class="text-gray-900 whitespace-no-wrap">${lastSync}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <div class="flex space-x-2">
+                            <button class="text-blue-500 hover:text-blue-700" onclick="viewUserDetails('${user._id}')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="text-red-500 hover:text-red-700" onclick="deleteUser('${user._id}')">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                
+                userTableBody.appendChild(row);
+            });
         }
         
         // Load analyzed emails
@@ -929,6 +1006,119 @@
             const note = prompt('Add a note (optional):');
             updateEmailStatus('Quarantined', note || '');
         });
+        
+        // View user details function
+        async function viewUserDetails(userId) {
+            try {
+                showLoading();
+                
+                const response = await fetch(`${BASE_URL}/api/admin/users/${userId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const user = data.user;
+                    
+                    // Create a modal to display user details
+                    const modal = document.createElement('div');
+                    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+                    modal.id = 'userDetailModal';
+                    
+                    // Format Gmail connection status
+                    const gmailStatus = user.gmail_connected ? 
+                        '<span class="text-green-500">Connected</span>' : 
+                        '<span class="text-red-500">Not Connected</span>';
+                    
+                    // Format last sync time
+                    const lastSync = user.last_email_sync ? 
+                        new Date(user.last_email_sync).toLocaleString() : 
+                        'Never';
+                    
+                    modal.innerHTML = `
+                        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xl font-bold">User Details</h3>
+                                <button id="closeUserDetailBtn" class="text-gray-500 hover:text-gray-700">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="flex items-center">
+                                    <div class="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                                        ${user.username ? user.username.charAt(0).toUpperCase() : 'U'}
+                                    </div>
+                                    <div class="ml-4">
+                                        <h4 class="text-lg font-semibold">${user.username || 'User'}</h4>
+                                        <p class="text-gray-600">${user.email || 'No email'}</p>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4 mt-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">Gmail Status</p>
+                                        <p>${gmailStatus}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">Last Sync</p>
+                                        <p>${lastSync}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">User ID</p>
+                                        <p class="text-xs text-gray-600 truncate">${user._id}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.body.appendChild(modal);
+                    
+                    // Add event listener to close button
+                    document.getElementById('closeUserDetailBtn').addEventListener('click', () => {
+                        document.body.removeChild(modal);
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching user details:', error);
+                alert('Failed to load user details');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Delete user function
+        async function deleteUser(userId) {
+            if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                showLoading();
+                
+                const response = await fetch(`${BASE_URL}/api/admin/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    alert('User deleted successfully');
+                    loadDashboardData(); // Reload dashboard data
+                } else {
+                    const data = await response.json();
+                    alert(`Failed to delete user: ${data.message}`);
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                alert('Failed to delete user');
+            } finally {
+                hideLoading();
+            }
+        }
         
         // Initialize tab switching
         setupTabSwitching();

@@ -14,5 +14,7 @@ router.get('/email-stats', requireRole('admin'), adminController.getEmailStats);
 
 // User management routes
 router.get('/users', requireRole('admin'), adminController.getUsers);
+router.get('/users/:id', requireRole('admin'), adminController.getUserById);
+router.delete('/users/:id', requireRole('admin'), adminController.deleteUser);
 
 module.exports = router;
