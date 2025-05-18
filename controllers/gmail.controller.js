@@ -3,10 +3,18 @@ const User = require('../models/Users');
 const Email = require('../models/Email');
 
 // Configure OAuth2 client
+const REDIRECT_URI = process.env.REDIRECT_URI || 'http://localhost:3000/api/gmail/callback';
+
+// Log OAuth configuration (without exposing secrets)
+console.log('OAuth2 Configuration:');
+console.log('GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID);
+console.log('GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET);
+console.log('REDIRECT_URI:', REDIRECT_URI);
+
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  process.env.REDIRECT_URI
+  REDIRECT_URI
 );
 
 // Generate Gmail OAuth URL
