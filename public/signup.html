@@ -124,7 +124,7 @@
                 <div class="text-center text-sm mt-6">
                     <p class="text-gray-400">
                         Already have an account?
-                        <a href="login.html" class="font-medium text-blue-400 hover:text-blue-300 transition duration-200">
+                        <a href="/login.html" class="font-medium text-blue-400 hover:text-blue-300 transition duration-200">
                             Sign in instead
                         </a>
                     </p>
@@ -184,10 +184,10 @@
     </div>
     
     <script>
-        // Always use the Render hosted server for API calls
-        const BASE_URL = 'https://email-detection-api.onrender.com';
+        // Use relative URLs for all API calls to work with any deployment
+        const BASE_URL = '';
         
-        console.log('Using Render hosted server for API calls');
+        console.log('Using relative URLs for API calls');
 
         // Show loading overlay
         function showLoading() {
@@ -273,13 +273,13 @@
                         // We'll redirect to login instead since we can't auto-login
                         hideLoading();
                         alert('Registration successful! Please log in with your new account.');
-                        window.location.href = 'login.html';
+                        window.location.href = '/login.html';
                         return;
                     }
                     
                     // Redirect to dashboard
                     console.log('Auto-login successful, redirecting to dashboard');
-                    window.location.href = 'index.html';
+                    window.location.href = '/index.html';
                 } else {
                     hideLoading();
                     const message = data.message || 'Registration failed';

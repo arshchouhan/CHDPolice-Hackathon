@@ -1016,7 +1016,7 @@
                     localStorage.removeItem('token');
                     localStorage.removeItem('userRole');
                     // Don't remove Gmail connection status to persist it between sessions
-                    window.location.href = '/login.html';
+                    window.location.href = `${BASE_URL}/login.html`;
                 } else {
                     console.error('Logout failed');
                     hideLoading();

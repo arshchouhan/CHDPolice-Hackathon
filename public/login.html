@@ -199,10 +199,12 @@
     </div>
 
     <script>
-        // Always use the Render hosted server for API calls
-        const BASE_URL = 'https://email-detection-api.onrender.com';
+        // Use relative URLs for all API calls to work with any deployment
+        const BASE_URL = '';
         
-        // Show/hide loading overlay
+        console.log('Using relative URLs for API calls');
+
+        // Show loading overlay
         function showLoading() {
             document.getElementById('loadingOverlay').classList.remove('hidden');
         }
@@ -248,9 +250,9 @@
                 // Already logged in, redirect to proper dashboard based on role
                 const userRole = localStorage.getItem('userRole');
                 if (userRole === 'admin') {
-                    window.location.href = 'admin-dashboard.html';
+                    window.location.href = '/admin-dashboard.html';
                 } else {
-                    window.location.href = 'index.html';
+                    window.location.href = '/index.html';
                 }
             } else {
                 // Not logged in, check for URL parameters
@@ -281,7 +283,7 @@
 
                     if (res.ok) {
                         // No need to store token in localStorage as it's in the cookie
-                        window.location.href = 'index.html';
+                        window.location.href = '/dashboard';
                     } else {
                         hideLoading();
                         const errorMessage = document.getElementById('errorMessage');
@@ -368,11 +370,11 @@
                     if (data.user && data.user.role === 'admin') {
                         console.log('Admin user detected, redirecting to admin dashboard');
                         localStorage.setItem('userRole', 'admin');
-                        window.location.href = 'admin-dashboard.html';
+                        window.location.href = '/admin-dashboard.html';
                     } else {
                         console.log('Regular user detected, redirecting to user dashboard');
                         localStorage.setItem('userRole', 'user');
-                        window.location.href = 'index.html';
+                        window.location.href = '/index.html';
                     }
                 } else {
                     hideLoading();
