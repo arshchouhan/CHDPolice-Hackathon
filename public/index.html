@@ -320,25 +320,98 @@
 
     <script>
         // Use relative URLs for API calls to work with current domain
-        // Base URL for API calls
-        const BASE_URL = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3000'
-            : window.location.hostname.includes('vercel.app')
-                ? 'https://chd-police-hackathon.vercel.app'
-                : window.location.hostname.includes('onrender.com')
-                    ? 'https://email-detection-api.onrender.com'
-                    : window.location.origin; // Fallback to current origin
+        // Enhanced BASE_URL determination with better error handling
+        const getBaseUrl = () => {
+            const hostname = window.location.hostname;
+            
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://localhost:3000';
+            } else if (hostname.includes('vercel.app')) {
+                return 'https://chd-police-hackathon.vercel.app';
+            } else if (hostname.includes('onrender.com')) {
+                return 'https://email-detection-api.onrender.com';
+            } else {
+                return window.location.origin;
+            }
+        };
+        
+        // Initialize BASE_URL
+        const BASE_URL = getBaseUrl();
         
         // Show loading overlay
         function showLoading() {
             document.getElementById('loadingOverlay').classList.remove('hidden');
             document.getElementById('loadingOverlay').classList.add('flex');
         }
-
+        
         // Hide loading overlay
         function hideLoading() {
             document.getElementById('loadingOverlay').classList.add('hidden');
             document.getElementById('loadingOverlay').classList.remove('flex');
+        }
+        
+        // Improved error handling and user feedback
+        function showError(message, details = null) {
+            // Create or update error notification element
+            let errorNotification = document.getElementById('errorNotification');
+            
+            if (!errorNotification) {
+                errorNotification = document.createElement('div');
+                errorNotification.id = 'errorNotification';
+                errorNotification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-3 rounded shadow-lg z-50 flex items-start';
+                document.body.appendChild(errorNotification);
+            }
+            
+            errorNotification.innerHTML = `
+                <div class="mr-3">
+                    <i class="fas fa-exclamation-circle text-xl"></i>
+                </div>
+                <div>
+                    <h4 class="font-bold">${message}</h4>
+                    ${details ? `<p class="text-sm">${details}</p>` : ''}
+                    <button class="text-xs underline mt-1" onclick="document.getElementById('errorNotification').remove()">Dismiss</button>
+                </div>
+            `;
+            
+            // Auto-hide after 8 seconds
+            setTimeout(() => {
+                if (document.getElementById('errorNotification')) {
+                    document.getElementById('errorNotification').remove();
+                }
+            }, 8000);
+            
+            // Also log to console for debugging
+            console.error(message, details);
+        }
+        
+        // Success notification function
+        function showSuccessNotification(title, message) {
+            let successNotification = document.getElementById('successNotification');
+            
+            if (!successNotification) {
+                successNotification = document.createElement('div');
+                successNotification.id = 'successNotification';
+                successNotification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-3 rounded shadow-lg z-50 flex items-start';
+                document.body.appendChild(successNotification);
+            }
+            
+            successNotification.innerHTML = `
+                <div class="mr-3">
+                    <i class="fas fa-check-circle text-xl"></i>
+                </div>
+                <div>
+                    <h4 class="font-bold">${title}</h4>
+                    <p class="text-sm">${message}</p>
+                    <button class="text-xs underline mt-1" onclick="document.getElementById('successNotification').remove()">Dismiss</button>
+                </div>
+            `;
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                if (document.getElementById('successNotification')) {
+                    document.getElementById('successNotification').remove();
+                }
+            }, 5000);
         }
         
         // Show Gmail authorization modal
@@ -497,7 +570,6 @@
             const statusElement = document.getElementById('emailConnectionStatus');
             
             if (isConnected) {
-                // Update status card to show connected state
                 statusElement.classList.remove('bg-yellow-600/20', 'border-yellow-600/30');
                 statusElement.classList.add('bg-green-600/20', 'border-green-600/30');
                 
@@ -508,7 +580,7 @@
                         </div>
                         <div>
                             <h3 class="text-lg font-semibold text-white mb-1">Gmail Account Connected</h3>
-                            <p class="text-gray-300 mb-2">Your account <span class="text-blue-300 font-medium">${email}</span> is now protected.</p>
+                            <p class="text-gray-300 mb-2">Your account <span class="text-blue-300 font-medium" id="connectedEmail">${email}</span> is now protected.</p>
                             <div class="flex space-x-3">
                                 <button id="disconnectGmailBtn" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-xs font-medium transition duration-150 ease-in-out flex items-center">
                                     <i class="fas fa-unlink mr-1"></i> Disconnect
@@ -552,71 +624,226 @@
             }
         }
         
-        // Function to handle Gmail connection
-        async function connectGmail() {
-            hideGmailAuthModal();
-            showLoading();
-            
+        // Function to check Gmail connection status from the server
+        async function checkGmailStatus() {
             try {
-                // Get the OAuth URL from our backend
-                const response = await fetch(`${BASE_URL}/api/gmail/auth-url`, {
+                const response = await fetch(`${BASE_URL}/api/users/gmail-status`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
                 
-                if (!response.ok) {
-                    throw new Error('Failed to get authentication URL');
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.gmailConnected) {
+                        // Get user profile to get the email
+                        const profileResponse = await fetch(`${BASE_URL}/api/users/profile`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            }
+                        });
+                        
+                        if (profileResponse.ok) {
+                            const profileData = await profileResponse.json();
+                            updateGmailConnectionStatus(true, profileData.user.email);
+                            
+                            // Show emails section if connected
+                            document.getElementById('emailsSection').classList.remove('hidden');
+                            loadUserEmails();
+                        }
+                    } else {
+                        updateGmailConnectionStatus(false);
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking Gmail status:', error);
+            }
+        }
+        
+        // Enhanced Gmail connection function with better error handling
+        async function connectGmail() {
+            hideGmailAuthModal();
+            showLoading();
+            
+            try {
+                // Get auth token from localStorage
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Authentication token not found. Please log in again.');
+                }
+                
+                // Get the OAuth URL from our backend
+                const response = await fetch(`${BASE_URL}/api/gmail/auth-url`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // Handle HTTP errors
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Authentication failed. Please log in again.');
+                } else if (response.status === 404) {
+                    throw new Error('Gmail API endpoint not found. The server might be misconfigured.');
+                } else if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Server error: ${errorData.message || response.statusText || 'Unknown error'}`);
                 }
                 
                 const data = await response.json();
                 
-                // Base URL for API calls
-                const BASE_URL = window.location.hostname === 'localhost' 
-                    ? 'http://localhost:3000'
-                    : window.location.hostname.includes('vercel.app')
-                        ? 'https://chd-police-hackathon.vercel.app'
-                        : window.location.hostname.includes('onrender.com')
-                            ? 'https://email-detection-api.onrender.com'
-                            : window.location.origin; // Fallback to current origin
+                if (!data.authUrl) {
+                    throw new Error('Invalid response from server: Missing authentication URL');
+                }
+                
+                // Store current page URL to return after auth
+                localStorage.setItem('gmailAuthReturnUrl', window.location.href);
                 
                 // Redirect to Google OAuth consent screen
                 window.location.href = data.authUrl;
                 
             } catch (error) {
-                console.error('Gmail connection error:', error);
                 hideLoading();
-                alert('Failed to connect Gmail account. Please try again.');
+                
+                // Provide helpful error messages based on error type
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    showError('Network Error', 'Cannot connect to the server. Please check your internet connection and try again.');
+                } else {
+                    showError('Gmail Connection Error', error.message);
+                }
             }
         }
         
-        // Function to disconnect Gmail
+        // Enhanced function to disconnect Gmail with better error handling
         async function disconnectGmail() {
             showLoading();
             
             try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Authentication token not found. Please log in again.');
+                }
+                
                 // Call the disconnect endpoint
                 const response = await fetch(`${BASE_URL}/api/gmail/disconnect`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
                 
-                if (!response.ok) {
-                    throw new Error('Failed to disconnect Gmail account');
+                // Handle HTTP errors
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Authentication failed. Please log in again.');
+                } else if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Server error: ${errorData.message || response.statusText || 'Unknown error'}`);
                 }
                 
                 // Update UI
                 updateGmailConnectionStatus(false);
                 
+                // Remove Gmail connection from localStorage
+                localStorage.removeItem('gmailConnected');
+                localStorage.removeItem('gmailEmail');
+                
                 hideLoading();
-                alert('Gmail account disconnected successfully');
+                showSuccessNotification('Gmail Disconnected', 'Your Gmail account has been successfully disconnected.');
             } catch (error) {
                 console.error('Gmail disconnection error:', error);
                 hideLoading();
-                alert('Failed to disconnect Gmail account. Please try again.');
+                
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    showError('Network Error', 'Cannot connect to the server. Please check your internet connection and try again.');
+                } else {
+                    showError('Gmail Disconnection Error', error.message);
+                }
+            }
+        }
+        
+        // Function to handle OAuth callback
+        function handleGmailOAuthCallback() {
+            // Parse URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const error = urlParams.get('error');
+            
+            if (error) {
+                // Handle OAuth error
+                showError('Gmail Authorization Failed', `Error: ${error}`);
+                return;
+            }
+            
+            if (code) {
+                // Exchange the code for tokens
+                exchangeCodeForTokens(code);
+            }
+        }
+        
+        // Function to exchange authorization code for tokens
+        async function exchangeCodeForTokens(code) {
+            showLoading();
+            
+            try {
+                const BASE_URL = getBaseUrl();
+                const token = localStorage.getItem('token');
+                
+                if (!token) {
+                    throw new Error('Authentication token not found. Please log in again.');
+                }
+                
+                // Call backend to exchange code for tokens
+                const response = await fetch(`${BASE_URL}/api/gmail/oauth-callback`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ code })
+                });
+                
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Authentication failed. Please log in again.');
+                } else if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Server error: ${errorData.message || response.statusText || 'Unknown error'}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Store Gmail connection status
+                    localStorage.setItem('gmailConnected', 'true');
+                    
+                    // Get user email if available
+                    if (data.email) {
+                        localStorage.setItem('gmailEmail', data.email);
+                    }
+                    
+                    // Update UI
+                    updateGmailConnectionStatus(true, data.email || localStorage.getItem('userEmail'));
+                    
+                    // Show success message
+                    showSuccessNotification('Gmail Connected Successfully', 'Your Gmail account is now connected and protected.');
+                    
+                    // If we have a return URL, redirect back
+                    const returnUrl = localStorage.getItem('gmailAuthReturnUrl');
+                    if (returnUrl) {
+                        localStorage.removeItem('gmailAuthReturnUrl');
+                        window.location.href = returnUrl;
+                    }
+                } else {
+                    throw new Error(data.message || 'Failed to connect Gmail account');
+                }
+            } catch (error) {
+                showError('Gmail Connection Error', error.message);
+            } finally {
+                hideLoading();
             }
         }
         
@@ -745,14 +972,30 @@
             }
         }
 
-        // Initialize the page
+        // Initialize the page with enhanced Gmail authentication
         function initializePage() {
+            // Check if this is an OAuth callback
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('code') || urlParams.has('error')) {
+                handleGmailOAuthCallback();
+                return; // Don't proceed with normal initialization during OAuth callback
+            }
+            
             // Check Gmail connection status from localStorage
             const isGmailConnected = localStorage.getItem('gmailConnected') === 'true';
-            const userEmail = localStorage.getItem('userEmail') || 'user@example.com';
+            const userEmail = localStorage.getItem('gmailEmail') || localStorage.getItem('userEmail') || '';
             
             // Update UI based on connection status
             updateGmailConnectionStatus(isGmailConnected, userEmail);
+            
+            // If connected, show emails section
+            if (isGmailConnected) {
+                const emailsSection = document.getElementById('emailsSection');
+                if (emailsSection) {
+                    emailsSection.classList.remove('hidden');
+                    loadUserEmails();
+                }
+            }
             
             // Event listeners for Gmail connection
             const connectBtn = document.getElementById('connectGmailBtn');
@@ -761,8 +1004,12 @@
             }
             
             // Modal event listeners
-            document.getElementById('closeModal').addEventListener('click', hideGmailAuthModal);
-            document.getElementById('authorizeGmailBtn').addEventListener('click', connectGmail);
+            document.getElementById('closeModal')?.addEventListener('click', hideGmailAuthModal);
+            document.getElementById('authorizeGmailBtn')?.addEventListener('click', connectGmail);
+            document.getElementById('cancelGmailAuthBtn')?.addEventListener('click', hideGmailAuthModal);
+            
+            // Also check with server for Gmail connection status
+            checkGmailStatus().catch(err => console.error('Error checking Gmail status:', err));
         }
 
         // Handle logout
