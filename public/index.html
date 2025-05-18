@@ -320,19 +320,10 @@
 
     <script>
         // Use relative URLs for API calls to work with current domain
-        // Enhanced BASE_URL determination with better error handling
+        // Always use the Render hosted server for API calls
         const getBaseUrl = () => {
-            const hostname = window.location.hostname;
-            
-            if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                return 'http://localhost:3000';
-            } else if (hostname.includes('vercel.app')) {
-                return 'https://chd-police-hackathon.vercel.app';
-            } else if (hostname.includes('onrender.com')) {
-                return 'https://email-detection-api.onrender.com';
-            } else {
-                return window.location.origin;
-            }
+            // Since the server is hosted on Render, we always use the Render URL for API calls
+            return 'https://email-detection-api.onrender.com';
         };
         
         // Initialize BASE_URL
