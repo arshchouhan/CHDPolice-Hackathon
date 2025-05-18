@@ -319,8 +319,10 @@
         </div>
 
     <script>
-        // Use relative URLs for API calls to work with current domain
-        const BASE_URL = '';
+        // Base URL for API requests - detect environment
+        const BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000' 
+            : 'https://email-detection-api.onrender.com';
         
         // Show loading overlay
         function showLoading() {

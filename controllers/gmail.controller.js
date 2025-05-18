@@ -3,10 +3,27 @@ const User = require('../models/Users');
 const Email = require('../models/Email');
 
 // Configure OAuth2 client
+// Determine the appropriate redirect URI based on environment
+const getRedirectUri = () => {
+  // Use environment variable if set
+  if (process.env.REDIRECT_URI) {
+    return process.env.REDIRECT_URI;
+  }
+  
+  // Default to production URL if not in development
+  const isProduction = process.env.NODE_ENV === 'production';
+  return isProduction 
+    ? 'https://email-detection-api.onrender.com/api/gmail/callback'
+    : 'http://localhost:3000/api/gmail/callback';
+};
+
+const redirectUri = getRedirectUri();
+console.log('Using redirect URI:', redirectUri);
+
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  process.env.REDIRECT_URI
+  redirectUri
 );
 
 // Generate Gmail OAuth URL
@@ -54,21 +71,29 @@ exports.handleCallback = async (req, res) => {
     console.log('OAuth callback received:', req.query);
     const { code, state, error } = req.query;
     
+    // Helper function to get the base URL
+    const getBaseUrl = () => {
+      const isProduction = process.env.NODE_ENV === 'production';
+      return isProduction 
+        ? 'https://email-detection-api.onrender.com'
+        : 'http://localhost:3000';
+    };
+    
     // Check for OAuth error response
     if (error) {
       console.error('OAuth error returned:', error, req.query.error_description);
-      return res.redirect(`/dashboard?error=${encodeURIComponent(error)}&description=${encodeURIComponent(req.query.error_description || '')}`);
+      return res.redirect(`${getBaseUrl()}/dashboard?error=${encodeURIComponent(error)}&description=${encodeURIComponent(req.query.error_description || '')}`);
     }
     
     // Validate required parameters
     if (!code) {
       console.error('Authorization code is missing');
-      return res.redirect('/dashboard?error=missing_code');
+      return res.redirect(`${getBaseUrl()}/dashboard?error=missing_code`);
     }
     
     if (!state) {
       console.error('State parameter is missing');
-      return res.redirect('/dashboard?error=missing_state');
+      return res.redirect(`${getBaseUrl()}/dashboard?error=missing_state`);
     }
     
     const userId = state;
@@ -77,7 +102,7 @@ exports.handleCallback = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) {
       console.error('User not found:', userId);
-      return res.redirect('/dashboard?error=invalid_user');
+      return res.redirect(`${getBaseUrl()}/dashboard?error=invalid_user`);
     }
     
     console.log('Exchanging code for tokens...');
@@ -102,11 +127,30 @@ exports.handleCallback = async (req, res) => {
     
     console.log('User updated with Gmail tokens');
     
+    // Determine the appropriate redirect URL
+    const getRedirectUrl = () => {
+      const isProduction = process.env.NODE_ENV === 'production';
+      const baseUrl = isProduction 
+        ? 'https://email-detection-api.onrender.com'
+        : 'http://localhost:3000';
+      return `${baseUrl}/dashboard?connected=true`;
+    };
+    
     // Redirect to user dashboard
-    res.redirect('/dashboard?connected=true');
+    res.redirect(getRedirectUrl());
   } catch (error) {
     console.error('OAuth callback error:', error);
-    res.redirect(`/dashboard?error=auth_error&message=${encodeURIComponent(error.message)}`);
+    
+    // Determine the appropriate error redirect URL
+    const getErrorRedirectUrl = () => {
+      const isProduction = process.env.NODE_ENV === 'production';
+      const baseUrl = isProduction 
+        ? 'https://email-detection-api.onrender.com'
+        : 'http://localhost:3000';
+      return `${baseUrl}/dashboard?error=auth_error&message=${encodeURIComponent(error.message)}`;
+    };
+    
+    res.redirect(getErrorRedirectUrl());
   }
 };
 
