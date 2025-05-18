@@ -12,49 +12,101 @@ const oauth2Client = new google.auth.OAuth2(
 // Generate Gmail OAuth URL
 exports.getAuthUrl = (req, res) => {
   try {
+    // Log environment variables (without exposing secrets)
+    console.log('OAuth2 Configuration Check:');
+    console.log('GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID);
+    console.log('GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET);
+    console.log('REDIRECT_URI:', process.env.REDIRECT_URI);
+    
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.REDIRECT_URI) {
+      console.error('Missing required OAuth2 environment variables');
+      return res.status(500).json({ 
+        message: 'OAuth configuration error', 
+        details: 'Missing required environment variables for Google OAuth2' 
+      });
+    }
+    
     const scopes = ['https://www.googleapis.com/auth/gmail.readonly'];
     
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent', // Force to get refresh token
-      state: req.user.id // Pass user ID as state parameter
+      state: req.user.id, // Pass user ID as state parameter
+      include_granted_scopes: true // Enable incremental authorization
     });
+    
+    console.log('Generated Auth URL:', authUrl);
     
     res.status(200).json({ authUrl });
   } catch (error) {
     console.error('Error generating auth URL:', error);
-    res.status(500).json({ message: 'Failed to generate authentication URL' });
+    res.status(500).json({ 
+      message: 'Failed to generate authentication URL',
+      error: error.message
+    });
   }
 };
 
 // Handle OAuth callback
 exports.handleCallback = async (req, res) => {
   try {
-    const { code, state } = req.query;
+    console.log('OAuth callback received:', req.query);
+    const { code, state, error } = req.query;
+    
+    // Check for OAuth error response
+    if (error) {
+      console.error('OAuth error returned:', error, req.query.error_description);
+      return res.redirect(`/dashboard?error=${encodeURIComponent(error)}&description=${encodeURIComponent(req.query.error_description || '')}`);
+    }
+    
+    // Validate required parameters
+    if (!code) {
+      console.error('Authorization code is missing');
+      return res.redirect('/dashboard?error=missing_code');
+    }
+    
+    if (!state) {
+      console.error('State parameter is missing');
+      return res.redirect('/dashboard?error=missing_state');
+    }
+    
     const userId = state;
     
-    if (!code) {
-      return res.status(400).json({ message: 'Authorization code is missing' });
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      console.error('User not found:', userId);
+      return res.redirect('/dashboard?error=invalid_user');
     }
+    
+    console.log('Exchanging code for tokens...');
     
     // Exchange code for tokens
     const { tokens } = await oauth2Client.getToken(code);
+    
+    console.log('Tokens received:', {
+      access_token: tokens.access_token ? 'Present' : 'Missing',
+      refresh_token: tokens.refresh_token ? 'Present' : 'Missing',
+      expiry_date: tokens.expiry_date
+    });
     
     // Update user with tokens
     await User.findByIdAndUpdate(userId, {
       gmail_access_token: tokens.access_token,
       gmail_refresh_token: tokens.refresh_token,
-      gmail_token_expiry: new Date(Date.now() + tokens.expiry_date),
+      gmail_token_expiry: new Date(Date.now() + (tokens.expiry_date || 3600000)), // Default 1hr if missing
       gmail_connected: true,
       last_email_sync: null
     });
     
+    console.log('User updated with Gmail tokens');
+    
     // Redirect to user dashboard
-    res.redirect('/user-dashboard.html?connected=true');
+    res.redirect('/dashboard?connected=true');
   } catch (error) {
     console.error('OAuth callback error:', error);
-    res.status(500).json({ message: 'Failed to complete authentication' });
+    res.redirect(`/dashboard?error=auth_error&message=${encodeURIComponent(error.message)}`);
   }
 };
 
@@ -297,17 +349,36 @@ function calculateRiskLevel(score) {
 exports.disconnectGmail = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log('Disconnecting Gmail for user:', userId);
     
-    await User.findByIdAndUpdate(userId, {
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      console.error('User not found for Gmail disconnection:', userId);
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Update user to remove Gmail connection
+    const updatedUser = await User.findByIdAndUpdate(userId, {
       gmail_access_token: null,
       gmail_refresh_token: null,
       gmail_token_expiry: null,
       gmail_connected: false
-    });
+    }, { new: true });
     
-    res.status(200).json({ message: 'Gmail disconnected successfully' });
+    console.log('Gmail disconnected successfully for user:', userId);
+    
+    res.status(200).json({ 
+      success: true,
+      message: 'Gmail disconnected successfully',
+      gmailConnected: false
+    });
   } catch (error) {
     console.error('Error disconnecting Gmail:', error);
-    res.status(500).json({ message: 'Failed to disconnect Gmail' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to disconnect Gmail',
+      error: error.message 
+    });
   }
 };
