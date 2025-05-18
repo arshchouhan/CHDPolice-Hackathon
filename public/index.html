@@ -346,6 +346,145 @@
             document.getElementById('gmailAuthModal').classList.remove('flex');
         }
         
+        // Function to update Gmail connection status in UI
+        function updateGmailConnectionStatus(isConnected, email) {
+            if (isConnected) {
+                document.getElementById('gmailConnectedSection').classList.remove('hidden');
+                document.getElementById('gmailNotConnectedSection').classList.add('hidden');
+                document.getElementById('connectedEmail').textContent = email || 'your Gmail account';
+            } else {
+                document.getElementById('gmailConnectedSection').classList.add('hidden');
+                document.getElementById('gmailNotConnectedSection').classList.remove('hidden');
+            }
+        }
+        
+        // Function to check Gmail connection status from the server
+        async function checkGmailStatus() {
+            try {
+                const response = await fetch(`${BASE_URL}/api/users/gmail-status`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.gmailConnected) {
+                        // Get user profile to get the email
+                        const profileResponse = await fetch(`${BASE_URL}/api/users/profile`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            }
+                        });
+                        
+                        if (profileResponse.ok) {
+                            const profileData = await profileResponse.json();
+                            updateGmailConnectionStatus(true, profileData.user.email);
+                            
+                            // Show emails section if connected
+                            document.getElementById('emailsSection').classList.remove('hidden');
+                            loadUserEmails();
+                        }
+                    } else {
+                        updateGmailConnectionStatus(false);
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking Gmail status:', error);
+            }
+        }
+        
+        // Function to load user's analyzed emails
+        async function loadUserEmails() {
+            try {
+                showLoading();
+                
+                const response = await fetch(`${BASE_URL}/api/users/emails`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const emailsContainer = document.getElementById('emailsList');
+                    emailsContainer.innerHTML = '';
+                    
+                    if (data.emails.length === 0) {
+                        emailsContainer.innerHTML = '<div class="text-center text-gray-400 py-8">No emails analyzed yet</div>';
+                        return;
+                    }
+                    
+                    // Render emails
+                    data.emails.forEach(email => {
+                        const emailItem = document.createElement('div');
+                        emailItem.className = 'border border-gray-700 rounded-lg p-4 hover:bg-white/5 transition mb-4';
+                        
+                        // Set background color based on risk level
+                        let riskBgClass = 'bg-green-900/20';
+                        let riskTextClass = 'text-green-400';
+                        
+                        if (email.phishingRisk === 'Medium') {
+                            riskBgClass = 'bg-yellow-900/20';
+                            riskTextClass = 'text-yellow-400';
+                        } else if (email.phishingRisk === 'High') {
+                            riskBgClass = 'bg-orange-900/20';
+                            riskTextClass = 'text-orange-400';
+                        } else if (email.phishingRisk === 'Critical') {
+                            riskBgClass = 'bg-red-900/20';
+                            riskTextClass = 'text-red-400';
+                        }
+                        
+                        const date = new Date(email.date).toLocaleString();
+                        
+                        emailItem.innerHTML = `
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h3 class="text-white font-medium">${email.subject || '(No Subject)'}</h3>
+                                    <p class="text-gray-400 text-sm">From: ${email.from}</p>
+                                    <p class="text-gray-400 text-sm">Date: ${date}</p>
+                                </div>
+                                <div class="${riskBgClass} px-3 py-1 rounded-full">
+                                    <span class="${riskTextClass} text-sm font-medium">${email.phishingRisk} Risk</span>
+                                </div>
+                            </div>
+                            <div class="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
+                                <div class="bg-gray-800 rounded p-2">
+                                    <p class="text-gray-400">Header</p>
+                                    <p class="text-white font-medium">${email.scores.header}</p>
+                                </div>
+                                <div class="bg-gray-800 rounded p-2">
+                                    <p class="text-gray-400">Text</p>
+                                    <p class="text-white font-medium">${email.scores.text}</p>
+                                </div>
+                                <div class="bg-gray-800 rounded p-2">
+                                    <p class="text-gray-400">Metadata</p>
+                                    <p class="text-white font-medium">${email.scores.metadata}</p>
+                                </div>
+                                <div class="bg-gray-800 rounded p-2">
+                                    <p class="text-gray-400">Attachments</p>
+                                    <p class="text-white font-medium">${email.scores.attachments}</p>
+                                </div>
+                            </div>
+                            <div class="mt-3 text-right">
+                                <span class="text-gray-400 text-sm">Total Score: <span class="text-white font-medium">${email.scores.total}</span></span>
+                            </div>
+                        `;
+                        
+                        emailsContainer.appendChild(emailItem);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading emails:', error);
+            } finally {
+                hideLoading();
+            }
+        }
+        
         // Update UI based on Gmail connection status
         function updateGmailConnectionStatus(isConnected, email = '') {
             const statusElement = document.getElementById('emailConnectionStatus');
@@ -412,24 +551,23 @@
             showLoading();
             
             try {
-                // In a real implementation, this would redirect to Google OAuth
-                // For demo purposes, we'll simulate a successful connection
-                console.log('Connecting to Gmail...');
+                // Get the OAuth URL from our backend
+                const response = await fetch(`${BASE_URL}/api/gmail/auth-url`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
                 
-                // Simulate API call delay
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                if (!response.ok) {
+                    throw new Error('Failed to get authentication URL');
+                }
                 
-                // Get user email from localStorage or use a default
-                const userEmail = localStorage.getItem('userEmail') || document.getElementById('userEmail').textContent;
+                const data = await response.json();
                 
-                // Store connected status and email
-                localStorage.setItem('gmailConnected', 'true');
-                localStorage.setItem('userEmail', userEmail);
+                // Redirect to Google OAuth consent screen
+                window.location.href = data.authUrl;
                 
-                // Update UI
-                updateGmailConnectionStatus(true, userEmail);
-                
-                hideLoading();
             } catch (error) {
                 console.error('Gmail connection error:', error);
                 hideLoading();
@@ -442,16 +580,23 @@
             showLoading();
             
             try {
-                // Simulate API call
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Call the disconnect endpoint
+                const response = await fetch(`${BASE_URL}/api/gmail/disconnect`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
                 
-                // Remove connected status
-                localStorage.removeItem('gmailConnected');
+                if (!response.ok) {
+                    throw new Error('Failed to disconnect Gmail account');
+                }
                 
                 // Update UI
                 updateGmailConnectionStatus(false);
                 
                 hideLoading();
+                alert('Gmail account disconnected successfully');
             } catch (error) {
                 console.error('Gmail disconnection error:', error);
                 hideLoading();
@@ -630,6 +775,9 @@
 
         // Check authentication when page loads
         checkAuth();
+        
+        // Check Gmail connection status when page loads
+        checkGmailStatus();
         
         // Initialize the page after DOM is fully loaded
         document.addEventListener('DOMContentLoaded', initializePage);
