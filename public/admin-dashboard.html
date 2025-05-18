@@ -371,28 +371,35 @@
         }
         
         // Tab switching functionality
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.addEventListener('click', () => {
-                // Remove active class from all tabs
-                document.querySelectorAll('.tab-button').forEach(btn => {
-                    btn.classList.remove('border-b-2', 'border-blue-500', 'text-blue-600');
-                    btn.classList.add('hover:bg-gray-50', 'text-gray-600');
+        function setupTabSwitching() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tabName = button.getAttribute('data-tab');
+                    
+                    // Update active tab button
+                    tabButtons.forEach(btn => {
+                        btn.classList.remove('border-b-2', 'border-blue-500', 'text-blue-600');
+                        btn.classList.add('text-gray-600', 'hover:text-blue-600');
+                    });
+                    button.classList.remove('text-gray-600', 'hover:text-blue-600');
+                    button.classList.add('border-b-2', 'border-blue-500', 'text-blue-600');
+                    
+                    // Show active tab content
+                    tabContents.forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    document.getElementById(`${tabName}Tab`).classList.remove('hidden');
+                    
+                    // If emails tab is selected, load emails
+                    if (tabName === 'emails') {
+                        loadAnalyzedEmails();
+                    }
                 });
-                
-                // Add active class to clicked tab
-                button.classList.add('border-b-2', 'border-blue-500', 'text-blue-600');
-                button.classList.remove('hover:bg-gray-50', 'text-gray-600');
-                
-                // Hide all tab contents
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.add('hidden');
-                });
-                
-                // Show selected tab content
-                const tabId = button.getAttribute('data-tab');
-                document.getElementById(tabId + 'Tab').classList.remove('hidden');
             });
-        });
+        }
 
         // Check if user is authenticated as admin
         async function checkAuth() {
@@ -922,6 +929,9 @@
             const note = prompt('Add a note (optional):');
             updateEmailStatus('Quarantined', note || '');
         });
+        
+        // Initialize tab switching
+        setupTabSwitching();
         
         // Check authentication when page loads
         checkAuth();
