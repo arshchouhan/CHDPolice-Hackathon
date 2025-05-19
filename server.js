@@ -381,15 +381,25 @@ const startServer = () => {
         });
         
         // Set up graceful shutdown
-        process.on('SIGTERM', () => {
+        process.on('SIGTERM', async () => {
             console.log('SIGTERM received, shutting down gracefully');
-            server.close(() => {
-                console.log('Server closed');
-                mongoose.connection.close(false, () => {
-                    console.log('MongoDB connection closed');
-                    process.exit(0);
+            try {
+                // Close server first
+                await new Promise((resolve) => {
+                    server.close(() => {
+                        console.log('Server closed');
+                        resolve();
+                    });
                 });
-            });
+                
+                // Close MongoDB connection using Promise-based approach
+                await mongoose.connection.close(false);
+                console.log('MongoDB connection closed');
+                process.exit(0);
+            } catch (error) {
+                console.error('Error during graceful shutdown:', error);
+                process.exit(1);
+            }
         });
         
         return server;
