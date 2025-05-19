@@ -750,16 +750,10 @@
                     return;
                 }
                 
-                // Use the new dedicated status endpoint
-                const baseUrl = getBaseUrl();
-                const token = localStorage.getItem('token');
-                
-                console.log('Fetching Gmail status from new endpoint...');
-                const response = await fetch(`${baseUrl}/api/gmail/status`, {
+                const response = await fetch(`${BASE_URL}/api/users/gmail-status`, {
                     method: 'GET',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
                 
@@ -770,39 +764,24 @@
                     console.log('Gmail connection data:', data);
                     
                     if (data.gmailConnected) {
-                        // Store connection status in localStorage
-                        localStorage.setItem('gmailConnected', 'true');
+                        // Get user profile to get the email
+                        const profileResponse = await fetch(`${BASE_URL}/api/users/profile`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            }
+                        });
                         
-                        // Use email from response or default
-                        const email = data.email || 'Gmail Account';
-                        localStorage.setItem('gmailEmail', email);
-                        
-                        // Update UI
-                        updateGmailConnectionStatus(true, email);
-                        
-                        // Show emails section if connected
-                        const emailsSection = document.getElementById('emailsSection');
-                        if (emailsSection) {
-                            emailsSection.classList.remove('hidden');
-                            // Load emails with a slight delay to ensure UI is updated
-                            setTimeout(() => {
-                                loadUserEmails();
-                            }, 500);
-                        } else {
-                            console.warn('Emails section element not found');
+                        if (profileResponse.ok) {
+                            const profileData = await profileResponse.json();
+                            updateGmailConnectionStatus(true, profileData.user.email);
+                            
+                            // Show emails section if connected
+                            document.getElementById('emailsSection').classList.remove('hidden');
+                            loadUserEmails();
                         }
                     } else {
-                        // Clear connection status in localStorage
-                        localStorage.removeItem('gmailConnected');
-                        localStorage.removeItem('gmailEmail');
-                        
-                        // Update UI
                         updateGmailConnectionStatus(false);
-                        
-                        // If there's an error message, show it
-                        if (data.message) {
-                            console.warn('Gmail connection issue:', data.message);
-                        }
                     }
                 } else {
                     // Handle error response
