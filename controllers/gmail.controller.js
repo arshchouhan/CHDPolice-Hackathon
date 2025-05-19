@@ -91,63 +91,138 @@ exports.getAuthUrl = (req, res) => {
 
 // Handle OAuth callback
 exports.handleCallback = async (req, res) => {
+  console.log('OAuth callback received with query params:', req.query);
+  console.log('Request URL:', req.originalUrl);
+  console.log('Request method:', req.method);
+  
   try {
-    console.log('OAuth callback received:', req.query);
     const { code, state, error } = req.query;
     
     // Check for OAuth error response
     if (error) {
       console.error('OAuth error returned:', error, req.query.error_description);
-      return res.redirect(`/admin.html?error=${encodeURIComponent(error)}&description=${encodeURIComponent(req.query.error_description || '')}`);
+      return res.send(`
+        <html>
+          <body>
+            <h1>Authentication Error</h1>
+            <p>Error: ${error}</p>
+            <p>Description: ${req.query.error_description || 'No description provided'}</p>
+            <p><a href="/admin.html">Return to application</a></p>
+          </body>
+        </html>
+      `);
     }
     
     // Validate required parameters
     if (!code) {
       console.error('Authorization code is missing');
-      return res.redirect('/admin.html?error=missing_code');
+      return res.send(`
+        <html>
+          <body>
+            <h1>Authentication Error</h1>
+            <p>Error: Authorization code is missing</p>
+            <p><a href="/admin.html">Return to application</a></p>
+          </body>
+        </html>
+      `);
     }
     
     if (!state) {
       console.error('State parameter is missing');
-      return res.redirect('/admin.html?error=missing_state');
+      return res.send(`
+        <html>
+          <body>
+            <h1>Authentication Error</h1>
+            <p>Error: State parameter is missing</p>
+            <p><a href="/admin.html">Return to application</a></p>
+          </body>
+        </html>
+      `);
     }
     
     const userId = state;
+    console.log('User ID from state:', userId);
     
     // Check if user exists
     const user = await User.findById(userId);
     if (!user) {
       console.error('User not found:', userId);
-      return res.redirect('/admin.html?error=invalid_user');
+      return res.send(`
+        <html>
+          <body>
+            <h1>Authentication Error</h1>
+            <p>Error: User not found</p>
+            <p><a href="/admin.html">Return to application</a></p>
+          </body>
+        </html>
+      `);
     }
     
+    console.log('User found:', user.email || user._id);
     console.log('Exchanging code for tokens...');
     
-    // Exchange code for tokens
-    const { tokens } = await oauth2Client.getToken(code);
-    
-    console.log('Tokens received:', {
-      access_token: tokens.access_token ? 'Present' : 'Missing',
-      refresh_token: tokens.refresh_token ? 'Present' : 'Missing',
-      expiry_date: tokens.expiry_date
-    });
-    
-    // Update user with tokens
-    await User.findByIdAndUpdate(userId, {
-      gmail_access_token: tokens.access_token,
-      gmail_refresh_token: tokens.refresh_token,
-      gmail_token_expiry: new Date(Date.now() + (tokens.expiry_date || 3600000)), // Default 1hr if missing
-      gmail_connected: true,
-      last_email_sync: null
-    });
-    
-    console.log('User updated with Gmail tokens');
-    
-    // Redirect to admin page with success parameter
-    res.redirect('/admin.html?connected=true');
+    try {
+      // Exchange code for tokens
+      const { tokens } = await oauth2Client.getToken(code);
+      
+      console.log('Tokens received:', {
+        access_token: tokens.access_token ? 'Present' : 'Missing',
+        refresh_token: tokens.refresh_token ? 'Present' : 'Missing',
+        expiry_date: tokens.expiry_date
+      });
+      
+      // Update user with tokens
+      await User.findByIdAndUpdate(userId, {
+        gmail_access_token: tokens.access_token,
+        gmail_refresh_token: tokens.refresh_token,
+        gmail_token_expiry: new Date(Date.now() + (tokens.expiry_date || 3600000)), // Default 1hr if missing
+        gmail_connected: true,
+        last_email_sync: null
+      });
+      
+      console.log('User updated with Gmail tokens');
+      
+      // Return HTML response instead of redirect
+      return res.send(`
+        <html>
+          <body>
+            <h1>Gmail Connected Successfully</h1>
+            <p>Your Gmail account has been successfully connected to the application.</p>
+            <p><a href="/admin.html?connected=true">Return to application</a></p>
+            <script>
+              // Auto-redirect after 3 seconds
+              setTimeout(function() {
+                window.location.href = '/admin.html?connected=true';
+              }, 3000);
+            </script>
+          </body>
+        </html>
+      `);
+    } catch (tokenError) {
+      console.error('Error exchanging code for tokens:', tokenError);
+      return res.send(`
+        <html>
+          <body>
+            <h1>Authentication Error</h1>
+            <p>Error exchanging code for tokens: ${tokenError.message}</p>
+            <pre>${tokenError.stack}</pre>
+            <p><a href="/admin.html">Return to application</a></p>
+          </body>
+        </html>
+      `);
+    }
   } catch (error) {
     console.error('OAuth callback error:', error);
-    res.redirect(`/admin.html?error=auth_error&message=${encodeURIComponent(error.message)}`);
+    return res.send(`
+      <html>
+        <body>
+          <h1>Authentication Error</h1>
+          <p>Error: ${error.message}</p>
+          <pre>${error.stack}</pre>
+          <p><a href="/admin.html">Return to application</a></p>
+        </body>
+      </html>
+    `);
   }
 };
 
