@@ -8,6 +8,26 @@ const Admin = require('./models/Admin');
 const User = require('./models/Users');
 require('dotenv').config();
 
+// Detect deployment platform
+const isRender = process.env.RENDER || process.env.IS_RENDER || false;
+const isVercel = process.env.VERCEL || process.env.VERCEL_ENV || false;
+
+// Set NODE_ENV if not already set
+if (!process.env.NODE_ENV) {
+    process.env.NODE_ENV = isRender || isVercel ? 'production' : 'development';
+}
+
+// Set platform-specific environment variables
+if (isRender) {
+    process.env.RENDER = 'true';
+    console.log('Running on Render platform');
+} else if (isVercel) {
+    process.env.VERCEL = 'true';
+    console.log('Running on Vercel platform');
+} else {
+    console.log('Running on local/other platform');
+}
+
 const app = express();
 
 // Import routes
@@ -58,11 +78,13 @@ const corsOptions = {
 // Apply CORS configuration (only once)
 app.use(cors(corsOptions));
 
-// First register API routes (before static files)
+// Register authentication routes (no auth required)
 app.use('/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/gmail', gmailRoutes);
+
+// Apply authentication middleware to protected API routes
+app.use('/api/users', authenticateUser, userRoutes);
+app.use('/api/admin', authenticateUser, adminRoutes);
+app.use('/api/gmail', authenticateUser, gmailRoutes);
 
 // Then serve static files (after API routes)
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -167,41 +189,86 @@ const connectDB = async () => {
     }
 };
 
-// Retry connection with exponential backoff
+// Retry connection with exponential backoff and Render-specific handling
 const connectWithRetry = (retryCount = 0) => {
-    connectDB().catch(err => {
-        const retryDelay = Math.min(Math.pow(2, retryCount) * 1000, 30000); // Exponential backoff with max 30s
-        console.log(`Failed to connect to MongoDB, retrying in ${retryDelay/1000} seconds... (attempt ${retryCount + 1})`);
-        setTimeout(() => connectWithRetry(retryCount + 1), retryDelay);
-    });
+    // For Render, add a delay before first connection attempt to allow network to stabilize
+    if (retryCount === 0 && process.env.RENDER) {
+        console.log('Running on Render, adding initial delay before MongoDB connection attempt...');
+        setTimeout(() => {
+            connectDB().catch(err => {
+                const retryDelay = Math.min(Math.pow(2, retryCount) * 1000, 30000);
+                console.log(`Failed to connect to MongoDB, retrying in ${retryDelay/1000} seconds... (attempt ${retryCount + 1})`);
+                setTimeout(() => connectWithRetry(retryCount + 1), retryDelay);
+            });
+        }, 5000); // 5 second initial delay for Render
+    } else {
+        connectDB().catch(err => {
+            const retryDelay = Math.min(Math.pow(2, retryCount) * 1000, 30000); // Exponential backoff with max 30s
+            console.log(`Failed to connect to MongoDB, retrying in ${retryDelay/1000} seconds... (attempt ${retryCount + 1})`);
+            setTimeout(() => connectWithRetry(retryCount + 1), retryDelay);
+        });
+    }
 };
 
 connectWithRetry();
 
-// Health check endpoint for Render
-app.get('/health', (req, res) => {
+// Enhanced health check endpoint for Render with detailed diagnostics
+app.get('/health', async (req, res) => {
     // Check MongoDB connection
-    const isMongoConnected = mongoose.connection.readyState === 1;
+    const mongoStatus = {
+        readyState: mongoose.connection.readyState,
+        status: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown'
+    };
     
-    if (isMongoConnected) {
-        return res.status(200).json({
+    // Check environment variables (without exposing sensitive values)
+    const envVars = {
+        NODE_ENV: process.env.NODE_ENV || 'not set',
+        PORT: process.env.PORT || 'not set',
+        MONGO_URI: process.env.MONGO_URI ? 'set' : 'not set',
+        JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'not set',
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'set' : 'not set',
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'set' : 'not set',
+        PROD_REDIRECT_URI: process.env.PROD_REDIRECT_URI || 'not set'
+    };
+    
+    // Check platform detection
+    const platform = {
+        isRender: !!process.env.RENDER,
+        isVercel: !!process.env.VERCEL,
+        hostname: req.hostname,
+        originalUrl: req.originalUrl
+    };
+    
+    // Check file system access
+    let fileSystemStatus = 'unknown';
+    try {
+        const publicDir = path.join(__dirname, 'public');
+        const files = require('fs').readdirSync(publicDir);
+        fileSystemStatus = {
             status: 'ok',
-            message: 'Server is healthy',
-            mongoConnection: 'connected',
-            timestamp: new Date().toISOString(),
-            environment: process.env.NODE_ENV || 'development'
-        });
-    } else {
-        // Still return 200 to prevent Render from restarting the server
-        // when MongoDB is temporarily unavailable
-        return res.status(200).json({
-            status: 'warning',
-            message: 'Server is running but MongoDB connection is not established',
-            mongoConnection: 'disconnected',
-            timestamp: new Date().toISOString(),
-            environment: process.env.NODE_ENV || 'development'
-        });
+            publicDir,
+            fileCount: files.length,
+            hasIndexHtml: files.includes('index.html'),
+            hasLoginHtml: files.includes('login.html')
+        };
+    } catch (err) {
+        fileSystemStatus = {
+            status: 'error',
+            error: err.message
+        };
     }
+    
+    // Always return 200 to prevent Render from restarting the server unnecessarily
+    return res.status(200).json({
+        status: mongoStatus.readyState === 1 ? 'ok' : 'warning',
+        message: mongoStatus.readyState === 1 ? 'Server is healthy' : 'Server is running with warnings',
+        timestamp: new Date().toISOString(),
+        mongo: mongoStatus,
+        environment: envVars,
+        platform,
+        fileSystem: fileSystemStatus,
+        uptime: process.uptime() + ' seconds'
+    });
 });
 
 // Explicit route handlers for HTML pages
