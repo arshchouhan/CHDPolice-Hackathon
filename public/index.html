@@ -435,15 +435,47 @@
             document.getElementById('gmailAuthModal').classList.remove('flex');
         }
         
-        // Function to update Gmail connection status in UI
+        // Function to update Gmail connection status in UI with robust error handling
         function updateGmailConnectionStatus(isConnected, email) {
-            if (isConnected) {
-                document.getElementById('gmailConnectedSection').classList.remove('hidden');
-                document.getElementById('gmailNotConnectedSection').classList.add('hidden');
-                document.getElementById('connectedEmail').textContent = email || 'your Gmail account';
-            } else {
-                document.getElementById('gmailConnectedSection').classList.add('hidden');
-                document.getElementById('gmailNotConnectedSection').classList.remove('hidden');
+            console.log('Updating Gmail connection status:', isConnected ? 'Connected' : 'Not connected', email || '');
+            
+            try {
+                // Get the elements with null checks
+                const connectedSection = document.getElementById('gmailConnectedSection');
+                const notConnectedSection = document.getElementById('gmailNotConnectedSection');
+                const connectedEmailElement = document.getElementById('connectedEmail');
+                
+                // Log element presence for debugging
+                console.log('UI Elements found:', {
+                    connectedSection: !!connectedSection,
+                    notConnectedSection: !!notConnectedSection,
+                    connectedEmailElement: !!connectedEmailElement
+                });
+                
+                if (isConnected) {
+                    // Update localStorage to persist connection state
+                    localStorage.setItem('gmailConnected', 'true');
+                    if (email) localStorage.setItem('gmailEmail', email);
+                    
+                    // Update UI elements if they exist
+                    if (connectedSection) connectedSection.classList.remove('hidden');
+                    if (notConnectedSection) notConnectedSection.classList.add('hidden');
+                    if (connectedEmailElement) connectedEmailElement.textContent = email || 'your Gmail account';
+                    
+                    console.log('UI updated to show Gmail as connected');
+                } else {
+                    // Update localStorage to persist connection state
+                    localStorage.removeItem('gmailConnected');
+                    localStorage.removeItem('gmailEmail');
+                    
+                    // Update UI elements if they exist
+                    if (connectedSection) connectedSection.classList.add('hidden');
+                    if (notConnectedSection) notConnectedSection.classList.remove('hidden');
+                    
+                    console.log('UI updated to show Gmail as not connected');
+                }
+            } catch (error) {
+                console.error('Error updating Gmail connection status in UI:', error);
             }
         }
         
@@ -745,8 +777,15 @@
                     
                     // Force update the connection status
                     updateGmailConnectionStatus(true, 'Gmail Account');
-                    document.getElementById('emailsSection').classList.remove('hidden');
-                    loadUserEmails();
+                    
+                    // Add null check before accessing classList
+                    const emailsSection = document.getElementById('emailsSection');
+                    if (emailsSection) {
+                        emailsSection.classList.remove('hidden');
+                        loadUserEmails();
+                    } else {
+                        console.warn('emailsSection element not found in DOM');
+                    }
                     return;
                 }
                 
@@ -1464,6 +1503,47 @@
         checkGmailStatus();
         
         // Initialize the page after DOM is fully loaded
+        async function initializePage() {
+            console.log('Initializing admin page...');
+            
+            // Check if user is logged in
+            if (!localStorage.getItem('token')) {
+                console.log('No token found, redirecting to login');
+                window.location.href = '/login.html';
+                return;
+            }
+            
+            // Check for Gmail connection in localStorage first (for faster UI update)
+            if (localStorage.getItem('gmailConnected') === 'true') {
+                console.log('Gmail connected according to localStorage');
+                const email = localStorage.getItem('gmailEmail') || 'your Gmail account';
+                updateGmailConnectionStatus(true, email);
+                
+                // Show emails section
+                const emailsSection = document.getElementById('emailsSection');
+                if (emailsSection) {
+                    emailsSection.classList.remove('hidden');
+                }
+            }
+            
+            // Load user profile
+            await loadUserProfile();
+            
+            // Check Gmail connection status from server
+            await checkGmailStatus();
+            
+            // Check URL parameters for connection status
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('connected') === 'true') {
+                console.log('Connected parameter found in URL, refreshing emails');
+                // Clean up URL
+                const newUrl = window.location.pathname + window.location.hash;
+                window.history.replaceState({}, document.title, newUrl);
+                
+                // Force load emails
+                loadUserEmails();
+            }
+        }
         document.addEventListener('DOMContentLoaded', initializePage);
     </script>
 </body>
