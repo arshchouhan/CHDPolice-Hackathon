@@ -162,8 +162,15 @@ exports.handleCallback = async (req, res) => {
     console.log('Exchanging code for tokens...');
     
     try {
-      // Exchange code for tokens
-      const { tokens } = await oauth2Client.getToken(code);
+      // Get the redirect URI that was used for the initial request
+      const redirectUri = process.env.PROD_REDIRECT_URI || 'https://email-detection-api.onrender.com/api/gmail/callback';
+      console.log('Using redirect URI for token exchange:', redirectUri);
+      
+      // Exchange code for tokens with explicit redirect URI
+      const { tokens } = await oauth2Client.getToken({
+        code: code,
+        redirect_uri: redirectUri
+      });
       
       console.log('Tokens received:', {
         access_token: tokens.access_token ? 'Present' : 'Missing',
