@@ -78,22 +78,7 @@ const corsOptions = {
 // Apply CORS configuration (only once)
 app.use(cors(corsOptions));
 
-// Register authentication routes (no auth required)
-app.use('/auth', authRoutes);
-
-// Apply authentication middleware to protected API routes
-app.use('/api/users', authenticateUser, userRoutes);
-app.use('/api/admin', authenticateUser, adminRoutes);
-app.use('/api/gmail', authenticateUser, gmailRoutes);
-
-// Then serve static files (after API routes)
-app.use(express.static(path.join(__dirname, 'public'), {
-    maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0, // Cache for 1 day in production
-    etag: true,
-    lastModified: true
-}));
-
-// Authentication middleware
+// Authentication middleware - MOVED BEFORE ROUTES TO FIX RENDER DEPLOYMENT ERROR
 const authenticateUser = (req, res, next) => {
     // Skip auth for static files and public routes
     if (
@@ -108,7 +93,7 @@ const authenticateUser = (req, res, next) => {
     ) {
         return next();
     }
-
+    
     // Check for authentication using token from headers
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
@@ -120,7 +105,20 @@ const authenticateUser = (req, res, next) => {
     next();
 };
 
+// Register authentication routes (no auth required)
+app.use('/auth', authRoutes);
 
+// Apply authentication middleware to protected API routes
+app.use('/api/users', authenticateUser, userRoutes);
+app.use('/api/admin', authenticateUser, adminRoutes);
+app.use('/api/gmail', authenticateUser, gmailRoutes);
+
+// Then serve static files (after API routes)
+app.use(express.static(path.join(__dirname, 'public'), {
+    maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0, // Cache for 1 day in production
+    etag: true,
+    lastModified: true
+}));
 
 // Connect to MongoDB with improved error handling
 const connectDB = async () => {
