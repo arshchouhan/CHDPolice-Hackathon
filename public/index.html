@@ -565,26 +565,37 @@
                     updateGmailConnectionStatus(false);
                 }
             } catch (error) {
-                console.error('Error checking Gmail connection status:', error);
+                console.error('Error in checkGmailStatus:', error);
                 updateGmailConnectionStatus(false);
             }
         }
         
-        // Function to load user's analyzed emails
+        // Function to load user emails
         async function loadUserEmails() {
             try {
-                showLoading();
+                console.log('Loading user emails...');
+                const emailsContainer = document.getElementById('emailsList');
+                emailsContainer.innerHTML = '<div class="text-center p-4"><div class="spinner"></div><p class="mt-2 text-gray-400">Loading emails...</p></div>';
                 
-                const response = await fetch(`${BASE_URL}/api/users/emails`, {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Authentication token not found');
+                }
+                
+                const baseUrl = getBaseUrl();
+                const response = await fetch(`${baseUrl}/api/gmail/emails`, {
                     method: 'GET',
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
                 
+                console.log('Email fetch response status:', response.status);
+                
                 if (response.ok) {
                     const data = await response.json();
-                    const emailsContainer = document.getElementById('emailsList');
+                    console.log('Emails data:', data);
                     emailsContainer.innerHTML = '';
                     
                     if (data.emails.length === 0) {
@@ -720,6 +731,25 @@
         // Function to check Gmail connection status from the server
         async function checkGmailStatus() {
             try {
+                console.log('Checking Gmail connection status...');
+                
+                // Check if we just completed OAuth flow (URL has connected=true)
+                const urlParams = new URLSearchParams(window.location.search);
+                const justConnected = urlParams.get('connected') === 'true';
+                
+                if (justConnected) {
+                    console.log('Detected successful OAuth completion from URL parameter');
+                    // Remove the query parameter to avoid confusion on page refresh
+                    const newUrl = window.location.pathname + window.location.hash;
+                    window.history.replaceState({}, document.title, newUrl);
+                    
+                    // Force update the connection status
+                    updateGmailConnectionStatus(true, 'Gmail Account');
+                    document.getElementById('emailsSection').classList.remove('hidden');
+                    loadUserEmails();
+                    return;
+                }
+                
                 const response = await fetch(`${BASE_URL}/api/users/gmail-status`, {
                     method: 'GET',
                     headers: {
@@ -727,8 +757,11 @@
                     }
                 });
                 
+                console.log('Gmail status response status:', response.status);
+                
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('Gmail connection data:', data);
                     
                     if (data.gmailConnected) {
                         // Get user profile to get the email
@@ -748,6 +781,16 @@
                             loadUserEmails();
                         }
                     } else {
+                        updateGmailConnectionStatus(false);
+                    }
+                } else {
+                    // Handle error response
+                    console.error('Error checking Gmail status:', response.status);
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error('Error details:', errorData);
+                    
+                    // If unauthorized, check if we need to reconnect
+                    if (response.status === 401) {
                         updateGmailConnectionStatus(false);
                     }
                 }
