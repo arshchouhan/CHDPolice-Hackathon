@@ -887,9 +887,14 @@
             }
         }
 
-        // Check if user is authenticated
+        // Check if user is authenticated - Updated for consistent behavior across deployments
         async function checkAuth() {
             try {
+                // Get the dynamic base URL
+                const baseUrl = getBaseUrl();
+                console.log('Checking auth with BASE_URL:', baseUrl);
+                console.log('Current hostname:', window.location.hostname);
+                
                 // First check the userRole
                 const userRole = localStorage.getItem('userRole');
                 const token = localStorage.getItem('token');
@@ -899,7 +904,7 @@
                 // If user is an admin, they should be on admin dashboard
                 if (userRole === 'admin' && token) {
                     console.log('Admin user detected, redirecting to admin dashboard');
-                    window.location.href = '/admin-dashboard.html';
+                    window.location.href = `${baseUrl}/admin-dashboard.html`;
                     return;
                 }
                 
@@ -909,13 +914,16 @@
                     
                     // Verify the token is valid
                     try {
-                        const response = await fetch(`${BASE_URL}/auth/check-auth`, {
+                        const response = await fetch(`${baseUrl}/auth/check-auth`, {
                             method: 'GET',
                             headers: {
-                                'Authorization': `Bearer ${token}`
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
                             },
                             credentials: 'include'
                         });
+                        
+                        console.log('Auth check response status:', response.status);
                         
                         if (response.ok) {
                             const data = await response.json();
@@ -924,7 +932,7 @@
                             // If user is admin, redirect to admin dashboard
                             if (data.user && data.user.role === 'admin') {
                                 localStorage.setItem('userRole', 'admin');
-                                window.location.href = '/admin-dashboard.html';
+                                window.location.href = `${baseUrl}/admin-dashboard.html`;
                                 return;
                             }
                             
@@ -951,10 +959,15 @@
                 
                 // If no token in localStorage or validation failed, check with server cookies
                 console.log('Checking with server cookies...');
-                const cookieResponse = await fetch(`${BASE_URL}/auth/check-auth`, {
+                const cookieResponse = await fetch(`${baseUrl}/auth/check-auth`, {
                     method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
                     credentials: 'include' // Send cookies
                 });
+                
+                console.log('Cookie auth check response status:', cookieResponse.status);
                 
                 if (cookieResponse.ok) {
                     // User is authenticated via cookies
@@ -969,7 +982,7 @@
                     // If user is admin, redirect to admin dashboard
                     if (data.user && data.user.role === 'admin') {
                         localStorage.setItem('userRole', 'admin');
-                        window.location.href = '/admin-dashboard.html';
+                        window.location.href = `${baseUrl}/admin-dashboard.html`;
                         return;
                     }
                     
@@ -987,7 +1000,9 @@
                 
                 // If neither method authenticated the user, redirect to login
                 console.log('Not authenticated, redirecting to login');
-                window.location.href = `${BASE_URL}/login.html`;
+                const loginUrl = `${baseUrl}/login.html`;
+                console.log('Redirecting to:', loginUrl);
+                window.location.href = loginUrl;
             } catch (error) {
                 console.error('Auth check error:', error);
                 // Don't redirect immediately on error
@@ -1041,27 +1056,75 @@
             checkGmailStatus().catch(err => console.error('Error checking Gmail status:', err));
         }
 
-        // Handle logout
+        // Initialize the app with improved cross-platform compatibility
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('DOM loaded - Initializing application');
+            console.log('Environment:', window.location.hostname);
+            console.log('Using BASE_URL:', getBaseUrl());
+            
+            try {
+                // Check if user is authenticated
+                await checkAuth();
+                
+                // Initialize page with Gmail authentication
+                initializePage();
+                
+                // Set up global error handler for fetch requests
+                window.addEventListener('unhandledrejection', function(event) {
+                    console.error('Unhandled promise rejection:', event.reason);
+                    if (event.reason.message && event.reason.message.includes('Failed to fetch')) {
+                        showError('Connection Error', 'Cannot connect to the server. Please check your internet connection.');
+                    }
+                });
+                
+                console.log('Application initialization complete');
+            } catch (error) {
+                console.error('Error during application initialization:', error);
+                showError('Initialization Error', 'Something went wrong while loading the application. Please refresh the page.');
+            }
+        });    
+
+        // Handle logout with improved error handling and dynamic BASE_URL
         document.getElementById('logoutBtn').addEventListener('click', async () => {
             try {
                 showLoading();
-                const response = await fetch(`${BASE_URL}/auth/logout`, {
+                // Use getBaseUrl() instead of BASE_URL to ensure we have the latest URL
+                const baseUrl = getBaseUrl();
+                console.log('Logging out from:', baseUrl);
+                console.log('Current hostname:', window.location.hostname);
+                
+                const response = await fetch(`${baseUrl}/auth/logout`, {
                     method: 'POST',
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
                 });
 
-                if (response.ok) {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('userRole');
-                    // Don't remove Gmail connection status to persist it between sessions
-                    window.location.href = `${BASE_URL}/login.html`;
-                } else {
-                    console.error('Logout failed');
-                    hideLoading();
-                }
+                console.log('Logout response status:', response.status);
+                
+                // Always clear local storage and redirect on logout attempt
+                localStorage.removeItem('token');
+                localStorage.removeItem('userRole');
+                
+                // Redirect to login page using the dynamic base URL
+                const loginUrl = `${baseUrl}/login.html`;
+                console.log('Redirecting to:', loginUrl);
+                window.location.href = loginUrl;
+                
             } catch (error) {
-                console.error('Logout error:', error);
+                console.error('Logout failed:', error);
                 hideLoading();
+                showError('Logout Failed', 'Could not connect to the server. Please try again.');
+                
+                // Force logout anyway by clearing local storage
+                localStorage.removeItem('token');
+                localStorage.removeItem('userRole');
+                
+                // Redirect to login after a short delay
+                setTimeout(() => {
+                    window.location.href = `${getBaseUrl()}/login.html`;
+                }, 2000);
             }
         });
 
