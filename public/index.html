@@ -1084,7 +1084,7 @@
             }
         });    
 
-        // Handle logout with improved error handling and dynamic BASE_URL
+        // Handle logout with special handling for Render deployment
         document.getElementById('logoutBtn').addEventListener('click', async () => {
             try {
                 showLoading();
@@ -1093,11 +1093,37 @@
                 console.log('Logging out from:', baseUrl);
                 console.log('Current hostname:', window.location.hostname);
                 
+                // Special handling for Render deployment
+                const isRender = window.location.hostname.includes('onrender.com');
+                console.log('Is Render deployment:', isRender);
+                
+                // For Render, we'll use a more direct approach
+                if (isRender) {
+                    console.log('Using direct logout approach for Render');
+                    // Clear all authentication data
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    
+                    // Clear any cookies by setting them to expire
+                    document.cookie.split(';').forEach(cookie => {
+                        const [name] = cookie.trim().split('=');
+                        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+                    });
+                    
+                    // For Render, redirect to root which should serve the login page
+                    // This is because Render might be configured differently for static files
+                    console.log('Redirecting to Render root path');
+                    window.location.href = `${baseUrl}/`;
+                    return;
+                }
+                
+                // Standard approach for other deployments
                 const response = await fetch(`${baseUrl}/auth/logout`, {
                     method: 'POST',
                     credentials: 'include',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
 
@@ -1115,16 +1141,28 @@
             } catch (error) {
                 console.error('Logout failed:', error);
                 hideLoading();
-                showError('Logout Failed', 'Could not connect to the server. Please try again.');
+                showError('Logout Failed', 'Could not connect to the server. Forcing logout...');
                 
-                // Force logout anyway by clearing local storage
-                localStorage.removeItem('token');
-                localStorage.removeItem('userRole');
+                // Force logout by clearing all storage
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Clear any cookies
+                document.cookie.split(';').forEach(cookie => {
+                    const [name] = cookie.trim().split('=');
+                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+                });
                 
                 // Redirect to login after a short delay
                 setTimeout(() => {
-                    window.location.href = `${getBaseUrl()}/login.html`;
-                }, 2000);
+                    const baseUrl = getBaseUrl();
+                    // For Render, redirect to root instead of login.html
+                    if (window.location.hostname.includes('onrender.com')) {
+                        window.location.href = `${baseUrl}/`;
+                    } else {
+                        window.location.href = `${baseUrl}/login.html`;
+                    }
+                }, 1500);
             }
         });
 
