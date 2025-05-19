@@ -26,12 +26,21 @@ const oauth2Client = new google.auth.OAuth2(
 // Generate Gmail OAuth URL
 exports.getAuthUrl = (req, res) => {
   try {
-    // Log environment variables and configuration (without exposing secrets)
+    // Get redirect URI from query parameters if provided
+    const redirectUriFromQuery = req.query.redirect_uri;
+    const platform = req.query.platform;
+    
     console.log('OAuth2 Configuration Check:');
     console.log('GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID);
     console.log('GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET);
     console.log('Environment:', process.env.NODE_ENV || 'development');
-    console.log('Current Redirect URI:', getRedirectUri());
+    console.log('Platform from query:', platform);
+    console.log('Redirect URI from query:', redirectUriFromQuery);
+    console.log('Default Redirect URI:', getRedirectUri());
+    
+    // Use the redirect URI from query if provided, otherwise fall back to default
+    const finalRedirectUri = redirectUriFromQuery || getRedirectUri();
+    console.log('Final Redirect URI to be used:', finalRedirectUri);
     
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
       console.error('Missing required OAuth2 environment variables');
@@ -56,19 +65,24 @@ exports.getAuthUrl = (req, res) => {
     
     const scopes = ['https://www.googleapis.com/auth/gmail.readonly'];
     
-    // Create a new OAuth client with the current redirect URI to ensure it's up to date
+    // Create a new OAuth client with the redirect URI from the query
     const currentOAuth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      getRedirectUri()
+      finalRedirectUri
     );
+    
+    // Store the redirect URI in the state parameter along with the user ID
+    // Format: userId|redirectUri
+    const stateParam = `${req.user.id}|${finalRedirectUri}`;
     
     const authUrl = currentOAuth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent', // Force to get refresh token
-      state: req.user.id, // Pass user ID as state parameter
-      include_granted_scopes: true // Enable incremental authorization
+      state: stateParam, // Pass user ID and redirect URI as state parameter
+      include_granted_scopes: true, // Enable incremental authorization
+      redirect_uri: finalRedirectUri // Explicitly set redirect URI
     });
     
     console.log('Generated Auth URL:', authUrl);
@@ -116,12 +130,15 @@ exports.handleCallback = async (req, res) => {
     // Validate required parameters
     if (!code) {
       console.error('Authorization code is missing');
+      // Get the frontend URL from environment variable or default to Vercel URL
+      const frontendUrl = process.env.FRONTEND_URL || 'https://chd-police-hackathon.vercel.app';
+      
       return res.send(`
         <html>
           <body>
             <h1>Authentication Error</h1>
             <p>Error: Authorization code is missing</p>
-            <p><a href="/admin.html">Return to application</a></p>
+            <p><a href="${frontendUrl}/admin.html">Return to application</a></p>
           </body>
         </html>
       `);
@@ -129,30 +146,50 @@ exports.handleCallback = async (req, res) => {
     
     if (!state) {
       console.error('State parameter is missing');
+      // Get the frontend URL from environment variable or default to Vercel URL
+      const frontendUrl = process.env.FRONTEND_URL || 'https://chd-police-hackathon.vercel.app';
+      
       return res.send(`
         <html>
           <body>
             <h1>Authentication Error</h1>
             <p>Error: State parameter is missing</p>
-            <p><a href="/admin.html">Return to application</a></p>
+            <p><a href="${frontendUrl}/admin.html">Return to application</a></p>
           </body>
         </html>
       `);
     }
     
-    const userId = state;
-    console.log('User ID from state:', userId);
+    // Parse state parameter which now contains userId|redirectUri
+    console.log('Received state parameter:', state);
     
-    // Check if user exists
+    let userId, callbackRedirectUri;
+    if (state.includes('|')) {
+      // New format with redirect URI
+      [userId, callbackRedirectUri] = state.split('|');
+      console.log('Parsed from state - User ID:', userId);
+      console.log('Parsed from state - Redirect URI:', callbackRedirectUri);
+    } else {
+      // Old format, just user ID
+      userId = state;
+      callbackRedirectUri = getRedirectUri();
+      console.log('Using old state format - User ID:', userId);
+      console.log('Using default redirect URI:', callbackRedirectUri);
+    }
+    
+    // Find user by ID (from state parameter)
     const user = await User.findById(userId);
     if (!user) {
       console.error('User not found:', userId);
+      // Get the frontend URL from environment variable or default to Vercel URL
+      const frontendUrl = process.env.FRONTEND_URL || 'https://chd-police-hackathon.vercel.app';
+      
       return res.send(`
         <html>
           <body>
             <h1>Authentication Error</h1>
             <p>Error: User not found</p>
-            <p><a href="/admin.html">Return to application</a></p>
+            <p><a href="${frontendUrl}/admin.html">Return to application</a></p>
           </body>
         </html>
       `);
@@ -162,14 +199,20 @@ exports.handleCallback = async (req, res) => {
     console.log('Exchanging code for tokens...');
     
     try {
-      // Get the redirect URI that was used for the initial request
-      const redirectUri = process.env.PROD_REDIRECT_URI || 'https://email-detection-api.onrender.com/api/gmail/callback';
-      console.log('Using redirect URI for token exchange:', redirectUri);
+      // Use the redirect URI that was parsed from the state parameter
+      console.log('Using redirect URI for token exchange:', callbackRedirectUri);
+      
+      // Create a new OAuth client with the same redirect URI used in the initial request
+      const tokenExchangeClient = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        callbackRedirectUri
+      );
       
       // Exchange code for tokens with explicit redirect URI
-      const { tokens } = await oauth2Client.getToken({
+      const { tokens } = await tokenExchangeClient.getToken({
         code: code,
-        redirect_uri: redirectUri
+        redirect_uri: callbackRedirectUri
       });
       
       console.log('Tokens received:', {
