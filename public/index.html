@@ -472,29 +472,55 @@
                 console.log('- Platform:', platform);
                 
                 // Check Gmail connection status
-                const response = await fetch(`${baseUrl}/api/gmail/status?platform=${platform}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+                let data = { connected: false };
                 
-                // Handle different response scenarios
-                if (response.status === 401 || response.status === 403) {
-                    console.error('Authentication failed when checking Gmail status');
-                    updateGmailConnectionStatus(false);
-                    return;
-                } else if (!response.ok) {
-                    console.error('Error checking Gmail status:', response.status, response.statusText);
+                try {
+                    const response = await fetch(`${baseUrl}/api/gmail/status?platform=${platform}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    // Check if we got HTML instead of JSON (common error when endpoint doesn't exist)
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('text/html')) {
+                        console.error('Received HTML response instead of JSON. API endpoint may not exist.');
+                        console.log('Content type:', contentType);
+                        updateGmailConnectionStatus(false);
+                        return;
+                    }
+                    
+                    // Handle different response scenarios
+                    if (response.status === 401 || response.status === 403) {
+                        console.error('Authentication failed when checking Gmail status');
+                        updateGmailConnectionStatus(false);
+                        return;
+                    } else if (!response.ok) {
+                        console.error('Error checking Gmail status:', response.status, response.statusText);
+                        updateGmailConnectionStatus(false);
+                        return;
+                    }
+                    
+                    // Try to parse JSON response, with error handling
+                    const text = await response.text();
+                    try {
+                        data = JSON.parse(text);
+                        console.log('Gmail connection status response:', data);
+                    } catch (jsonError) {
+                        console.error('Failed to parse JSON response:', jsonError);
+                        console.log('Raw response:', text.substring(0, 100) + '...');
+                        updateGmailConnectionStatus(false);
+                        return;
+                    }
+                } catch (fetchError) {
+                    console.error('Error fetching Gmail status:', fetchError);
                     updateGmailConnectionStatus(false);
                     return;
                 }
                 
-                const data = await response.json();
-                console.log('Gmail connection status response:', data);
-                
-                if (data.connected) {
+                if (data && data.connected) {
                     console.log('Gmail is connected, updating status');
                     localStorage.setItem('gmailConnected', 'true');
                     
@@ -1020,6 +1046,37 @@
                 hideLoading();
                 alert('Failed to scan emails. Please try again.');
             }
+        }
+        
+        // Initialize UI components and event listeners
+        function initializeUI() {
+            console.log('Initializing UI components...');
+            
+            // Update UI based on connection status
+            const isGmailConnected = localStorage.getItem('gmailConnected') === 'true';
+            const userEmail = localStorage.getItem('gmailEmail') || localStorage.getItem('userEmail');
+            updateGmailConnectionStatus(isGmailConnected, userEmail);
+            
+            // If connected, show emails section
+            if (isGmailConnected) {
+                const emailsSection = document.getElementById('emailsSection');
+                if (emailsSection) {
+                    emailsSection.classList.remove('hidden');
+                    loadUserEmails();
+                }
+            }
+            
+            // Event listeners for Gmail connection
+            const connectBtn = document.getElementById('connectGmailBtn');
+            if (connectBtn) {
+                connectBtn.addEventListener('click', showGmailAuthModal);
+            }
+            
+            // Modal event listeners
+            document.getElementById('closeModal')?.addEventListener('click', hideGmailAuthModal);
+            document.getElementById('authorizeGmailBtn')?.addEventListener('click', connectGmail);
+            
+            console.log('UI initialization complete');
         }
 
         // Check if user is authenticated - Updated for consistent behavior across deployments
