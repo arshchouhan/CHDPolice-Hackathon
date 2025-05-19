@@ -20,6 +20,10 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: PROD_REDIRECT_URI
+        value: "https://email-detection-api.onrender.com/api/gmail/callback"
       - key: PORT
         value: 3000
       - key: HOST
