@@ -34,13 +34,21 @@ services:
       - path: /*
         name: Access-Control-Allow-Origin
         value: "*"
+    # Static file handling
+    staticPublishPath: ./public
+    # Routes configuration
     routes:
+      # Explicit routes for HTML pages
       - type: rewrite
         source: /login
         destination: /login.html
       - type: rewrite
         source: /admin
         destination: /admin-dashboard.html
+      - type: rewrite
+        source: /dashboard
+        destination: /index.html
+      # Fallback route for SPA
       - type: rewrite
         source: /*
         destination: /index.html

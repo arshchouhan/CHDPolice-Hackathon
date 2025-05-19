@@ -185,28 +185,52 @@ app.use('/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Static file serving
-app.use(express.static(path.join(__dirname, 'public')));
+// Enhanced static file serving with caching for production
+app.use(express.static(path.join(__dirname, 'public'), {
+    maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0, // Cache for 1 day in production
+    etag: true,
+    lastModified: true
+}));
 
-// Route handlers for pages
+// Explicit route handlers for HTML pages
 app.get('/', (req, res) => {
+    console.log('Serving root path');
     res.sendFile(path.join(__dirname, 'public', 'signup.html'));
 });
 
 app.get('/login', (req, res) => {
+    console.log('Serving login page');
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/login.html', (req, res) => {
+    console.log('Serving login.html');
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 app.get('/signup', (req, res) => {
+    console.log('Serving signup page');
     res.sendFile(path.join(__dirname, 'public', 'signup.html'));
 });
 
 app.get('/dashboard', (req, res) => {
+    console.log('Serving dashboard page');
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/admin', (req, res) => {
+    console.log('Serving admin page');
+    res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
+});
+
+app.get('/admin-dashboard.html', (req, res) => {
+    console.log('Serving admin-dashboard.html');
+    res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
 });
 
 // All other routes should serve index.html for client-side routing
 app.get('*', (req, res) => {
+    console.log('Serving fallback route:', req.path);
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
