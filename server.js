@@ -10,26 +10,44 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
+// Import routes
+const userRoutes = require('./routes/user.route');
+const adminRoutes = require('./routes/admin.route');
+const authRoutes = require('./routes/auth.route');
+const gmailRoutes = require('./routes/gmail.route');
+
+// Essential middleware
 app.use(express.json());
 app.use(cookieParser());
 
-// CORS configuration
+// Consolidated CORS configuration
 const corsOptions = {
     origin: function(origin, callback) {
         const allowedOrigins = [
             'https://email-detection-eight.vercel.app',
             'https://email-detection-git-main-arshchouhan.vercel.app',
             'https://email-detection-arshchouhan.vercel.app',
+            'https://chd-police-hackathon.vercel.app',
             'https://email-detection-api.onrender.com',
             'https://email-detection.onrender.com',
             'https://email-detection.public.onrender.com',
-            'http://localhost:3000',
-            '*'
+            'http://localhost:3000'
         ];
+        
         console.log('Request origin:', origin || 'No origin (direct access)');
-        // Always allow requests - for debugging purposes
-        callback(null, true);
+        
+        // In production, check against allowed origins
+        if (process.env.NODE_ENV === 'production') {
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                console.warn(`Blocked request from unauthorized origin: ${origin}`);
+                callback(null, true); // Still allow for now, but log it
+            }
+        } else {
+            // In development, allow all origins
+            callback(null, true);
+        }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -37,45 +55,21 @@ const corsOptions = {
     exposedHeaders: ['Set-Cookie']
 };
 
+// Apply CORS configuration (only once)
 app.use(cors(corsOptions));
 
-// Import routes
-const userRoutes = require('./routes/user.route');
-const adminRoutes = require('./routes/admin.route');
-const authRoutes = require('./routes/auth.route');
-const gmailRoutes = require('./routes/gmail.route');
-
-// Enable CORS for all routes
-const allowedOrigins = [
-    'https://email-detection-eight.vercel.app',
-    'https://email-detection-api.onrender.com',
-    'https://email-detection.onrender.com',  // Added potential alternative URL
-    'http://localhost:3000'
-];
-
-app.use(cors({
-    origin: function(origin, callback) {
-        console.log('Request origin:', origin || 'No origin (direct access)');
-        // Always allow all origins for troubleshooting
-        return callback(null, true);
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
-    exposedHeaders: ['Set-Cookie'],
-    credentials: true
-}));
-
-// Add cookie parser
-app.use(cookieParser());
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
-// API Routes
+// First register API routes (before static files)
 app.use('/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/gmail', gmailRoutes);
+
+// Then serve static files (after API routes)
+app.use(express.static(path.join(__dirname, 'public'), {
+    maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0, // Cache for 1 day in production
+    etag: true,
+    lastModified: true
+}));
 
 // Authentication middleware
 const authenticateUser = (req, res, next) => {
@@ -106,40 +100,70 @@ const authenticateUser = (req, res, next) => {
 
 
 
-// Connect to MongoDB
+// Connect to MongoDB with improved error handling
 const connectDB = async () => {
     try {
         console.log('Attempting to connect to MongoDB...');
         const mongoURI = process.env.MONGO_URI;
+        
         if (!mongoURI) {
-            throw new Error('MONGO_URI environment variable is not set');
+            console.error('MONGO_URI environment variable is not set');
+            // In production, continue without exiting but log the error
+            if (process.env.NODE_ENV === 'production') {
+                console.error('WARNING: Running without MongoDB connection. Some features will be unavailable.');
+                return false;
+            } else {
+                throw new Error('MONGO_URI environment variable is not set');
+            }
         }
         
-        console.log('MongoDB URI:', mongoURI.replace(/mongodb\+srv:\/\/[^:]+:[^@]+@/, 'mongodb+srv://****:****@'));
+        // Log a masked version of the URI for security
+        const maskedURI = mongoURI.replace(/mongodb\+srv:\/\/[^:]+:[^@]+@/, 'mongodb+srv://****:****@');
+        console.log('MongoDB URI:', maskedURI);
         
         const options = {
             useNewUrlParser: true,
             useUnifiedTopology: true,
             serverSelectionTimeoutMS: 30000, // Increased timeout for Render
             socketTimeoutMS: 75000, // Increased timeout for Render
-            family: 4 // Force to use IPv4
+            family: 4, // Force to use IPv4
+            connectTimeoutMS: 30000,
+            heartbeatFrequencyMS: 10000
         };
 
         await mongoose.connect(mongoURI, options);
-        console.log('Successfully connected to MongoDB');
-
-        // Test the connection
-        const adminCount = await Admin.countDocuments();
-        const userCount = await User.countDocuments();
-        console.log(`Database stats - Admins: ${adminCount}, Users: ${userCount}`);
-
+        console.log('✅ MongoDB connected successfully');
+        
+        // Set up connection event handlers
+        mongoose.connection.on('error', (err) => {
+            console.error('MongoDB connection error:', err);
+            // Don't exit in production, try to recover
+            if (process.env.NODE_ENV !== 'production') {
+                console.error('MongoDB error in development mode, exiting...');
+                process.exit(1);
+            }
+        });
+        
+        mongoose.connection.on('disconnected', () => {
+            console.log('MongoDB disconnected, attempting to reconnect...');
+            setTimeout(() => connectWithRetry(0), 5000);
+        });
+        
+        mongoose.connection.on('connected', () => {
+            console.log('MongoDB reconnected successfully');
+        });
+        
+        return true;
     } catch (err) {
         console.error('MongoDB connection error:', err);
-        if (err.name === 'MongoServerSelectionError') {
-            console.error('Could not connect to MongoDB server. Please check your connection string and make sure the server is running.');
+        
+        // In production, log the error but allow the server to start
+        if (process.env.NODE_ENV === 'production') {
+            console.error('WARNING: Starting server without MongoDB connection. Some features will be unavailable.');
+            return false;
         }
-        // Don't exit even if connection fails - keep server running
-        // This prevents Render from failing with 502
+        
+        throw err;
     }
 };
 
@@ -180,18 +204,6 @@ app.get('/health', (req, res) => {
     }
 });
 
-// Route handlers - API routes first
-app.use('/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/admin', adminRoutes);
-
-// Enhanced static file serving with caching for production
-app.use(express.static(path.join(__dirname, 'public'), {
-    maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0, // Cache for 1 day in production
-    etag: true,
-    lastModified: true
-}));
-
 // Explicit route handlers for HTML pages
 app.get('/', (req, res) => {
     console.log('Serving root path');
@@ -213,8 +225,18 @@ app.get('/signup', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'signup.html'));
 });
 
+app.get('/signup.html', (req, res) => {
+    console.log('Serving signup.html');
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
 app.get('/dashboard', (req, res) => {
     console.log('Serving dashboard page');
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/index.html', (req, res) => {
+    console.log('Serving index.html');
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -251,9 +273,27 @@ const HOST = '0.0.0.0'; // Always use 0.0.0.0 for Render
 
 const startServer = () => {
     try {
+        // Log deployment information
+        console.log('Starting server with the following configuration:');
+        console.log(`- Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`- Port: ${PORT}`);
+        console.log(`- Host: ${HOST}`);
+        console.log(`- Platform: ${process.env.RENDER ? 'Render' : process.env.VERCEL ? 'Vercel' : 'Local/Other'}`);
+        
+        // Create HTTP server
         const server = app.listen(PORT, HOST, () => {
-            console.log(`Server running on ${HOST}:${PORT}`);
-            console.log(`Current environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`✅ Server running on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+            
+            // Log important URLs
+            if (process.env.NODE_ENV === 'production') {
+                if (process.env.RENDER) {
+                    console.log('Render deployment URL: https://email-detection-api.onrender.com');
+                } else if (process.env.VERCEL) {
+                    console.log('Vercel deployment URL: https://chd-police-hackathon.vercel.app');
+                }
+            } else {
+                console.log('Local development URL: http://localhost:3000');
+            }
         });
         
         // Handle server errors
@@ -265,11 +305,24 @@ const startServer = () => {
             }
         });
         
+        // Set up graceful shutdown
+        process.on('SIGTERM', () => {
+            console.log('SIGTERM received, shutting down gracefully');
+            server.close(() => {
+                console.log('Server closed');
+                mongoose.connection.close(false, () => {
+                    console.log('MongoDB connection closed');
+                    process.exit(0);
+                });
+            });
+        });
+        
         return server;
     } catch (error) {
         console.error('Failed to start server:', error);
         console.log('Attempting to restart server in 10 seconds...');
         setTimeout(startServer, 10000);
+        return null;
     }
 };
 
