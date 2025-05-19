@@ -111,7 +111,10 @@ app.use('/auth', authRoutes);
 // Apply authentication middleware to protected API routes
 app.use('/api/users', authenticateUser, userRoutes);
 app.use('/api/admin', authenticateUser, adminRoutes);
-app.use('/api/gmail', authenticateUser, gmailRoutes);
+
+// Special handling for Gmail routes - callback doesn't need authentication
+app.use('/api/gmail/callback', gmailRoutes); // No auth for callback
+app.use('/api/gmail', authenticateUser, gmailRoutes); // Auth for other Gmail routes
 
 // Then serve static files (after API routes)
 app.use(express.static(path.join(__dirname, 'public'), {

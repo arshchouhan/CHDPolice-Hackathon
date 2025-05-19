@@ -98,18 +98,18 @@ exports.handleCallback = async (req, res) => {
     // Check for OAuth error response
     if (error) {
       console.error('OAuth error returned:', error, req.query.error_description);
-      return res.redirect(`/dashboard?error=${encodeURIComponent(error)}&description=${encodeURIComponent(req.query.error_description || '')}`);
+      return res.redirect(`/admin.html?error=${encodeURIComponent(error)}&description=${encodeURIComponent(req.query.error_description || '')}`);
     }
     
     // Validate required parameters
     if (!code) {
       console.error('Authorization code is missing');
-      return res.redirect('/dashboard?error=missing_code');
+      return res.redirect('/admin.html?error=missing_code');
     }
     
     if (!state) {
       console.error('State parameter is missing');
-      return res.redirect('/dashboard?error=missing_state');
+      return res.redirect('/admin.html?error=missing_state');
     }
     
     const userId = state;
@@ -118,7 +118,7 @@ exports.handleCallback = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) {
       console.error('User not found:', userId);
-      return res.redirect('/dashboard?error=invalid_user');
+      return res.redirect('/admin.html?error=invalid_user');
     }
     
     console.log('Exchanging code for tokens...');
@@ -143,11 +143,11 @@ exports.handleCallback = async (req, res) => {
     
     console.log('User updated with Gmail tokens');
     
-    // Redirect to user dashboard
-    res.redirect('/dashboard?connected=true');
+    // Redirect to admin page with success parameter
+    res.redirect('/admin.html?connected=true');
   } catch (error) {
     console.error('OAuth callback error:', error);
-    res.redirect(`/dashboard?error=auth_error&message=${encodeURIComponent(error.message)}`);
+    res.redirect(`/admin.html?error=auth_error&message=${encodeURIComponent(error.message)}`);
   }
 };
 
