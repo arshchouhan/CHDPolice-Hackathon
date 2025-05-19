@@ -56,19 +56,25 @@ exports.getAuthUrl = (req, res) => {
     
     const scopes = ['https://www.googleapis.com/auth/gmail.readonly'];
     
-    // Create a new OAuth client with the current redirect URI to ensure it's up to date
+    // Get the exact redirect URI we want to use
+    const redirectUri = process.env.PROD_REDIRECT_URI || 'https://email-detection-api.onrender.com/api/gmail/callback';
+    console.log('Using redirect URI for auth URL generation:', redirectUri);
+    
+    // Create a new OAuth client with the explicit redirect URI
     const currentOAuth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      getRedirectUri()
+      redirectUri
     );
     
+    // Generate the authorization URL with explicit parameters
     const authUrl = currentOAuth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent', // Force to get refresh token
       state: req.user.id, // Pass user ID as state parameter
-      include_granted_scopes: true // Enable incremental authorization
+      include_granted_scopes: true, // Enable incremental authorization
+      redirect_uri: redirectUri // Explicitly include the redirect URI
     });
     
     console.log('Generated Auth URL:', authUrl);
@@ -165,12 +171,28 @@ exports.handleCallback = async (req, res) => {
       // Get the redirect URI that was used for the initial request
       const redirectUri = process.env.PROD_REDIRECT_URI || 'https://email-detection-api.onrender.com/api/gmail/callback';
       console.log('Using redirect URI for token exchange:', redirectUri);
+      console.log('Authorization code (first 10 chars):', code.substring(0, 10) + '...');
+      console.log('Environment variables:', {
+        NODE_ENV: process.env.NODE_ENV,
+        GOOGLE_CLIENT_ID_exists: !!process.env.GOOGLE_CLIENT_ID,
+        GOOGLE_CLIENT_SECRET_exists: !!process.env.GOOGLE_CLIENT_SECRET,
+        PROD_REDIRECT_URI: process.env.PROD_REDIRECT_URI,
+        FRONTEND_URL: process.env.FRONTEND_URL
+      });
+      
+      // Create a new OAuth client for this specific exchange to ensure correct parameters
+      const tokenExchangeClient = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        redirectUri
+      );
+      
+      console.log('Attempting to exchange code for tokens...');
       
       // Exchange code for tokens with explicit redirect URI
-      const { tokens } = await oauth2Client.getToken({
-        code: code,
-        redirect_uri: redirectUri
-      });
+      const { tokens } = await tokenExchangeClient.getToken(code);
+      
+      console.log('Token exchange successful!');
       
       console.log('Tokens received:', {
         access_token: tokens.access_token ? 'Present' : 'Missing',
