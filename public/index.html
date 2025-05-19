@@ -791,12 +791,12 @@
                 let redirectUri;
                 
                 if (platform === 'vercel') {
-                    redirectUri = origin + '/admin.html';
+                    redirectUri = 'https://chd-police-hackathon.vercel.app/api/gmail/callback';
                 } else if (platform === 'render') {
-                    redirectUri = 'https://email-detection-api.onrender.com/admin.html';
+                    redirectUri = 'https://email-detection-api.onrender.com/api/gmail/callback';
                 } else {
                     // For local development or unknown environments
-                    redirectUri = origin + '/admin.html';
+                    redirectUri = 'http://localhost:3000/api/gmail/callback';
                 }
                 
                 console.log('Using redirect URI:', redirectUri);
