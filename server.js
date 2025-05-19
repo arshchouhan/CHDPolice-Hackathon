@@ -112,16 +112,20 @@ app.use('/auth', authRoutes);
 app.use('/api/users', authenticateUser, userRoutes);
 app.use('/api/admin', authenticateUser, adminRoutes);
 
-// Special handling for Gmail routes
-// First register the callback route without authentication
+// Load Gmail controller
+const gmailController = require('./controllers/gmail.controller');
+
+// Special handling for Gmail callback (no authentication required)
 app.get('/api/gmail/callback', (req, res) => {
-    console.log('Callback route hit directly, forwarding to controller');
-    const gmailController = require('./controllers/gmail.controller');
     gmailController.handleCallback(req, res);
 });
 
-// Then register other Gmail routes with authentication
-app.use('/api/gmail', authenticateUser, gmailRoutes);
+// Protected Gmail routes (require authentication)
+app.use('/api/gmail', authenticateUser);
+app.get('/api/gmail/auth-url', gmailController.getAuthUrl);
+app.get('/api/gmail/emails', gmailController.fetchEmails);
+app.get('/api/gmail/status', gmailController.checkStatus);
+app.post('/api/gmail/logout', gmailController.logout);
 
 // Then serve static files (after API routes)
 app.use(express.static(path.join(__dirname, 'public'), {
