@@ -279,99 +279,188 @@ exports.handleCallback = async (req, res) => {
 // Fetch emails from Gmail
 exports.fetchEmails = async (req, res) => {
   try {
+    console.log('Fetching emails for user...');
     const userId = req.user.id;
     const user = await User.findById(userId);
     
     if (!user.gmail_connected) {
+      console.log('Gmail not connected for user:', userId);
       return res.status(400).json({ message: 'Gmail not connected' });
     }
     
+    console.log('Gmail connected, access token present:', !!user.gmail_access_token);
+    console.log('Gmail connected, refresh token present:', !!user.gmail_refresh_token);
+    
+    // Create a new OAuth client for this request
+    const emailClient = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      getRedirectUri()
+    );
+    
     // Set up auth client with user's tokens
-    oauth2Client.setCredentials({
+    emailClient.setCredentials({
       access_token: user.gmail_access_token,
       refresh_token: user.gmail_refresh_token
     });
     
     // Check if token is expired and refresh if needed
-    if (user.gmail_token_expiry && new Date(user.gmail_token_expiry) < new Date()) {
-      const { credentials } = await oauth2Client.refreshAccessToken();
-      
-      // Update user with new tokens
-      user.gmail_access_token = credentials.access_token;
-      if (credentials.refresh_token) {
-        user.gmail_refresh_token = credentials.refresh_token;
+    try {
+      if (user.gmail_token_expiry && new Date(user.gmail_token_expiry) < new Date()) {
+        console.log('Token expired, refreshing...');
+        const { credentials } = await emailClient.refreshAccessToken();
+        
+        console.log('Token refreshed successfully');
+        
+        // Update user with new tokens
+        user.gmail_access_token = credentials.access_token;
+        if (credentials.refresh_token) {
+          user.gmail_refresh_token = credentials.refresh_token;
+        }
+        user.gmail_token_expiry = new Date(Date.now() + (credentials.expiry_date || 3600000));
+        await user.save();
+        
+        // Update client credentials with refreshed tokens
+        emailClient.setCredentials({
+          access_token: credentials.access_token,
+          refresh_token: user.gmail_refresh_token
+        });
       }
-      user.gmail_token_expiry = new Date(Date.now() + credentials.expiry_date);
+    } catch (refreshError) {
+      console.error('Error refreshing token:', refreshError);
+      // If refresh fails, mark Gmail as disconnected
+      user.gmail_connected = false;
       await user.save();
+      return res.status(401).json({ 
+        message: 'Gmail authentication expired', 
+        error: refreshError.message,
+        action: 'reconnect'
+      });
     }
     
     // Create Gmail API client
-    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+    const gmail = google.gmail({ version: 'v1', auth: emailClient });
     
-    // Get list of messages (limit to 10 for testing)
-    const response = await gmail.users.messages.list({
-      userId: 'me',
-      maxResults: 10
-    });
-    
-    const messages = response.data.messages || [];
-    const processedEmails = [];
-    
-    // Process each message
-    for (const message of messages) {
-      // Check if email already exists in our database
-      const existingEmail = await Email.findOne({ messageId: message.id });
-      if (existingEmail) {
-        processedEmails.push(existingEmail);
-        continue;
+    try {
+      console.log('Fetching message list from Gmail...');
+      // Get list of messages (limit to 10 for testing)
+      const response = await gmail.users.messages.list({
+        userId: 'me',
+        maxResults: 10
+      });
+      
+      const messages = response.data.messages || [];
+      console.log(`Found ${messages.length} messages`);
+      
+      const processedEmails = [];
+      
+      // Process each message
+      for (const message of messages) {
+        try {
+          console.log(`Processing message ID: ${message.id}`);
+          // Check if email already exists in our database
+          const existingEmail = await Email.findOne({ messageId: message.id });
+          if (existingEmail) {
+            console.log(`Message ${message.id} already exists in database`);
+            processedEmails.push(existingEmail);
+            continue;
+          }
+          
+          // Get full message details
+          console.log(`Fetching full message for ID: ${message.id}`);
+          const fullMessage = await gmail.users.messages.get({
+            userId: 'me',
+            id: message.id,
+            format: 'full'
+          });
+          
+          // Extract email data
+          const emailData = extractEmailData(fullMessage.data);
+          console.log(`Extracted data from message: ${emailData.subject}`);
+          
+          // Analyze email for phishing
+          const scores = analyzeEmail(emailData);
+          console.log(`Analyzed message, phishing score: ${scores.total}`);
+          
+          // Create new email record
+          const newEmail = new Email({
+            userId: userId,
+            messageId: message.id,
+            from: emailData.from,
+            to: emailData.to,
+            subject: emailData.subject,
+            date: emailData.date,
+            body: emailData.body,
+            scores: scores,
+            phishingRisk: calculateRiskLevel(scores.total),
+            flagged: scores.total > 50, // Flag if score is above 50
+            rawHeaders: emailData.rawHeaders,
+            attachmentInfo: emailData.attachments,
+            urls: emailData.urls
+          });
+          
+          await newEmail.save();
+          console.log(`Saved new email to database: ${message.id}`);
+          processedEmails.push(newEmail);
+        } catch (messageError) {
+          console.error(`Error processing message ${message.id}:`, messageError);
+          // Continue with next message instead of failing the entire batch
+          continue;
+        }
       }
       
-      // Get full message details
-      const fullMessage = await gmail.users.messages.get({
-        userId: 'me',
-        id: message.id,
-        format: 'full'
+      // Update last sync time even if some messages failed
+      user.last_email_sync = new Date();
+      await user.save();
+      console.log(`Updated last sync time for user: ${userId}`);
+    } catch (apiError) {
+      console.error('Error fetching emails from Gmail API:', apiError);
+      return res.status(500).json({ 
+        message: 'Error fetching emails', 
+        error: apiError.message,
+        details: apiError.response?.data || 'No additional details'
       });
-      
-      // Extract email data
-      const emailData = extractEmailData(fullMessage.data);
-      
-      // Analyze email for phishing
-      const scores = analyzeEmail(emailData);
-      
-      // Create new email record
-      const newEmail = new Email({
-        userId: userId,
-        messageId: message.id,
-        from: emailData.from,
-        to: emailData.to,
-        subject: emailData.subject,
-        date: emailData.date,
-        body: emailData.body,
-        scores: scores,
-        phishingRisk: calculateRiskLevel(scores.total),
-        flagged: scores.total > 50, // Flag if score is above 50
-        rawHeaders: emailData.rawHeaders,
-        attachmentInfo: emailData.attachments,
-        urls: emailData.urls
-      });
-      
-      await newEmail.save();
-      processedEmails.push(newEmail);
     }
     
-    // Update last sync time
-    user.last_email_sync = new Date();
-    await user.save();
-    
+    // Return the processed emails
     res.status(200).json({ 
       success: true, 
       message: `${processedEmails.length} emails processed`,
-      emails: processedEmails
+      emails: processedEmails,
+      connected: true
     });
   } catch (error) {
     console.error('Error fetching emails:', error);
-    res.status(500).json({ message: 'Failed to fetch emails' });
+    
+    // Check if it's an authentication error
+    if (error.message && (error.message.includes('auth') || error.message.includes('token') || error.message.includes('credentials'))) {
+      // Mark user as disconnected
+      if (req.user && req.user.id) {
+        try {
+          const user = await User.findById(req.user.id);
+          if (user) {
+            user.gmail_connected = false;
+            await user.save();
+            console.log('Marked user as disconnected due to auth error');
+          }
+        } catch (dbError) {
+          console.error('Error updating user connection status:', dbError);
+        }
+      }
+      
+      return res.status(401).json({ 
+        message: 'Gmail authentication failed', 
+        error: error.message,
+        connected: false,
+        action: 'reconnect'
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Failed to fetch emails', 
+      error: error.message,
+      connected: false
+    });
   }
 };
 
