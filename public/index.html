@@ -320,14 +320,15 @@
 
     <script>
         // Use relative URLs for API calls to work with current domain
-        // Enhanced BASE_URL determination with better error handling
+        // Fix 1: Improved BASE_URL determination with better error handling for Vercel
         const getBaseUrl = () => {
             const hostname = window.location.hostname;
             
-            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            // If we're on Vercel, use the full origin including the subdomain
+            if (hostname.includes('vercel.app')) {
+                return window.location.origin;
+            } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
                 return 'http://localhost:3000';
-            } else if (hostname.includes('vercel.app')) {
-                return 'https://chd-police-hackathon.vercel.app';
             } else if (hostname.includes('onrender.com')) {
                 return 'https://email-detection-api.onrender.com';
             } else {
@@ -663,7 +664,7 @@
             }
         }
         
-        // Enhanced Gmail connection function with better error handling
+        // Fix 2: Enhanced Gmail connection function with better error handling for Vercel
         async function connectGmail() {
             hideGmailAuthModal();
             showLoading();
@@ -675,8 +676,16 @@
                     throw new Error('Authentication token not found. Please log in again.');
                 }
                 
-                // Get the OAuth URL from our backend
-                const response = await fetch(`${BASE_URL}/api/gmail/auth-url`, {
+                // Store the exact current URL to return after auth
+                const currentUrl = window.location.href;
+                localStorage.setItem('gmailAuthReturnUrl', currentUrl);
+                
+                // Log the BASE_URL for debugging
+                const baseUrl = getBaseUrl();
+                console.log('Using BASE_URL:', baseUrl);
+                
+                // Get the OAuth URL from our backend with explicit redirect_uri
+                const response = await fetch(`${baseUrl}/api/gmail/auth-url`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -700,14 +709,14 @@
                     throw new Error('Invalid response from server: Missing authentication URL');
                 }
                 
-                // Store current page URL to return after auth
-                localStorage.setItem('gmailAuthReturnUrl', window.location.href);
+                console.log('Redirecting to Google OAuth consent screen:', data.authUrl);
                 
                 // Redirect to Google OAuth consent screen
                 window.location.href = data.authUrl;
                 
             } catch (error) {
                 hideLoading();
+                console.error('Gmail connection error:', error);
                 
                 // Provide helpful error messages based on error type
                 if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
@@ -766,45 +775,57 @@
             }
         }
         
-        // Function to handle OAuth callback
+        // Fix 4: Enhanced function to handle OAuth callback with better logging
         function handleGmailOAuthCallback() {
             // Parse URL parameters
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             const error = urlParams.get('error');
             
+            console.log('Detected OAuth callback. Code exists:', !!code, 'Error exists:', !!error);
+            
             if (error) {
                 // Handle OAuth error
+                console.error('OAuth error from Google:', error);
                 showError('Gmail Authorization Failed', `Error: ${error}`);
                 return;
             }
             
             if (code) {
+                console.log('Authorization code received, exchanging for tokens...');
                 // Exchange the code for tokens
                 exchangeCodeForTokens(code);
             }
         }
         
-        // Function to exchange authorization code for tokens
+        // Fix 3: Improved function to exchange authorization code for tokens
         async function exchangeCodeForTokens(code) {
             showLoading();
             
             try {
-                const BASE_URL = getBaseUrl();
+                const baseUrl = getBaseUrl();
+                console.log('Exchange code using BASE_URL:', baseUrl);
+                
                 const token = localStorage.getItem('token');
                 
                 if (!token) {
                     throw new Error('Authentication token not found. Please log in again.');
                 }
                 
+                // Log the code for debugging (don't log in production)
+                console.log('Exchanging authorization code (truncated):', code.substring(0, 10) + '...');
+                
                 // Call backend to exchange code for tokens
-                const response = await fetch(`${BASE_URL}/api/gmail/oauth-callback`, {
+                const response = await fetch(`${baseUrl}/api/gmail/oauth-callback`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ code })
+                    body: JSON.stringify({ 
+                        code,
+                        redirectUri: window.location.origin + window.location.pathname // Include explicit redirect URI
+                    })
                 });
                 
                 if (response.status === 401 || response.status === 403) {
@@ -815,6 +836,7 @@
                 }
                 
                 const data = await response.json();
+                console.log('OAuth callback response status:', data.success ? 'Success' : 'Failed');
                 
                 if (data.success) {
                     // Store Gmail connection status
@@ -841,6 +863,7 @@
                     throw new Error(data.message || 'Failed to connect Gmail account');
                 }
             } catch (error) {
+                console.error('Error exchanging code for tokens:', error);
                 showError('Gmail Connection Error', error.message);
             } finally {
                 hideLoading();
@@ -972,11 +995,14 @@
             }
         }
 
-        // Initialize the page with enhanced Gmail authentication
+        // Fix 5: Add debug console logs to help troubleshoot Gmail connection
         function initializePage() {
+            console.log('Initializing page...');
+            
             // Check if this is an OAuth callback
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('code') || urlParams.has('error')) {
+                console.log('Detected OAuth callback parameters in URL');
                 handleGmailOAuthCallback();
                 return; // Don't proceed with normal initialization during OAuth callback
             }
@@ -984,6 +1010,9 @@
             // Check Gmail connection status from localStorage
             const isGmailConnected = localStorage.getItem('gmailConnected') === 'true';
             const userEmail = localStorage.getItem('gmailEmail') || localStorage.getItem('userEmail') || '';
+            
+            console.log('Gmail connected status from localStorage:', isGmailConnected);
+            console.log('User email from localStorage:', userEmail);
             
             // Update UI based on connection status
             updateGmailConnectionStatus(isGmailConnected, userEmail);
