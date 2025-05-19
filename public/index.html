@@ -1110,10 +1110,14 @@
                         document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
                     });
                     
-                    // For Render, redirect to root which should serve the login page
-                    // This is because Render might be configured differently for static files
-                    console.log('Redirecting to Render root path');
-                    window.location.href = `${baseUrl}/`;
+                    // For Render, we need to use the explicit login page URL
+                    // since the root path is configured to serve index.html
+                    console.log('Redirecting to explicit login page on Render');
+                    window.location.href = `${baseUrl}/login.html`;
+                    // If that doesn't work, try forcing a full page reload to clear state
+                    setTimeout(() => {
+                        window.location.replace(`${baseUrl}/login.html`);
+                    }, 100);
                     return;
                 }
                 
@@ -1156,9 +1160,14 @@
                 // Redirect to login after a short delay
                 setTimeout(() => {
                     const baseUrl = getBaseUrl();
-                    // For Render, redirect to root instead of login.html
+                    // For Render, use the same approach as above but with a forced reload
                     if (window.location.hostname.includes('onrender.com')) {
-                        window.location.href = `${baseUrl}/`;
+                        console.log('Using forced reload for Render logout');
+                        window.location.href = `${baseUrl}/login.html`;
+                        // Force a complete page reload to clear any cached state
+                        setTimeout(() => {
+                            window.location.replace(`${baseUrl}/login.html`);
+                        }, 100);
                     } else {
                         window.location.href = `${baseUrl}/login.html`;
                     }

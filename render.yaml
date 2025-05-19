@@ -36,5 +36,11 @@ services:
         value: "*"
     routes:
       - type: rewrite
+        source: /login
+        destination: /login.html
+      - type: rewrite
+        source: /admin
+        destination: /admin-dashboard.html
+      - type: rewrite
         source: /*
         destination: /index.html
