@@ -412,6 +412,13 @@ exports.fetchEmails = async (req, res) => {
       // Update last sync time even if some messages failed
       user.last_email_sync = new Date();
       await user.save();
+      
+      // Return the processed emails
+      return res.status(200).json({
+        success: true,
+        emails: processedEmails,
+        connected: true
+      });
       console.log(`Updated last sync time for user: ${userId}`);
     } catch (apiError) {
       console.error('Error fetching emails from Gmail API:', apiError);
