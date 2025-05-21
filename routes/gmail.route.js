@@ -9,6 +9,12 @@ router.get('/auth-url', authenticateToken, gmailController.getAuthUrl);
 // Handle OAuth callback
 router.get('/callback', gmailController.handleCallback);
 
+// Check Gmail connection status
+router.get('/status', authenticateToken, gmailController.getStatus);
+
+// Get Gmail profile information
+router.get('/profile', authenticateToken, gmailController.getProfile);
+
 // Fetch emails from Gmail
 router.get('/fetch-emails', authenticateToken, gmailController.fetchEmails);
 

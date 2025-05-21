@@ -600,6 +600,75 @@ function calculateRiskLevel(score) {
   return 'Critical';
 }
 
+// Get Gmail connection status
+exports.getStatus = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log('Checking Gmail connection status for user:', userId);
+    
+    // Check if user exists
+    const user = await User.findById(userId, 'gmail_connected gmail_tokens');
+    if (!user) {
+      console.error('User not found for Gmail status check:', userId);
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Check if Gmail is connected
+    const isConnected = user.gmail_connected;
+    
+    console.log('Gmail connection status for user:', userId, isConnected ? 'Connected' : 'Not connected');
+    
+    res.status(200).json({
+      success: true,
+      connected: isConnected
+    });
+  } catch (error) {
+    console.error('Error checking Gmail status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check Gmail connection status',
+      error: error.message
+    });
+  }
+};
+
+// Get Gmail profile information
+exports.getProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log('Fetching Gmail profile for user:', userId);
+    
+    // Check if user exists
+    const user = await User.findById(userId, 'gmail_connected gmail_tokens email');
+    if (!user) {
+      console.error('User not found for Gmail profile fetch:', userId);
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Check if Gmail is connected
+    if (!user.gmail_connected) {
+      console.error('Gmail not connected for user:', userId);
+      return res.status(400).json({ message: 'Gmail not connected' });
+    }
+    
+    // Return user profile information
+    res.status(200).json({
+      success: true,
+      user: {
+        email: user.email,
+        connected: true
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching Gmail profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch Gmail profile',
+      error: error.message
+    });
+  }
+};
+
 // Disconnect Gmail
 exports.disconnectGmail = async (req, res) => {
   try {
