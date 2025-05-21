@@ -963,12 +963,13 @@
                 hideLoading();
                 
                 if (data.success) {
-                    // If we have scanned emails with results, show the first one in the modal
+                    // If we have scanned emails with results, update the UI
                     if (data.emails && data.emails.length > 0) {
-                        showPhishingAnalysisModal(data.emails[0]);
-                        
-                        // Also refresh the emails list to show all scanned emails
+                        // Just refresh the emails list to show all scanned emails
                         loadUserEmails();
+                        
+                        // Show success notification
+                        showSuccessNotification('Scan Complete', 'Emails have been successfully scanned for threats.');
                     } else {
                         // If no emails were found or processed
                         showSuccessNotification('Scan Complete', 'No new emails were found to scan.');
