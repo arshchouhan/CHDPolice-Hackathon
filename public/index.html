@@ -842,6 +842,114 @@
             }
         }
         
+        // Function to show phishing analysis modal with email details
+        function showPhishingAnalysisModal(email) {
+            // Get the modal and content elements
+            const modal = document.getElementById('phishingAnalysisModal');
+            const content = document.getElementById('phishingAnalysisContent');
+            
+            // Clear previous content
+            content.innerHTML = '';
+            
+            // Format the risk level with appropriate color
+            let riskClass = 'risk-low';
+            if (email.phishingRisk === 'High') {
+                riskClass = 'risk-high';
+            } else if (email.phishingRisk === 'Medium') {
+                riskClass = 'risk-medium';
+            }
+            
+            // Create the email header section
+            const headerSection = document.createElement('div');
+            headerSection.className = 'bg-gray-800/50 rounded-lg p-4 mb-4';
+            headerSection.innerHTML = `
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center">
+                        <div class="${email.phishingRisk === 'High' ? 'bg-red-500/20' : email.phishingRisk === 'Medium' ? 'bg-yellow-500/20' : 'bg-green-500/20'} p-2 rounded-full mr-3">
+                            <i class="fas ${email.phishingRisk === 'High' ? 'fa-exclamation-triangle text-red-500' : email.phishingRisk === 'Medium' ? 'fa-exclamation-circle text-yellow-500' : 'fa-check-circle text-green-500'}"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-white font-semibold">${email.subject || 'No Subject'}</h3>
+                            <p class="text-gray-400 text-sm">From: ${email.from}</p>
+                        </div>
+                    </div>
+                    <div class="risk-badge ${riskClass}">
+                        <i class="fas fa-shield-alt mr-1"></i> ${email.scores.total}/100 Risk
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill-${email.phishingRisk === 'High' ? 'high' : email.phishingRisk === 'Medium' ? 'medium' : 'low'}" style="width: ${email.scores.total}%"></div>
+                </div>
+            `;
+            content.appendChild(headerSection);
+            
+            // Create the scores breakdown section
+            const scoresSection = document.createElement('div');
+            scoresSection.className = 'bg-gray-800/50 rounded-lg p-4 mb-4';
+            scoresSection.innerHTML = `
+                <h3 class="text-white font-semibold mb-3">Risk Score Breakdown</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Header Analysis</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill-${email.scores.header > 30 ? 'high' : email.scores.header > 15 ? 'medium' : 'low'}" style="width: ${email.scores.header}%"></div>
+                        </div>
+                        <p class="text-right text-xs text-gray-400 mt-1">${email.scores.header}/50</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Content Analysis</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill-${email.scores.text > 30 ? 'high' : email.scores.text > 15 ? 'medium' : 'low'}" style="width: ${email.scores.text}%"></div>
+                        </div>
+                        <p class="text-right text-xs text-gray-400 mt-1">${email.scores.text}/50</p>
+                    </div>
+                </div>
+            `;
+            content.appendChild(scoresSection);
+            
+            // Create URLs section if there are any
+            if (email.urls && email.urls.length > 0) {
+                const urlsSection = document.createElement('div');
+                urlsSection.className = 'bg-gray-800/50 rounded-lg p-4 mb-4';
+                urlsSection.innerHTML = `
+                    <h3 class="text-white font-semibold mb-3">Detected URLs</h3>
+                    <div class="space-y-2 max-h-40 overflow-y-auto">
+                        ${email.urls.map(url => `
+                            <div class="bg-gray-700/50 p-2 rounded text-sm">
+                                <span class="text-gray-300 break-all">${url.url}</span>
+                                ${url.suspicious ? '<span class="ml-2 bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded">Suspicious</span>' : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                content.appendChild(urlsSection);
+            }
+            
+            // Create email body preview section
+            const bodySection = document.createElement('div');
+            bodySection.className = 'bg-gray-800/50 rounded-lg p-4';
+            bodySection.innerHTML = `
+                <h3 class="text-white font-semibold mb-3">Email Content Preview</h3>
+                <div class="bg-gray-700/50 p-3 rounded text-sm text-gray-300 max-h-60 overflow-y-auto whitespace-pre-wrap">${email.body || 'No content available'}</div>
+            `;
+            content.appendChild(bodySection);
+            
+            // Show the modal
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            // Add event listeners to close buttons
+            document.getElementById('closePhishingModal').addEventListener('click', hidePhishingAnalysisModal);
+            document.getElementById('closePhishingModalBtn').addEventListener('click', hidePhishingAnalysisModal);
+        }
+
+        // Function to hide phishing analysis modal
+        function hidePhishingAnalysisModal() {
+            const modal = document.getElementById('phishingAnalysisModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
         // Function to scan emails
         async function scanEmails() {
             showLoading();
