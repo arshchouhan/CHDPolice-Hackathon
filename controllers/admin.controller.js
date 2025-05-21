@@ -170,12 +170,10 @@ exports.getUserById = async (req, res) => {
 exports.syncUserEmails = async (req, res) => {
   try {
     const userId = req.params.id;
-    console.log('Admin triggering email sync for user:', userId);
     
-    // Check if user exists
-    const user = await User.findById(userId, 'gmail_connected gmail_tokens');
+    // Find the user
+    const user = await User.findById(userId);
     if (!user) {
-      console.error('User not found for email sync:', userId);
       return res.status(404).json({ message: 'User not found' });
     }
     
@@ -185,52 +183,109 @@ exports.syncUserEmails = async (req, res) => {
       return res.status(400).json({ message: 'Gmail not connected for this user' });
     }
     
-    // We need to import the Gmail controller to use its fetchEmails functionality
-    const gmailController = require('./gmail.controller');
-    
-    // Create a mock request object with the user ID
-    const mockReq = {
-      user: { id: userId }
-    };
-    
-    // Create a mock response object to capture the result
-    let emailCount = 0;
-    const mockRes = {
-      status: function(statusCode) {
-        this.statusCode = statusCode;
-        return this;
-      },
-      json: function(data) {
-        this.data = data;
-        if (data.emails) {
-          emailCount = data.emails.length;
-        }
-        return this;
-      }
-    };
-    
     // Call the fetchEmails function from the Gmail controller
-    await gmailController.fetchEmails(mockReq, mockRes);
+    const gmailController = require('./gmail.controller');
+    const fetchResult = await gmailController.fetchEmails(user);
     
-    // Check if the fetch was successful
-    if (mockRes.statusCode !== 200) {
-      console.error('Failed to fetch emails:', mockRes.data);
-      return res.status(mockRes.statusCode || 500).json(mockRes.data || { message: 'Failed to fetch emails' });
-    }
+    // Update last sync time
+    user.last_email_sync = new Date();
+    await user.save();
     
-    // Update last_email_sync in the database
-    await User.findByIdAndUpdate(userId, { last_email_sync: new Date() });
-    
-    // Return success response
-    res.status(200).json({
-      success: true,
+    return res.status(200).json({ 
       message: 'Emails synced successfully',
-      emailCount,
-      lastSync: new Date()
+      lastSync: user.last_email_sync,
+      emailsProcessed: fetchResult.length || 0
     });
   } catch (error) {
     console.error('Error syncing emails:', error);
-    res.status(500).json({ message: 'Failed to sync emails', error: error.message });
+    return res.status(500).json({ message: 'Error syncing emails', error: error.message });
+  }
+};
+
+// Get email statistics for analytics
+exports.getEmailStats = async (req, res) => {
+  try {
+    // Get the user ID from the authenticated request
+    const userId = req.user.id;
+    
+    // For admin users, get stats for all emails
+    // For regular users, get stats only for their emails
+    let query = {};
+    
+    if (req.user.role !== 'admin') {
+      query.user = userId;
+    }
+    
+    // Get total count of analyzed emails
+    const totalEmails = await Email.countDocuments(query);
+    
+    // Get count by risk level
+    const byRisk = await Email.aggregate([
+      { $match: query },
+      { $group: { _id: '$phishingRisk', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    // Get count by day for the last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const byDay = await Email.aggregate([
+      { 
+        $match: { 
+          ...query,
+          createdAt: { $gte: sevenDaysAgo } 
+        } 
+      },
+      {
+        $group: {
+          _id: { 
+            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } 
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    // Get average scores
+    const avgScores = await Email.aggregate([
+      { $match: query },
+      { 
+        $group: { 
+          _id: null, 
+          avgHeaderScore: { $avg: '$scores.header' },
+          avgTextScore: { $avg: '$scores.text' },
+          avgMetadataScore: { $avg: '$scores.metadata' },
+          avgAttachmentsScore: { $avg: '$scores.attachments' },
+          avgTotalScore: { $avg: '$scores.total' }
+        } 
+      }
+    ]);
+    
+    // Return statistics
+    return res.status(200).json({
+      success: true,
+      stats: {
+        total: totalEmails,
+        byRisk: byRisk,
+        byDay: byDay,
+        avgScores: avgScores.length > 0 ? avgScores[0] : {
+          avgHeaderScore: 0,
+          avgTextScore: 0,
+          avgMetadataScore: 0,
+          avgAttachmentsScore: 0,
+          avgTotalScore: 0
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error getting email statistics:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error getting email statistics', 
+      error: error.message 
+    });
   }
 };
 
