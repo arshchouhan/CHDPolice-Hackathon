@@ -953,7 +953,7 @@
                 
                 // Determine the correct redirect URI based on environment
                 let redirectUri;
-                const hostname = window.location.hostname;
+                hostname = window.location.hostname;
                 
                 if (hostname.includes('vercel.app')) {
                     redirectUri = window.location.origin + '/admin.html';
@@ -1448,25 +1448,26 @@
         // Initialize the application when the DOM is loaded
         document.addEventListener('DOMContentLoaded', initializePage);
 
-        // Handle logout with special handling for Render deployment
-        document.getElementById('logoutBtn').addEventListener('click', async () => {
-            try {
-                showLoading();
-                // Use getBaseUrl() instead of BASE_URL to ensure we have the latest URL
-                const baseUrl = getBaseUrl();
-                console.log('Logging out from:', baseUrl);
-                console.log('Current hostname:', window.location.hostname);
-                
-                // Special handling for Render deployment
-                const isRender = window.location.hostname.includes('onrender.com');
-                console.log('Is Render deployment:', isRender);
-                
-                // For Render, we'll use a more direct approach
-                if (isRender) {
-                    console.log('Using direct logout approach for Render');
-                    // Clear all authentication data
-                    localStorage.clear();
-                    sessionStorage.clear();
+        // Handle logout with improved reliability and visual feedback
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            // Show loading immediately when button is clicked
+            showLoading();
+            console.log('Logout initiated, showing loading indicator');
+            
+            // Use setTimeout to ensure the loading indicator has time to appear
+            setTimeout(async function() {
+                try {
+                    // Use getBaseUrl() instead of BASE_URL to ensure we have the latest URL
+                    const baseUrl = getBaseUrl();
+                    console.log('Logging out from:', baseUrl);
+                    console.log('Current hostname:', window.location.hostname);
+                    
+                    // Always clear local storage first to ensure logout works even if server call fails
+                    console.log('Clearing local storage...');
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('userRole');
+                    localStorage.removeItem('userEmail');
+                    localStorage.removeItem('gmailConnected');
                     
                     // Clear any cookies by setting them to expire
                     document.cookie.split(';').forEach(cookie => {
@@ -1474,69 +1475,49 @@
                         document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
                     });
                     
-                    // For Render, we need to use the explicit login page URL
-                    // since the root path is configured to serve index.html
-                    console.log('Redirecting to explicit login page on Render');
-                    window.location.href = `${baseUrl}/login.html`;
-                    // If that doesn't work, try forcing a full page reload to clear state
+                    // Try to call the server logout endpoint, but don't wait for it
+                    try {
+                        console.log('Attempting server logout call...');
+                        fetch(`${baseUrl}/api/auth/logout`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        }).catch(err => {
+                            console.log('Server logout call failed, but continuing with client-side logout');
+                        });
+                    } catch (serverError) {
+                        console.log('Error calling server logout endpoint, but continuing with client-side logout');
+                    }
+                    
+                    // Wait a moment to ensure loading indicator is visible
+                    console.log('Preparing to redirect to login page...');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // Redirect to login page
+                    const loginUrl = `${baseUrl}/login.html`;
+                    console.log('Redirecting to:', loginUrl);
+                    window.location.href = loginUrl;
+                    
+                    // If redirect doesn't work after a delay, try a more forceful approach
                     setTimeout(() => {
-                        window.location.replace(`${baseUrl}/login.html`);
-                    }, 100);
-                    return;
-                }
-                
-                // Standard approach for other deployments
-                const response = await fetch(`${baseUrl}/auth/logout`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-
-                console.log('Logout response status:', response.status);
-                
-                // Always clear local storage and redirect on logout attempt
-                localStorage.removeItem('token');
-                localStorage.removeItem('userRole');
-                
-                // Redirect to login page using the dynamic base URL
-                const loginUrl = `${baseUrl}/login.html`;
-                console.log('Redirecting to:', loginUrl);
-                window.location.href = loginUrl;
-                
-            } catch (error) {
-                console.error('Logout failed:', error);
-                hideLoading();
-                showError('Logout Failed', 'Could not connect to the server. Forcing logout...');
-                
-                // Force logout by clearing all storage
-                localStorage.clear();
-                sessionStorage.clear();
-                
-                // Clear any cookies
-                document.cookie.split(';').forEach(cookie => {
-                    const [name] = cookie.trim().split('=');
-                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
-                });
-                
-                // Redirect to login after a short delay
-                setTimeout(() => {
+                        console.log('Forcing page reload as backup...');
+                        window.location.replace(loginUrl);
+                    }, 500);
+                    
+                } catch (error) {
+                    console.error('Logout process error:', error);
+                    // Even if there's an error, try to logout anyway
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    
+                    // Redirect to login page with a forced reload
                     const baseUrl = getBaseUrl();
-                    // For Render, use the same approach as above but with a forced reload
-                    if (window.location.hostname.includes('onrender.com')) {
-                        console.log('Using forced reload for Render logout');
-                        window.location.href = `${baseUrl}/login.html`;
-                        // Force a complete page reload to clear any cached state
-                        setTimeout(() => {
-                            window.location.replace(`${baseUrl}/login.html`);
-                        }, 100);
-                    } else {
-                        window.location.href = `${baseUrl}/login.html`;
-                    }
-                }, 1500);
-            }
+                    const loginUrl = `${baseUrl}/login.html`;
+                    console.log('Error during logout, forcing redirect to:', loginUrl);
+                    window.location.replace(loginUrl);
+                }
+            }, 200); // Small delay to ensure loading indicator appears
         });
 
         // Check authentication when page loads
