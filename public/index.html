@@ -1286,7 +1286,7 @@
                 
                 // If we have a token, verify it with the server
                 try {
-                    const response = await fetch(`${baseUrl}/api/auth/verify`, {
+                    const response = await fetch(`${baseUrl}/auth/check-auth`, {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${token}`
