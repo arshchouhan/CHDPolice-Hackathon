@@ -205,6 +205,14 @@ exports.syncUserEmails = async (req, res) => {
 // Get email statistics for analytics
 exports.getEmailStats = async (req, res) => {
   try {
+    // Check if req.user exists before accessing properties
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+    
     // Get the user ID from the authenticated request
     const userId = req.user.id;
     
@@ -213,7 +221,7 @@ exports.getEmailStats = async (req, res) => {
     let query = {};
     
     if (req.user.role !== 'admin') {
-      query.user = userId;
+      query.userId = userId; // Make sure this matches your schema field name
     }
     
     // Get total count of analyzed emails
