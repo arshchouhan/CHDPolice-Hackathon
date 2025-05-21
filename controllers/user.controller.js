@@ -26,6 +26,46 @@ exports.getProfile = async (req, res) => {
   }
 };
 
+// Get current user information - used for authentication verification
+exports.getCurrentUser = async (req, res) => {
+  try {
+    // req.user should be available from the authentication middleware
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+    
+    const userId = req.user.id;
+    const user = await User.findById(userId, 'username email role gmail_connected');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+    }
+    
+    // Return minimal user information for security
+    res.status(200).json({
+      success: true,
+      _id: user._id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      gmail_connected: user.gmail_connected
+    });
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch user information',
+      error: error.message 
+    });
+  }
+};
+
 // Get user's analyzed emails
 exports.getUserEmails = async (req, res) => {
   try {

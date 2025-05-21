@@ -1041,6 +1041,7 @@
                 
                 // Verify token is valid by making a test request
                 try {
+                    console.log('Verifying authentication token...');
                     const testResponse = await fetch(`${getBaseUrl()}/api/users/me`, {
                         method: 'GET',
                         headers: {
@@ -1049,15 +1050,22 @@
                         }
                     });
                     
+                    console.log('Auth verification response status:', testResponse.status);
+                    
                     if (!testResponse.ok) {
                         // Token is invalid or expired
+                        console.error('Authentication verification failed with status:', testResponse.status);
                         localStorage.removeItem('token');
                         throw new Error('Your session has expired. Please log in again.');
                     }
                     
                     // Get user info to confirm authentication
                     const userData = await testResponse.json();
-                    console.log('Authenticated as user:', userData.email || userData._id);
+                    if (!userData.success) {
+                        throw new Error('Authentication verification failed: ' + (userData.message || 'Unknown error'));
+                    }
+                    
+                    console.log('Authenticated as user:', userData.email || userData.username || userData._id);
                 } catch (authError) {
                     console.error('Authentication verification failed:', authError);
                     throw new Error('Authentication failed. Please log in again.');
