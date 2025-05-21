@@ -758,6 +758,21 @@
                 
                 if (response.ok) {
                     const data = await response.json();
+                    // Sanitize log data to remove sensitive information
+                    const sanitizedData = {
+                        ...data,
+                        emails: data.emails ? data.emails.map(email => ({
+                            ...email,
+                            subject: 'REDACTED',
+                            from: 'REDACTED',
+                            body: 'REDACTED',
+                            html: 'REDACTED',
+                            textPlain: 'REDACTED'
+                        })) : []
+                    };
+                    // Use sanitized data for logging
+                    console.log('Admin emails data (sanitized):', sanitizedData);
+                    
                     const emailsTableBody = document.getElementById('emailsTableBody');
                     emailsTableBody.innerHTML = '';
                     
@@ -873,6 +888,21 @@
                 
                 if (response.ok) {
                     const data = await response.json();
+                    // Sanitize log data to remove sensitive information
+                    const sanitizedData = {
+                        ...data,
+                        email: data.email ? {
+                            ...data.email,
+                            subject: 'REDACTED',
+                            from: 'REDACTED',
+                            body: 'REDACTED',
+                            html: 'REDACTED',
+                            textPlain: 'REDACTED'
+                        } : null
+                    };
+                    // Use sanitized data for logging
+                    console.log('Email details (sanitized):', sanitizedData);
+                    
                     const email = data.email;
                     
                     // Format date

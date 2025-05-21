@@ -650,7 +650,19 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Emails data:', data);
+                    // Sanitize log data to remove sensitive information
+                    const sanitizedData = {
+                        ...data,
+                        emails: data.emails ? data.emails.map(email => ({
+                            ...email,
+                            subject: 'REDACTED',
+                            from: 'REDACTED',
+                            body: 'REDACTED',
+                            html: 'REDACTED',
+                            textPlain: 'REDACTED'
+                        })) : []
+                    };
+                    console.log('Emails data (sanitized):', sanitizedData);
                     emailsContainer.innerHTML = '';
                     
                     if (data.emails.length === 0) {
