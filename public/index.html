@@ -614,8 +614,8 @@
                 }
                 
                 const baseUrl = getBaseUrl();
-                console.log('Fetching emails from:', `${baseUrl}/api/gmail/fetch-emails`);
-                const response = await fetch(`${baseUrl}/api/gmail/fetch-emails`, {
+                console.log('Fetching emails from:', `${baseUrl}/gmail/fetch-emails`);
+                const response = await fetch(`${baseUrl}/gmail/fetch-emails`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -712,12 +712,17 @@
                 }
                 
                 // Call the API to scan emails
-                const response = await fetch(`${BASE_URL}/api/gmail/scan`, {
+                const baseUrl = getBaseUrl();
+                console.log('Scanning emails using endpoint:', `${baseUrl}/gmail/scan`);
+                
+                const response = await fetch(`${baseUrl}/gmail/scan`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    // Add empty body to ensure proper POST request
+                    body: JSON.stringify({})
                 });
                 
                 if (!response.ok) {
