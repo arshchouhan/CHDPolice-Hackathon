@@ -1059,13 +1059,14 @@
                         throw new Error('Your session has expired. Please log in again.');
                     }
                     
-                    // Get user info to confirm authentication
+                    // Get user info to confirm authentication but don't log sensitive data
                     const userData = await testResponse.json();
                     if (!userData.success) {
                         throw new Error('Authentication verification failed: ' + (userData.message || 'Unknown error'));
                     }
                     
-                    console.log('Authenticated as user:', userData.email || userData.username || userData._id);
+                    // Don't log actual user data
+                    console.log('Authentication verification successful');
                 } catch (authError) {
                     console.error('Authentication verification failed:', authError);
                     throw new Error('Authentication failed. Please log in again.');

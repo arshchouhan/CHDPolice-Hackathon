@@ -307,10 +307,11 @@ exports.handleCallback = async (req, res) => {
         throw new Error('Authentication failed: No access token received');
       }
       
+      // Log token status without showing actual tokens
       console.log('Tokens received:', {
         access_token: tokens.access_token ? 'Present' : 'Missing',
         refresh_token: tokens.refresh_token ? 'Present' : 'Missing',
-        expiry_date: tokens.expiry_date
+        expiry_date: tokens.expiry_date ? 'Present' : 'Missing'
       });
       
       // Update user with tokens
