@@ -702,6 +702,426 @@
             }
         }
         
+        // Function to scan emails
+        async function scanEmails() {
+            showLoading();
+            
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Authentication token not found. Please log in again.');
+                }
+                
+                // Call the API to scan emails
+                const response = await fetch(`${BASE_URL}/api/gmail/scan`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                hideLoading();
+                
+                if (data.success) {
+                    // If we have scanned emails with results, show the first one in the modal
+                    if (data.emails && data.emails.length > 0) {
+                        showPhishingAnalysisModal(data.emails[0]);
+                        
+                        // Also refresh the emails list to show all scanned emails
+                        loadUserEmails();
+                    } else {
+                        // If no emails were found or processed
+                        showSuccessNotification('Scan Complete', 'No new emails were found to scan.');
+                    }
+                } else {
+                    throw new Error(data.message || 'Failed to scan emails');
+                }
+            } catch (error) {
+                console.error('Email scan error:', error);
+                hideLoading();
+                
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    showError('Network Error', 'Cannot connect to the server. Please check your internet connection.');
+                } else {
+                    showError('Email Scan Error', error.message);
+                }
+            }
+        }
+        
+        // Enhanced Gmail connection function with comprehensive error handling and platform detection
+        async function connectGmail() {
+            hideGmailAuthModal();
+            showLoading();
+            
+            try {
+                // Get auth token from localStorage
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Authentication token not found. Please log in again.');
+                }
+                
+                // Store the exact current URL to return after auth
+                const currentUrl = window.location.href;
+                localStorage.setItem('gmailAuthReturnUrl', currentUrl);
+                
+                // Get environment information for debugging
+                const baseUrl = getBaseUrl();
+                const hostname = window.location.hostname;
+                const origin = window.location.origin;
+                
+                console.log('Gmail connection - Environment details:');
+                console.log('- BASE_URL:', baseUrl);
+                console.log('- Hostname:', hostname);
+                console.log('- Origin:', origin);
+                console.log('- Return URL:', currentUrl);
+                
+                // Determine platform for server-side handling
+                const platform = hostname.includes('vercel.app') ? 'vercel' : 
+                               hostname.includes('onrender.com') ? 'render' : 'other';
+                
+                // Determine the correct redirect URI based on environment
+                let redirectUri;
+                
+                if (platform === 'vercel') {
+                    redirectUri = 'https://chd-police-hackathon.vercel.app/api/gmail/callback';
+                } else if (platform === 'render') {
+                    redirectUri = 'https://email-detection-api.onrender.com/api/gmail/callback';
+                } else {
+                    // For local development or unknown environments
+                    redirectUri = window.location.origin + window.location.pathname;
+                    console.log('Using default redirect URI:', redirectUri);
+                }
+                
+                console.log('Using redirect URI:', redirectUri);
+                console.log('Platform detected:', platform);
+                
+                // Get the OAuth URL from our backend with explicit redirect_uri and platform info
+                const response = await fetch(`${baseUrl}/api/gmail/auth-url?platform=${platform}&redirect_uri=${encodeURIComponent(redirectUri)}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // Enhanced error handling with specific error messages
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Authentication failed. Please log in again.');
+                } else if (response.status === 404) {
+                    throw new Error('Gmail API endpoint not found. The server might be misconfigured.');
+                } else if (response.status === 400) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Invalid request: ${errorData.message || 'Bad request parameters'}`);
+                } else if (response.status === 500) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Server error: ${errorData.message || 'Internal server error'}`);
+                } else if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Error ${response.status}: ${errorData.message || response.statusText || 'Unknown error'}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.authUrl) {
+                    throw new Error('Invalid response from server: Missing authentication URL');
+                }
+                
+                console.log('Redirecting to Google OAuth consent screen');
+                
+                // Redirect to Google OAuth consent screen
+                window.location.href = data.authUrl;
+                
+            } catch (error) {
+                hideLoading();
+                console.error('Gmail connection error:', error);
+                
+                // Provide helpful error messages based on error type
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    showError('Network Error', 'Cannot connect to the server. Please check your internet connection and try again.');
+                } else if (error.message.includes('Authentication failed')) {
+                    showError('Authentication Error', 'Your login session has expired. Please log in again.');
+                    // Redirect to login page after a short delay
+                    setTimeout(() => {
+                        window.location.href = '/login.html';
+                    }, 3000);
+                } else {
+                    showError('Gmail Connection Error', error.message);
+                }
+            }
+        }
+        
+        // Enhanced function to disconnect Gmail with better error handling
+        async function disconnectGmail() {
+            showLoading();
+            
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Authentication token not found. Please log in again.');
+                }
+                
+                // Call the disconnect endpoint
+                const response = await fetch(`${BASE_URL}/api/gmail/disconnect`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // Handle HTTP errors
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Authentication failed. Please log in again.');
+                } else if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Server error: ${errorData.message || response.statusText || 'Unknown error'}`);
+                }
+                
+                // Update UI
+                updateGmailConnectionStatus(false);
+                
+                // Remove Gmail connection from localStorage
+                localStorage.removeItem('gmailConnected');
+                localStorage.removeItem('gmailEmail');
+                
+                hideLoading();
+                showSuccessNotification('Gmail Disconnected', 'Your Gmail account has been successfully disconnected.');
+            } catch (error) {
+                console.error('Gmail disconnection error:', error);
+                hideLoading();
+                
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    showError('Network Error', 'Cannot connect to the server. Please check your internet connection and try again.');
+                } else {
+                    showError('Gmail Disconnection Error', error.message);
+                }
+            }
+        }
+        
+        // Fix 4: Enhanced function to handle OAuth callback with better logging
+        function handleGmailOAuthCallback() {
+            // Parse URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const error = urlParams.get('error');
+            
+            console.log('Detected OAuth callback. Code exists:', !!code, 'Error exists:', !!error);
+            
+            if (error) {
+                // Handle OAuth error
+                console.error('OAuth error from Google:', error);
+                showError('Gmail Authorization Failed', `Error: ${error}`);
+                return;
+            }
+            
+            if (code) {
+                console.log('Authorization code received, exchanging for tokens...');
+                // Exchange the code for tokens
+                exchangeCodeForTokens(code);
+            }
+        }
+        
+        // Enhanced function to exchange authorization code for tokens with comprehensive error handling
+        async function exchangeCodeForTokens(code) {
+            showLoading();
+            
+            try {
+                // Get auth token from localStorage
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Authentication token not found. Please log in again.');
+                }
+                
+                // Store the exact current URL to return after auth
+                const currentUrl = window.location.href;
+                localStorage.setItem('gmailAuthReturnUrl', currentUrl);
+                
+                // Get environment information for debugging
+                const baseUrl = getBaseUrl();
+                const hostname = window.location.hostname;
+                const origin = window.location.origin;
+                
+                console.log('Exchange code using BASE_URL:', baseUrl);
+                console.log('Current hostname:', hostname);
+                console.log('Current origin:', origin);
+                console.log('Current pathname:', window.location.pathname);
+                
+                // Determine the correct redirect URI based on environment
+                let redirectUri;
+                const hostname = window.location.hostname;
+                
+                if (hostname.includes('vercel.app')) {
+                    redirectUri = window.location.origin + '/admin.html';
+                    console.log('Using Vercel redirect URI:', redirectUri);
+                } else if (hostname.includes('onrender.com')) {
+                    redirectUri = 'https://email-detection-api.onrender.com/admin.html';
+                    console.log('Using Render redirect URI:', redirectUri);
+                } else {
+                    // For local development or unknown environments
+                    redirectUri = window.location.origin + window.location.pathname;
+                    console.log('Using default redirect URI:', redirectUri);
+                }
+                
+                console.log('Using redirect URI:', redirectUri);
+                console.log('Platform detected:', hostname.includes('vercel.app') ? 'vercel' : 
+                           hostname.includes('onrender.com') ? 'render' : 'other');
+                
+                // Call backend to exchange code for tokens with explicit platform information
+                const response = await fetch(`${baseUrl}/api/gmail/oauth-callback`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        code,
+                        redirectUri,
+                        platform: hostname.includes('vercel.app') ? 'vercel' : 
+                                 hostname.includes('onrender.com') ? 'render' : 'other'
+                    })
+                });
+                
+                // Enhanced error handling with specific error messages
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Authentication failed. Please log in again.');
+                } else if (response.status === 400) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Invalid request: ${errorData.message || 'Bad request parameters'}`);
+                } else if (response.status === 404) {
+                    throw new Error('API endpoint not found. The server might be misconfigured.');
+                } else if (response.status === 500) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Server error: ${errorData.message || 'Internal server error'}`);
+                } else if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Error ${response.status}: ${errorData.message || response.statusText || 'Unknown error'}`);
+                }
+                
+                const data = await response.json();
+                console.log('OAuth callback response:', data);
+                console.log('OAuth callback status:', data.success ? 'Success' : 'Failed');
+                
+                if (data.success) {
+                    // Store Gmail connection status
+                    localStorage.setItem('gmailConnected', 'true');
+                    
+                    // Get user email if available
+                    if (data.email) {
+                        localStorage.setItem('gmailEmail', data.email);
+                    }
+                    
+                    // Update UI
+                    updateGmailConnectionStatus(true, data.email || localStorage.getItem('userEmail'));
+                    
+                    // Show success message
+                    showSuccessNotification('Gmail Connected Successfully', 'Your Gmail account is now connected and protected.');
+                    
+                    // If we have a return URL, redirect back
+                    const returnUrl = localStorage.getItem('gmailAuthReturnUrl');
+                    if (returnUrl) {
+                        localStorage.removeItem('gmailAuthReturnUrl');
+                        window.location.href = returnUrl;
+                    }
+                } else {
+                    throw new Error(data.message || 'Failed to connect Gmail account');
+                }
+            } catch (error) {
+                console.error('Error exchanging code for tokens:', error);
+                showError('Gmail Connection Error', error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Function to check Gmail connection status from the server
+        async function checkGmailStatus() {
+            try {
+                console.log('Checking Gmail connection status...');
+                
+                // Check if we just completed OAuth flow (URL has connected=true)
+                const urlParams = new URLSearchParams(window.location.search);
+                const justConnected = urlParams.get('connected') === 'true';
+                
+                if (justConnected) {
+                    console.log('Detected successful OAuth completion from URL parameter');
+                    // Remove the query parameter to avoid confusion on page refresh
+                    const newUrl = window.location.pathname + window.location.hash;
+                    window.history.replaceState({}, document.title, newUrl);
+                    
+                    // Force update the connection status
+                    updateGmailConnectionStatus(true, 'Gmail Account');
+                    
+                    // Add null check before accessing classList
+                    const emailsSection = document.getElementById('emailsSection');
+                    if (emailsSection) {
+                        emailsSection.classList.remove('hidden');
+                        loadUserEmails();
+                    } else {
+                        console.warn('emailsSection element not found in DOM');
+                    }
+                    return;
+                }
+                
+                const response = await fetch(`${BASE_URL}/api/users/gmail-status`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                console.log('Gmail status response status:', response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Gmail connection data:', data);
+                    
+                    if (data.gmailConnected) {
+                        // Get user profile to get the email
+                        const profileResponse = await fetch(`${BASE_URL}/api/users/profile`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            }
+                        });
+                        
+                        if (profileResponse.ok) {
+                            const profileData = await profileResponse.json();
+                            updateGmailConnectionStatus(true, profileData.user.email);
+                            
+                            // Show emails section if connected
+                            const emailsSection = document.getElementById('emailsSection');
+                            if (emailsSection) {
+                                emailsSection.classList.remove('hidden');
+                                loadUserEmails();
+                            } else {
+                                console.log('Emails section not found in DOM');
+                            }
+                        }
+                    } else {
+                        updateGmailConnectionStatus(false);
+                    }
+                } else {
+                    // Handle error response
+                    console.error('Error checking Gmail status:', response.status);
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error('Error details:', errorData);
+                    
+                    // If unauthorized, check if we need to reconnect
+                    if (response.status === 401) {
+                        updateGmailConnectionStatus(false);
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking Gmail status:', error);
+            }
+        }
+        
         // Update UI based on Gmail connection status
         function updateGmailConnectionStatus(isConnected, email = '') {
             const statusElement = document.getElementById('emailConnectionStatus');
@@ -844,329 +1264,6 @@
             }
         }
         
-        // Enhanced Gmail connection function with comprehensive error handling and platform detection
-        async function connectGmail() {
-            hideGmailAuthModal();
-            showLoading();
-            
-            try {
-                // Get auth token from localStorage
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    throw new Error('Authentication token not found. Please log in again.');
-                }
-                
-                // Store the exact current URL to return after auth
-                const currentUrl = window.location.href;
-                localStorage.setItem('gmailAuthReturnUrl', currentUrl);
-                
-                // Get environment information for debugging
-                const baseUrl = getBaseUrl();
-                const hostname = window.location.hostname;
-                const origin = window.location.origin;
-                
-                console.log('Gmail connection - Environment details:');
-                console.log('- BASE_URL:', baseUrl);
-                console.log('- Hostname:', hostname);
-                console.log('- Origin:', origin);
-                console.log('- Return URL:', currentUrl);
-                
-                // Determine platform for server-side handling
-                const platform = hostname.includes('vercel.app') ? 'vercel' : 
-                               hostname.includes('onrender.com') ? 'render' : 'other';
-                
-                // Determine the correct redirect URI based on environment
-                let redirectUri;
-                
-                if (platform === 'vercel') {
-                    redirectUri = 'https://chd-police-hackathon.vercel.app/api/gmail/callback';
-                } else if (platform === 'render') {
-                    redirectUri = 'https://email-detection-api.onrender.com/api/gmail/callback';
-                } else {
-                    // For local development or unknown environments
-                    redirectUri = 'http://localhost:3000/api/gmail/callback';
-                }
-                
-                console.log('Using redirect URI:', redirectUri);
-                console.log('Platform detected:', platform);
-                
-                // Get the OAuth URL from our backend with explicit redirect_uri and platform info
-                const response = await fetch(`${baseUrl}/api/gmail/auth-url?platform=${platform}&redirect_uri=${encodeURIComponent(redirectUri)}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                // Enhanced error handling with specific messages
-                if (response.status === 401 || response.status === 403) {
-                    throw new Error('Authentication failed. Please log in again.');
-                } else if (response.status === 404) {
-                    throw new Error('Gmail API endpoint not found. The server might be misconfigured.');
-                } else if (response.status === 400) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(`Invalid request: ${errorData.message || 'Bad request parameters'}`);
-                } else if (response.status === 500) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(`Server error: ${errorData.message || 'Internal server error'}`);
-                } else if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(`Error ${response.status}: ${errorData.message || response.statusText || 'Unknown error'}`);
-                }
-                
-                const data = await response.json();
-                
-                if (!data.authUrl) {
-                    throw new Error('Invalid response from server: Missing authentication URL');
-                }
-                
-                console.log('Redirecting to Google OAuth consent screen');
-                
-                // Redirect to Google OAuth consent screen
-                window.location.href = data.authUrl;
-                
-            } catch (error) {
-                hideLoading();
-                console.error('Gmail connection error:', error);
-                
-                // Provide helpful error messages based on error type
-                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                    showError('Network Error', 'Cannot connect to the server. Please check your internet connection and try again.');
-                } else if (error.message.includes('Authentication failed')) {
-                    showError('Authentication Error', 'Your login session has expired. Please log in again.');
-                    // Redirect to login page after a short delay
-                    setTimeout(() => {
-                        window.location.href = '/login.html';
-                    }, 3000);
-                } else {
-                    showError('Gmail Connection Error', error.message);
-                }
-            }
-        }
-        
-        // Enhanced function to disconnect Gmail with better error handling
-        async function disconnectGmail() {
-            showLoading();
-            
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    throw new Error('Authentication token not found. Please log in again.');
-                }
-                
-                // Call the disconnect endpoint
-                const response = await fetch(`${BASE_URL}/api/gmail/disconnect`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                // Handle HTTP errors
-                if (response.status === 401 || response.status === 403) {
-                    throw new Error('Authentication failed. Please log in again.');
-                } else if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(`Server error: ${errorData.message || response.statusText || 'Unknown error'}`);
-                }
-                
-                // Update UI
-                updateGmailConnectionStatus(false);
-                
-                // Remove Gmail connection from localStorage
-                localStorage.removeItem('gmailConnected');
-                localStorage.removeItem('gmailEmail');
-                
-                hideLoading();
-                showSuccessNotification('Gmail Disconnected', 'Your Gmail account has been successfully disconnected.');
-            } catch (error) {
-                console.error('Gmail disconnection error:', error);
-                hideLoading();
-                
-                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                    showError('Network Error', 'Cannot connect to the server. Please check your internet connection and try again.');
-                } else {
-                    showError('Gmail Disconnection Error', error.message);
-                }
-            }
-        }
-        
-        // Fix 4: Enhanced function to handle OAuth callback with better logging
-        function handleGmailOAuthCallback() {
-            // Parse URL parameters
-            const urlParams = new URLSearchParams(window.location.search);
-            const code = urlParams.get('code');
-            const error = urlParams.get('error');
-            
-            console.log('Detected OAuth callback. Code exists:', !!code, 'Error exists:', !!error);
-            
-            if (error) {
-                // Handle OAuth error
-                console.error('OAuth error from Google:', error);
-                showError('Gmail Authorization Failed', `Error: ${error}`);
-                return;
-            }
-            
-            if (code) {
-                console.log('Authorization code received, exchanging for tokens...');
-                // Exchange the code for tokens
-                exchangeCodeForTokens(code);
-            }
-        }
-        
-        // Enhanced function to exchange authorization code for tokens with comprehensive error handling
-        async function exchangeCodeForTokens(code) {
-            showLoading();
-            
-            try {
-                const baseUrl = getBaseUrl();
-                console.log('Exchange code using BASE_URL:', baseUrl);
-                console.log('Current hostname:', window.location.hostname);
-                console.log('Current origin:', window.location.origin);
-                console.log('Current pathname:', window.location.pathname);
-                
-                const token = localStorage.getItem('token');
-                
-                if (!token) {
-                    throw new Error('Authentication token not found. Please log in again.');
-                }
-                
-                // Log the code for debugging (truncate for security)
-                console.log('Exchanging authorization code (truncated):', code.substring(0, 10) + '...');
-                
-                // Determine the correct redirect URI based on environment
-                let redirectUri;
-                const hostname = window.location.hostname;
-                
-                if (hostname.includes('vercel.app')) {
-                    redirectUri = window.location.origin + '/admin.html';
-                    console.log('Using Vercel redirect URI:', redirectUri);
-                } else if (hostname.includes('onrender.com')) {
-                    redirectUri = 'https://email-detection-api.onrender.com/admin.html';
-                    console.log('Using Render redirect URI:', redirectUri);
-                } else {
-                    // For local development or unknown environments
-                    redirectUri = window.location.origin + window.location.pathname;
-                    console.log('Using default redirect URI:', redirectUri);
-                }
-                
-                // Call backend to exchange code for tokens with explicit platform information
-                const response = await fetch(`${baseUrl}/api/gmail/oauth-callback`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ 
-                        code,
-                        redirectUri,
-                        platform: hostname.includes('vercel.app') ? 'vercel' : 
-                                 hostname.includes('onrender.com') ? 'render' : 'other'
-                    })
-                });
-                
-                // Enhanced error handling with specific error messages
-                if (response.status === 401 || response.status === 403) {
-                    throw new Error('Authentication failed. Please log in again.');
-                } else if (response.status === 400) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(`Invalid request: ${errorData.message || 'Bad request parameters'}`);
-                } else if (response.status === 404) {
-                    throw new Error('API endpoint not found. The server might be misconfigured.');
-                } else if (response.status === 500) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(`Server error: ${errorData.message || 'Internal server error'}`);
-                } else if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(`Error ${response.status}: ${errorData.message || response.statusText || 'Unknown error'}`);
-                }
-                
-                const data = await response.json();
-                console.log('OAuth callback response:', data);
-                console.log('OAuth callback status:', data.success ? 'Success' : 'Failed');
-                
-                if (data.success) {
-                    // Store Gmail connection status
-                    localStorage.setItem('gmailConnected', 'true');
-                    
-                    // Get user email if available
-                    if (data.email) {
-                        localStorage.setItem('gmailEmail', data.email);
-                    }
-                    
-                    // Update UI
-                    updateGmailConnectionStatus(true, data.email || localStorage.getItem('userEmail'));
-                    
-                    // Show success message
-                    showSuccessNotification('Gmail Connected Successfully', 'Your Gmail account is now connected and protected.');
-                    
-                    // If we have a return URL, redirect back
-                    const returnUrl = localStorage.getItem('gmailAuthReturnUrl');
-                    if (returnUrl) {
-                        localStorage.removeItem('gmailAuthReturnUrl');
-                        window.location.href = returnUrl;
-                    }
-                } else {
-                    throw new Error(data.message || 'Failed to connect Gmail account');
-                }
-            } catch (error) {
-                console.error('Error exchanging code for tokens:', error);
-                showError('Gmail Connection Error', error.message);
-            } finally {
-                hideLoading();
-            }
-        }
-        
-        // Function to scan emails
-        async function scanEmails() {
-            showLoading();
-            
-            try {
-                // Simulate API call
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                hideLoading();
-                alert('Email scan completed. No phishing threats detected.');
-            } catch (error) {
-                console.error('Email scan error:', error);
-                hideLoading();
-                alert('Failed to scan emails. Please try again.');
-            }
-        }
-        
-        // Initialize UI components and event listeners
-        function initializeUI() {
-            console.log('Initializing UI components...');
-            
-            // Update UI based on connection status
-            const isGmailConnected = localStorage.getItem('gmailConnected') === 'true';
-            const userEmail = localStorage.getItem('gmailEmail') || localStorage.getItem('userEmail');
-            updateGmailConnectionStatus(isGmailConnected, userEmail);
-            
-            // If connected, show emails section
-            if (isGmailConnected) {
-                const emailsSection = document.getElementById('emailsSection');
-                if (emailsSection) {
-                    emailsSection.classList.remove('hidden');
-                    loadUserEmails();
-                }
-            }
-            
-            // Event listeners for Gmail connection
-            const connectBtn = document.getElementById('connectGmailBtn');
-            if (connectBtn) {
-                connectBtn.addEventListener('click', showGmailAuthModal);
-            }
-            
-            // Modal event listeners
-            document.getElementById('closeModal')?.addEventListener('click', hideGmailAuthModal);
-            document.getElementById('authorizeGmailBtn')?.addEventListener('click', connectGmail);
-            
-            console.log('UI initialization complete');
-        }
-
         // Check if user is authenticated - Updated for consistent behavior across deployments
         async function checkAuth() {
             try {

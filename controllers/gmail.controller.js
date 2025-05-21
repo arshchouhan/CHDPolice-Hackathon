@@ -713,3 +713,137 @@ exports.disconnectGmail = async (req, res) => {
     });
   }
 };
+
+// Scan emails for phishing threats
+exports.scanEmails = async (req, res) => {
+  try {
+    console.log('Scanning emails for phishing threats...');
+    const userId = req.user.id;
+    
+    // Check if user exists and Gmail is connected
+    const user = await User.findById(userId);
+    if (!user) {
+      console.error('User not found for email scanning:', userId);
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    if (!user.gmail_connected) {
+      console.error('Gmail not connected for user:', userId);
+      return res.status(400).json({ 
+        success: false,
+        message: 'Gmail not connected. Please connect your Gmail account first.' 
+      });
+    }
+    
+    // Create OAuth client for this user
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      getRedirectUri()
+    );
+    
+    // Set credentials
+    oauth2Client.setCredentials({
+      access_token: user.gmail_access_token,
+      refresh_token: user.gmail_refresh_token,
+      expiry_date: user.gmail_token_expiry
+    });
+    
+    // Create Gmail API client
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+    
+    // Get list of messages (limit to 10 most recent for performance)
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      maxResults: 10,
+      q: 'newer_than:1d' // Only get emails from the last day
+    });
+    
+    const messages = response.data.messages || [];
+    console.log(`Found ${messages.length} recent messages to scan`);
+    
+    if (messages.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No new emails found to scan',
+        emails: []
+      });
+    }
+    
+    // Process each message
+    const processedEmails = [];
+    
+    for (const message of messages) {
+      try {
+        // Check if this email has already been analyzed
+        const existingEmail = await Email.findOne({ 
+          message_id: message.id,
+          user: userId
+        });
+        
+        if (existingEmail) {
+          console.log(`Email ${message.id} already analyzed, skipping`);
+          processedEmails.push(existingEmail);
+          continue;
+        }
+        
+        // Get full message details
+        const messageDetails = await gmail.users.messages.get({
+          userId: 'me',
+          id: message.id,
+          format: 'full'
+        });
+        
+        // Extract email data
+        const emailData = extractEmailData(messageDetails.data);
+        
+        // Analyze for phishing indicators
+        const scores = analyzeEmail(emailData);
+        
+        // Calculate risk level
+        const phishingRisk = calculateRiskLevel(scores.total);
+        
+        // Create new email record
+        const newEmail = new Email({
+          user: userId,
+          message_id: message.id,
+          from: emailData.from,
+          to: emailData.to,
+          subject: emailData.subject,
+          date: emailData.date,
+          body: emailData.body.substring(0, 5000), // Limit body size
+          scores: scores,
+          phishingRisk: phishingRisk,
+          rawHeaders: emailData.rawHeaders,
+          attachmentInfo: emailData.attachments,
+          urls: emailData.urls
+        });
+        
+        await newEmail.save();
+        console.log(`Saved new email to database: ${message.id}`);
+        processedEmails.push(newEmail);
+      } catch (messageError) {
+        console.error(`Error processing message ${message.id}:`, messageError);
+        // Continue with next message instead of failing the entire batch
+      }
+    }
+    
+    // Update last sync time
+    user.last_email_sync = new Date();
+    await user.save();
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Emails scanned successfully',
+      count: processedEmails.length,
+      emails: processedEmails
+    });
+  } catch (error) {
+    console.error('Error scanning emails:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to scan emails',
+      error: error.message
+    });
+  }
+};
