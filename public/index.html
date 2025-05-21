@@ -1982,6 +1982,7 @@
           const [isScanning, setIsScanning] = React.useState(false);
           const [scanResults, setScanResults] = React.useState(null);
           const [error, setError] = React.useState(null);
+          const [successMessage, setSuccessMessage] = React.useState(null);
 
           // Categories for detailed score breakdown
           const scoreCategories = [
@@ -1996,6 +1997,7 @@
             try {
               setIsScanning(true);
               setError(null);
+              setSuccessMessage(null); // Clear any previous success message
               
               // Get token from localStorage
               const token = localStorage.getItem('token');
@@ -2025,15 +2027,15 @@
                 onScanComplete(data);
               }
               
-              // Show success notification
-              showSuccessNotification('Scan Complete', 'Your emails have been successfully scanned for threats.');
+              // Display success message within the component itself
+              setSuccessMessage('Your emails have been successfully scanned for threats.');
               
-              // Load emails after scan
-              loadUserEmails();
+              // Clear any previous errors
+              setError(null);
             } catch (error) {
               console.error('Scan error:', error);
               setError(error.message);
-              showError('Scan Error', error.message);
+              // Display error within the component itself
             } finally {
               setIsScanning(false);
             }
@@ -2076,6 +2078,16 @@
                     'Scan Emails for Threats'
                   )}
                 </button>
+                
+                {/* Success Message */}
+                {successMessage && (
+                  <div className="mt-4 p-3 bg-green-100 border border-green-200 text-green-700 rounded-lg flex items-center">
+                    <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <p>{successMessage}</p>
+                  </div>
+                )}
               </div>
               
               {scanResults && (
