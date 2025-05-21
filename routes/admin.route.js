@@ -17,4 +17,7 @@ router.get('/users', requireRole('admin'), adminController.getUsers);
 router.get('/users/:id', requireRole('admin'), adminController.getUserById);
 router.delete('/users/:id', requireRole('admin'), adminController.deleteUser);
 
+// Gmail connection verification
+router.get('/verify-connection/:id', requireRole('admin'), adminController.verifyGmailConnection);
+
 module.exports = router;

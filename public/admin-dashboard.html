@@ -490,6 +490,90 @@
             fetchDashboardData();
         }
         
+        // Verify Gmail connection status for a specific user
+        async function verifyGmailConnection(userId) {
+            if (!userId) return;
+            
+            try {
+                // Check if we've already verified this user recently (within last 30 seconds)
+                const now = Date.now();
+                if (window.connectionStatusMap[userId] && (now - window.connectionStatusMap[userId].timestamp < 30000)) {
+                    console.log(`Using cached connection status for user ${userId}`);
+                    return window.connectionStatusMap[userId].status;
+                }
+                
+                console.log(`Verifying Gmail connection for user ${userId}...`);
+                const response = await fetch(`${BASE_URL}/api/admin/verify-connection/${userId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                }).catch(err => {
+                    console.error('Connection verification failed:', err);
+                    return { ok: false };
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    // Update the connection status in our map with timestamp
+                    window.connectionStatusMap[userId] = {
+                        status: data.isConnected,
+                        timestamp: now
+                    };
+                    
+                    // Update UI elements with this user's ID
+                    updateConnectionStatusUI(userId, data.isConnected);
+                    return data.isConnected;
+                }
+                
+                return null; // Verification failed
+            } catch (error) {
+                console.error('Error verifying Gmail connection:', error);
+                return null;
+            }
+        }
+        
+        // Update UI elements showing connection status
+        function updateConnectionStatusUI(userId, isConnected) {
+            if (!userId) return;
+            
+            // Find all connection status elements for this user
+            const statusElements = document.querySelectorAll(`.connection-status[data-user-id="${userId}"]`);
+            
+            statusElements.forEach(element => {
+                const currentStatus = element.getAttribute('data-status');
+                const newStatus = isConnected ? 'connected' : 'disconnected';
+                
+                // Only update if status has changed
+                if (currentStatus !== newStatus) {
+                    console.log(`Updating UI for user ${userId}: ${currentStatus} -> ${newStatus}`);
+                    
+                    // Update the element
+                    element.setAttribute('data-status', newStatus);
+                    
+                    if (isConnected) {
+                        element.textContent = 'Connected';
+                        if (element.classList.contains('text-red-500')) {
+                            element.classList.remove('text-red-500', 'bg-red-100');
+                            element.classList.add('text-green-500', 'bg-green-100');
+                        } else if (element.classList.contains('text-red-700')) {
+                            element.classList.remove('text-red-700', 'bg-red-100');
+                            element.classList.add('text-green-700', 'bg-green-100');
+                        }
+                    } else {
+                        element.textContent = 'Not Connected';
+                        if (element.classList.contains('text-green-500')) {
+                            element.classList.remove('text-green-500', 'bg-green-100');
+                            element.classList.add('text-red-500', 'bg-red-100');
+                        } else if (element.classList.contains('text-green-700')) {
+                            element.classList.remove('text-green-700', 'bg-green-100');
+                            element.classList.add('text-red-700', 'bg-red-100');
+                        }
+                    }
+                }
+            });
+        }
+        
         // Fetch dashboard data
         async function fetchDashboardData() {
             showLoading();
@@ -555,6 +639,13 @@
                     
                     // Load users table
                     loadUsers(usersData.users);
+                    
+                    // Verify connection status for each user after a short delay
+                    setTimeout(() => {
+                        usersData.users.forEach(user => {
+                            verifyGmailConnection(user._id);
+                        });
+                    }, 1000); // Small delay to ensure UI is rendered first
                 }
                 
                 // Load emails for the emails tab
@@ -583,18 +674,22 @@
                 return;
             }
             
+            // Create a map to track connection status verification
+            window.connectionStatusMap = window.connectionStatusMap || {};
+            
             users.forEach(user => {
                 const row = document.createElement('tr');
                 
                 // Format the user's initials or first letter for the avatar
                 const initials = user.username ? user.username.charAt(0).toUpperCase() : 'U';
                 
-                // Format the Gmail connection status
+                // Format the Gmail connection status with a verification indicator
                 let gmailStatus = '';
+                // Add a data attribute to track verification status
                 if (user.gmail_connected) {
-                    gmailStatus = `<span class="px-2 py-1 font-semibold leading-tight text-green-700 bg-green-100 rounded-full">Connected</span>`;
+                    gmailStatus = `<span class="px-2 py-1 font-semibold leading-tight text-green-700 bg-green-100 rounded-full connection-status" data-user-id="${user._id}" data-status="connected">Connected</span>`;
                 } else {
-                    gmailStatus = `<span class="px-2 py-1 font-semibold leading-tight text-red-700 bg-red-100 rounded-full">Not Connected</span>`;
+                    gmailStatus = `<span class="px-2 py-1 font-semibold leading-tight text-red-700 bg-red-100 rounded-full connection-status" data-user-id="${user._id}" data-status="disconnected">Not Connected</span>`;
                 }
                 
                 // Format the last sync date
@@ -1016,6 +1111,9 @@
             try {
                 showLoading();
                 
+                // Start connection verification in parallel
+                const verificationPromise = verifyGmailConnection(userId);
+                
                 const response = await fetch(`${BASE_URL}/api/admin/users/${userId}`, {
                     method: 'GET',
                     headers: {
@@ -1032,10 +1130,10 @@
                     modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
                     modal.id = 'userDetailModal';
                     
-                    // Format Gmail connection status
+                    // Format Gmail connection status with verification indicator
                     const gmailStatus = user.gmail_connected ? 
-                        '<span class="text-green-500">Connected</span>' : 
-                        '<span class="text-red-500">Not Connected</span>';
+                        `<span class="text-green-500 connection-status" data-user-id="${user._id}" data-status="connected">Connected</span>` : 
+                        `<span class="text-red-500 connection-status" data-user-id="${user._id}" data-status="disconnected">Not Connected</span>`;
                     
                     // Format last sync time
                     const lastSync = user.last_email_sync ? 
@@ -1084,6 +1182,24 @@
                     document.getElementById('closeUserDetailBtn').addEventListener('click', () => {
                         document.body.removeChild(modal);
                     });
+                    
+                    // Add a refresh button for connection status
+                    const refreshBtn = document.createElement('button');
+                    refreshBtn.className = 'mt-4 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm';
+                    refreshBtn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>Verify Connection';
+                    refreshBtn.addEventListener('click', async () => {
+                        refreshBtn.disabled = true;
+                        refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Verifying...';
+                        await verifyGmailConnection(userId);
+                        refreshBtn.disabled = false;
+                        refreshBtn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>Verify Connection';
+                    });
+                    
+                    // Add the button to the modal
+                    const buttonContainer = document.createElement('div');
+                    buttonContainer.className = 'mt-4 text-center';
+                    buttonContainer.appendChild(refreshBtn);
+                    modal.querySelector('.space-y-4').appendChild(buttonContainer);
                 }
             } catch (error) {
                 console.error('Error fetching user details:', error);

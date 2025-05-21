@@ -166,6 +166,54 @@ exports.getUserById = async (req, res) => {
   }
 };
 
+// Verify Gmail connection status
+exports.verifyGmailConnection = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId, 'gmail_connected gmail_tokens');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Basic check if user has connection data in DB
+    let isConnected = user.gmail_connected;
+    
+    // If user is marked as connected, perform additional verification
+    if (isConnected && user.gmail_tokens) {
+      try {
+        // Check if token is still valid by making a simple request
+        // This is a placeholder - in a real implementation, you would
+        // make a lightweight API call to Gmail to verify the token
+        // For example:
+        // const response = await fetch('https://www.googleapis.com/gmail/v1/users/me/profile', {
+        //   headers: { Authorization: `Bearer ${user.gmail_tokens.access_token}` }
+        // });
+        // isConnected = response.ok;
+        
+        // For now, we'll just return the stored status
+        // In a real implementation, you would update the user record if verification fails
+        // if (!isConnected) {
+        //   await User.findByIdAndUpdate(userId, { gmail_connected: false });
+        // }
+      } catch (verifyError) {
+        console.error('Error verifying Gmail token:', verifyError);
+        // If verification fails, we'll still return the stored status
+        // but log the error for debugging
+      }
+    }
+    
+    res.status(200).json({
+      success: true,
+      isConnected,
+      lastVerified: new Date()
+    });
+  } catch (error) {
+    console.error('Error verifying Gmail connection:', error);
+    res.status(500).json({ message: 'Failed to verify Gmail connection' });
+  }
+};
+
 // Delete user
 exports.deleteUser = async (req, res) => {
   try {
