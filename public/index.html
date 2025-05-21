@@ -816,8 +816,13 @@
                             updateGmailConnectionStatus(true, profileData.user.email);
                             
                             // Show emails section if connected
-                            document.getElementById('emailsSection').classList.remove('hidden');
-                            loadUserEmails();
+                            const emailsSection = document.getElementById('emailsSection');
+                            if (emailsSection) {
+                                emailsSection.classList.remove('hidden');
+                                loadUserEmails();
+                            } else {
+                                console.log('Emails section not found in DOM');
+                            }
                         }
                     } else {
                         updateGmailConnectionStatus(false);
@@ -1525,9 +1530,6 @@
                     emailsSection.classList.remove('hidden');
                 }
             }
-            
-            // Load user profile
-            await loadUserProfile();
             
             // Check Gmail connection status from server
             await checkGmailStatus();
