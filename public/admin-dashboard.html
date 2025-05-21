@@ -934,70 +934,135 @@
                         suspiciousUrlCount = email.urls.filter(url => url.suspicious).length;
                     }
                     
-                    // Prepare email details HTML with enhanced privacy
+                    // Prepare email details HTML with enhanced privacy and modern UI
                     const detailsHTML = `
-                        <div class="space-y-4">
+                        <div class="space-y-6">
                             <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-lg font-bold">Email Security Analysis</h3>
-                                <span class="${riskLevelClass} px-3 py-1 rounded-full text-sm font-medium">
+                                <div class="flex items-center">
+                                    <div class="bg-gray-200 p-3 rounded-full mr-3">
+                                        <i class="fas fa-shield-alt text-gray-700"></i>
+                                    </div>
+                                    <h3 class="text-lg font-bold">Email Security Analysis</h3>
+                                </div>
+                                <span class="${riskLevelClass} px-4 py-1.5 rounded-full text-sm font-medium flex items-center">
+                                    <i class="fas ${email.phishingRisk === 'Low' ? 'fa-shield-alt' : email.phishingRisk === 'Medium' ? 'fa-exclamation-triangle' : 'fa-radiation'} mr-2"></i>
                                     ${email.phishingRisk} Risk Level
                                 </span>
                             </div>
                             
-                            <div class="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
-                                <div>
-                                    <p class="text-gray-600 text-sm">Source Domain:</p>
-                                    <p class="font-medium">${maskedFrom.split('@')[1] || 'Unknown'}</p>
-                                </div>
-                                <div>
-                                    <p class="text-gray-600 text-sm">Date Received:</p>
-                                    <p class="font-medium">${date}</p>
-                                </div>
-                                <div>
-                                    <p class="text-gray-600 text-sm">User:</p>
-                                    <p class="font-medium">${email.userId?.username || 'User'}</p>
-                                </div>
-                                <div>
-                                    <p class="text-gray-600 text-sm">Email Status:</p>
-                                    <p class="font-medium">${email.status || 'Pending Review'}</p>
+                            <div class="bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="text-gray-700 font-medium mb-3 flex items-center">
+                                    <i class="fas fa-info-circle mr-2 text-blue-500"></i>
+                                    Email Information
+                                </h4>
+                                <div class="grid grid-cols-2 gap-5">
+                                    <div class="flex items-start">
+                                        <div class="bg-blue-100 p-2 rounded-full mr-3">
+                                            <i class="fas fa-globe text-blue-600"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-gray-500 text-sm">Source Domain</p>
+                                            <p class="font-medium">${maskedFrom.split('@')[1] || 'Unknown'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-start">
+                                        <div class="bg-purple-100 p-2 rounded-full mr-3">
+                                            <i class="fas fa-calendar-alt text-purple-600"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-gray-500 text-sm">Date Received</p>
+                                            <p class="font-medium">${date}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-start">
+                                        <div class="bg-green-100 p-2 rounded-full mr-3">
+                                            <i class="fas fa-user text-green-600"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-gray-500 text-sm">User</p>
+                                            <p class="font-medium">${email.userId?.username || 'User'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-start">
+                                        <div class="bg-yellow-100 p-2 rounded-full mr-3">
+                                            <i class="fas fa-tag text-yellow-600"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-gray-500 text-sm">Email Status</p>
+                                            <p class="font-medium">${email.status || 'Pending Review'}</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
-                            <div class="border-t pt-4">
-                                <p class="text-gray-600 text-sm font-medium mb-3">Phishing Risk Analysis:</p>
-                                <div class="grid grid-cols-5 gap-2 mt-2 text-center">
-                                    <div class="bg-gray-100 p-2 rounded">
-                                        <p class="text-gray-600 text-xs">Header</p>
-                                        <p class="font-medium">${email.scores.header}</p>
-                                    </div>
-                                    <div class="bg-gray-100 p-2 rounded">
-                                        <p class="text-gray-600 text-xs">Text</p>
-                                        <p class="font-medium">${email.scores.text}</p>
-                                    </div>
-                                    <div class="bg-gray-100 p-2 rounded">
-                                        <p class="text-gray-600 text-xs">Metadata</p>
-                                        <p class="font-medium">${email.scores.metadata}</p>
-                                    </div>
-                                    <div class="bg-gray-100 p-2 rounded">
-                                        <p class="text-gray-600 text-xs">Attachments</p>
-                                        <p class="font-medium">${email.scores.attachments}</p>
-                                    </div>
-                                    <div class="bg-gray-100 p-2 rounded">
-                                        <p class="text-gray-600 text-xs">Total</p>
-                                        <p class="font-medium">${email.scores.total}</p>
-                                    </div>
-                                </div>
+                            <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                                <h4 class="text-gray-700 font-medium mb-4 flex items-center">
+                                    <i class="fas fa-chart-bar mr-2 text-indigo-500"></i>
+                                    Phishing Risk Analysis
+                                </h4>
                                 
-                                <!-- Risk score visualization -->
-                                <div class="mt-4">
-                                    <p class="text-gray-600 text-sm mb-1">Risk Score:</p>
-                                    <div class="bg-gray-200 rounded-full h-2.5">
-                                        <div class="h-2.5 rounded-full ${email.phishingRisk === 'High' || email.phishingRisk === 'Critical' ? 'bg-red-500' : email.phishingRisk === 'Medium' ? 'bg-yellow-500' : 'bg-green-500'}" 
-                                            style="width: ${email.scores.total}%"></div>
+                                <div class="space-y-4">
+                                    <!-- Header Score -->
+                                    <div>
+                                        <div class="flex justify-between text-sm mb-1">
+                                            <span class="text-gray-600">Header Analysis</span>
+                                            <span class="font-medium">${email.scores.header}%</span>
+                                        </div>
+                                        <div class="w-full bg-gray-200 rounded-full h-2">
+                                            <div class="bg-blue-500 h-2 rounded-full" style="width: ${email.scores.header}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Text Score -->
+                                    <div>
+                                        <div class="flex justify-between text-sm mb-1">
+                                            <span class="text-gray-600">Content Analysis</span>
+                                            <span class="font-medium">${email.scores.text}%</span>
+                                        </div>
+                                        <div class="w-full bg-gray-200 rounded-full h-2">
+                                            <div class="bg-purple-500 h-2 rounded-full" style="width: ${email.scores.text}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Metadata Score -->
+                                    <div>
+                                        <div class="flex justify-between text-sm mb-1">
+                                            <span class="text-gray-600">Metadata Analysis</span>
+                                            <span class="font-medium">${email.scores.metadata}%</span>
+                                        </div>
+                                        <div class="w-full bg-gray-200 rounded-full h-2">
+                                            <div class="bg-green-500 h-2 rounded-full" style="width: ${email.scores.metadata}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Attachments Score -->
+                                    <div>
+                                        <div class="flex justify-between text-sm mb-1">
+                                            <span class="text-gray-600">Attachment Analysis</span>
+                                            <span class="font-medium">${email.scores.attachments}%</span>
+                                        </div>
+                                        <div class="w-full bg-gray-200 rounded-full h-2">
+                                            <div class="bg-yellow-500 h-2 rounded-full" style="width: ${email.scores.attachments}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Overall Risk Score -->
+                                    <div class="mt-6 pt-4 border-t border-gray-100">
+                                        <div class="flex justify-between text-sm mb-1">
+                                            <span class="text-gray-600 font-medium">Overall Risk Score</span>
+                                            <span class="font-bold">${email.scores.total}%</span>
+                                        </div>
+                                        <div class="w-full bg-gray-200 rounded-full h-3">
+                                            <div class="${email.phishingRisk === 'Low' ? 'bg-green-500' : email.phishingRisk === 'Medium' ? 'bg-yellow-500' : 'bg-red-500'} h-3 rounded-full" 
+                                                style="width: ${email.scores.total}%"></div>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-2 flex items-center">
+                                            <i class="fas fa-lock mr-1"></i>
+                                            Email content is protected for privacy and security reasons
+                                        </p>
                                     </div>
                                 </div>
                             </div>
-                            
                             ${email.attachmentInfo && email.attachmentInfo.length > 0 ? `
                                 <div class="border-t pt-4">
                                     <p class="text-gray-600 text-sm font-medium mb-2">Attachment Information:</p>
