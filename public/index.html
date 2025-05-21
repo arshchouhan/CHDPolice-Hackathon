@@ -1033,10 +1033,34 @@
             showLoading();
             
             try {
-                // Get auth token from localStorage
+                // First, verify user is logged in
                 const token = localStorage.getItem('token');
                 if (!token) {
                     throw new Error('Authentication token not found. Please log in again.');
+                }
+                
+                // Verify token is valid by making a test request
+                try {
+                    const testResponse = await fetch(`${getBaseUrl()}/api/users/me`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!testResponse.ok) {
+                        // Token is invalid or expired
+                        localStorage.removeItem('token');
+                        throw new Error('Your session has expired. Please log in again.');
+                    }
+                    
+                    // Get user info to confirm authentication
+                    const userData = await testResponse.json();
+                    console.log('Authenticated as user:', userData.email || userData._id);
+                } catch (authError) {
+                    console.error('Authentication verification failed:', authError);
+                    throw new Error('Authentication failed. Please log in again.');
                 }
                 
                 // Store the exact current URL to return after auth
@@ -1067,8 +1091,8 @@
                     redirectUri = 'https://email-detection-api.onrender.com/api/gmail/callback';
                 } else {
                     // For local development or unknown environments
-                    redirectUri = window.location.origin + window.location.pathname;
-                    console.log('Using default redirect URI:', redirectUri);
+                    redirectUri = `${baseUrl}/api/gmail/callback`;
+                    console.log('Using local redirect URI:', redirectUri);
                 }
                 
                 console.log('Using redirect URI:', redirectUri);

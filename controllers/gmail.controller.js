@@ -109,6 +109,17 @@ exports.handleCallback = async (req, res) => {
   console.log('Request URL:', req.originalUrl);
   console.log('Request method:', req.method);
   
+  // Get the frontend URL from environment variable or default based on environment
+  const getFrontendUrl = () => {
+    if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
+    if (process.env.NODE_ENV === 'production') {
+      return 'https://chd-police-hackathon.vercel.app';
+    }
+    return 'http://localhost:3000';
+  };
+  
+  const frontendUrl = getFrontendUrl();
+  
   try {
     const { code, state, error } = req.query;
     
@@ -121,7 +132,18 @@ exports.handleCallback = async (req, res) => {
             <h1>Authentication Error</h1>
             <p>Error: ${error}</p>
             <p>Description: ${req.query.error_description || 'No description provided'}</p>
-            <p><a href="/admin.html">Return to application</a></p>
+            <p><a href="${frontendUrl}/index.html">Return to application</a></p>
+            <script>
+              // Store error in localStorage for the frontend to display
+              localStorage.setItem('gmailAuthError', JSON.stringify({
+                error: '${error}',
+                description: '${req.query.error_description || 'No description provided'}'
+              }));
+              // Redirect after 3 seconds
+              setTimeout(() => {
+                window.location.href = '${frontendUrl}/index.html?auth_error=true';
+              }, 3000);
+            </script>
           </body>
         </html>
       `);
@@ -130,15 +152,21 @@ exports.handleCallback = async (req, res) => {
     // Validate required parameters
     if (!code) {
       console.error('Authorization code is missing');
-      // Get the frontend URL from environment variable or default to Vercel URL
-      const frontendUrl = process.env.FRONTEND_URL || 'https://chd-police-hackathon.vercel.app';
-      
       return res.send(`
         <html>
           <body>
             <h1>Authentication Error</h1>
             <p>Error: Authorization code is missing</p>
-            <p><a href="${frontendUrl}/admin.html">Return to application</a></p>
+            <p><a href="${frontendUrl}/index.html">Return to application</a></p>
+            <script>
+              localStorage.setItem('gmailAuthError', JSON.stringify({
+                error: 'Missing Code',
+                description: 'Authorization code is missing from the callback'
+              }));
+              setTimeout(() => {
+                window.location.href = '${frontendUrl}/index.html?auth_error=true';
+              }, 3000);
+            </script>
           </body>
         </html>
       `);
@@ -146,15 +174,21 @@ exports.handleCallback = async (req, res) => {
     
     if (!state) {
       console.error('State parameter is missing');
-      // Get the frontend URL from environment variable or default to Vercel URL
-      const frontendUrl = process.env.FRONTEND_URL || 'https://chd-police-hackathon.vercel.app';
-      
       return res.send(`
         <html>
           <body>
             <h1>Authentication Error</h1>
             <p>Error: State parameter is missing</p>
-            <p><a href="${frontendUrl}/admin.html">Return to application</a></p>
+            <p><a href="${frontendUrl}/index.html">Return to application</a></p>
+            <script>
+              localStorage.setItem('gmailAuthError', JSON.stringify({
+                error: 'Missing State',
+                description: 'State parameter is missing from the callback'
+              }));
+              setTimeout(() => {
+                window.location.href = '${frontendUrl}/index.html?auth_error=true';
+              }, 3000);
+            </script>
           </body>
         </html>
       `);
@@ -164,32 +198,64 @@ exports.handleCallback = async (req, res) => {
     console.log('Received state parameter:', state);
     
     let userId, callbackRedirectUri;
-    if (state.includes('|')) {
-      // New format with redirect URI
-      [userId, callbackRedirectUri] = state.split('|');
-      console.log('Parsed from state - User ID:', userId);
-      console.log('Parsed from state - Redirect URI:', callbackRedirectUri);
-    } else {
-      // Old format, just user ID
-      userId = state;
-      callbackRedirectUri = getRedirectUri();
-      console.log('Using old state format - User ID:', userId);
-      console.log('Using default redirect URI:', callbackRedirectUri);
+    try {
+      if (state.includes('|')) {
+        // New format with redirect URI
+        [userId, callbackRedirectUri] = state.split('|');
+        console.log('Parsed from state - User ID:', userId);
+        console.log('Parsed from state - Redirect URI:', callbackRedirectUri);
+      } else {
+        // Old format, just user ID
+        userId = state;
+        callbackRedirectUri = getRedirectUri();
+        console.log('Using old state format - User ID:', userId);
+        console.log('Using default redirect URI:', callbackRedirectUri);
+      }
+      
+      if (!userId || userId.length < 5) {
+        throw new Error('Invalid user ID in state parameter');
+      }
+    } catch (stateError) {
+      console.error('Error parsing state parameter:', stateError);
+      return res.send(`
+        <html>
+          <body>
+            <h1>Authentication Error</h1>
+            <p>Error: Invalid state parameter format</p>
+            <p><a href="${frontendUrl}/index.html">Return to application</a></p>
+            <script>
+              localStorage.setItem('gmailAuthError', JSON.stringify({
+                error: 'Invalid State',
+                description: 'Could not parse the state parameter correctly'
+              }));
+              setTimeout(() => {
+                window.location.href = '${frontendUrl}/index.html?auth_error=true';
+              }, 3000);
+            </script>
+          </body>
+        </html>
+      `);
     }
     
     // Find user by ID (from state parameter)
     const user = await User.findById(userId);
     if (!user) {
       console.error('User not found:', userId);
-      // Get the frontend URL from environment variable or default to Vercel URL
-      const frontendUrl = process.env.FRONTEND_URL || 'https://chd-police-hackathon.vercel.app';
-      
       return res.send(`
         <html>
           <body>
             <h1>Authentication Error</h1>
             <p>Error: User not found</p>
-            <p><a href="${frontendUrl}/admin.html">Return to application</a></p>
+            <p><a href="${frontendUrl}/index.html">Return to application</a></p>
+            <script>
+              localStorage.setItem('gmailAuthError', JSON.stringify({
+                error: 'User Not Found',
+                description: 'The user associated with this authentication request could not be found'
+              }));
+              setTimeout(() => {
+                window.location.href = '${frontendUrl}/index.html?auth_error=true';
+              }, 3000);
+            </script>
           </body>
         </html>
       `);
@@ -199,6 +265,12 @@ exports.handleCallback = async (req, res) => {
     console.log('Exchanging code for tokens...');
     
     try {
+      // Verify OAuth configuration
+      if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+        console.error('Missing OAuth credentials in environment variables');
+        throw new Error('Server configuration error: Missing OAuth credentials');
+      }
+      
       // Use the redirect URI that was parsed from the state parameter
       console.log('Using redirect URI for token exchange:', callbackRedirectUri);
       
@@ -209,11 +281,31 @@ exports.handleCallback = async (req, res) => {
         callbackRedirectUri
       );
       
+      // Log detailed information for debugging
+      console.log('Token exchange configuration:');
+      console.log('- Client ID exists:', !!process.env.GOOGLE_CLIENT_ID);
+      console.log('- Client Secret exists:', !!process.env.GOOGLE_CLIENT_SECRET);
+      console.log('- Redirect URI:', callbackRedirectUri);
+      console.log('- Authorization code length:', code.length);
+      
       // Exchange code for tokens with explicit redirect URI
-      const { tokens } = await tokenExchangeClient.getToken({
-        code: code,
-        redirect_uri: callbackRedirectUri
-      });
+      let tokens;
+      try {
+        const tokenResponse = await tokenExchangeClient.getToken({
+          code: code,
+          redirect_uri: callbackRedirectUri
+        });
+        tokens = tokenResponse.tokens;
+      } catch (tokenExchangeError) {
+        console.error('Token exchange error details:', tokenExchangeError);
+        throw new Error(`Failed to exchange authorization code: ${tokenExchangeError.message}`);
+      }
+      
+      // Verify we received the necessary tokens
+      if (!tokens || !tokens.access_token) {
+        console.error('No access token received from Google');
+        throw new Error('Authentication failed: No access token received');
+      }
       
       console.log('Tokens received:', {
         access_token: tokens.access_token ? 'Present' : 'Missing',
@@ -222,27 +314,34 @@ exports.handleCallback = async (req, res) => {
       });
       
       // Update user with tokens
-      await User.findByIdAndUpdate(userId, {
-        gmail_access_token: tokens.access_token,
-        gmail_refresh_token: tokens.refresh_token,
-        gmail_token_expiry: new Date(Date.now() + (tokens.expiry_date || 3600000)), // Default 1hr if missing
-        gmail_connected: true,
-        last_email_sync: null
-      });
+      try {
+        await User.findByIdAndUpdate(userId, {
+          gmail_access_token: tokens.access_token,
+          gmail_refresh_token: tokens.refresh_token,
+          gmail_token_expiry: new Date(Date.now() + (tokens.expiry_date || 3600000)), // Default 1hr if missing
+          gmail_connected: true,
+          last_email_sync: null
+        });
+        console.log('User updated with Gmail tokens');
+      } catch (dbError) {
+        console.error('Database error updating user:', dbError);
+        throw new Error(`Failed to update user with tokens: ${dbError.message}`);
+      }
       
-      console.log('User updated with Gmail tokens');
-      
-      // Return HTML response instead of redirect
+      // Return HTML response with success message
       return res.send(`
         <html>
           <body>
             <h1>Gmail Connected Successfully</h1>
             <p>Your Gmail account has been successfully connected to the application.</p>
-            <p><a href="/admin.html?connected=true">Return to application</a></p>
+            <p><a href="${frontendUrl}/index.html?connected=true">Return to application</a></p>
             <script>
+              // Store success status in localStorage
+              localStorage.setItem('gmailConnected', 'true');
+              
               // Auto-redirect after 3 seconds
               setTimeout(function() {
-                window.location.href = '/admin.html?connected=true';
+                window.location.href = '${frontendUrl}/index.html?connected=true';
               }, 3000);
             </script>
           </body>
