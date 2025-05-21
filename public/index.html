@@ -615,7 +615,8 @@
                 }
                 
                 const baseUrl = getBaseUrl();
-                const response = await fetch(`${baseUrl}/api/gmail/emails`, {
+                console.log('Fetching emails from:', `${baseUrl}/api/gmail/fetch-emails`);
+                const response = await fetch(`${baseUrl}/api/gmail/fetch-emails`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`,
