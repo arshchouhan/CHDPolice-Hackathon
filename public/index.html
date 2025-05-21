@@ -10,6 +10,11 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
+    
+    <!-- React and ReactDOM -->
+    <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -198,6 +203,8 @@
         
         <!-- Email Analysis Dashboard (Hidden until email is connected) -->
         <div id="emailAnalysisDashboard" class="hidden">
+            <!-- React-based Email Scan Feature -->
+            <div id="reactScanFeatureRoot" class="mb-8"></div>
             <!-- Email Selection and Summary -->
             <div class="bg-white/10 backdrop-blur-lg rounded-lg p-6 mb-8">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
@@ -920,113 +927,9 @@
             }
         }
         
-        // Function to show phishing analysis modal with email details
-        function showPhishingAnalysisModal(email) {
-            // Get the modal and content elements
-            const modal = document.getElementById('phishingAnalysisModal');
-            const content = document.getElementById('phishingAnalysisContent');
-            
-            // Clear previous content
-            content.innerHTML = '';
-            
-            // Format the risk level with appropriate color
-            let riskClass = 'risk-low';
-            if (email.phishingRisk === 'High') {
-                riskClass = 'risk-high';
-            } else if (email.phishingRisk === 'Medium') {
-                riskClass = 'risk-medium';
-            }
-            
-            // Create the email header section
-            const headerSection = document.createElement('div');
-            headerSection.className = 'bg-gray-800/50 rounded-lg p-4 mb-4';
-            headerSection.innerHTML = `
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center">
-                        <div class="${email.phishingRisk === 'High' ? 'bg-red-500/20' : email.phishingRisk === 'Medium' ? 'bg-yellow-500/20' : 'bg-green-500/20'} p-2 rounded-full mr-3">
-                            <i class="fas ${email.phishingRisk === 'High' ? 'fa-exclamation-triangle text-red-500' : email.phishingRisk === 'Medium' ? 'fa-exclamation-circle text-yellow-500' : 'fa-check-circle text-green-500'}"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-white font-semibold">${email.subject || 'No Subject'}</h3>
-                            <p class="text-gray-400 text-sm">From: ${email.from}</p>
-                        </div>
-                    </div>
-                    <div class="risk-badge ${riskClass}">
-                        <i class="fas fa-shield-alt mr-1"></i> ${email.scores.total}/100 Risk
-                    </div>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill-${email.phishingRisk === 'High' ? 'high' : email.phishingRisk === 'Medium' ? 'medium' : 'low'}" style="width: ${email.scores.total}%"></div>
-                </div>
-            `;
-            content.appendChild(headerSection);
-            
-            // Create the scores breakdown section
-            const scoresSection = document.createElement('div');
-            scoresSection.className = 'bg-gray-800/50 rounded-lg p-4 mb-4';
-            scoresSection.innerHTML = `
-                <h3 class="text-white font-semibold mb-3">Risk Score Breakdown</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-gray-400 text-sm mb-1">Header Analysis</p>
-                        <div class="progress-bar">
-                            <div class="progress-fill-${email.scores.header > 30 ? 'high' : email.scores.header > 15 ? 'medium' : 'low'}" style="width: ${email.scores.header}%"></div>
-                        </div>
-                        <p class="text-right text-xs text-gray-400 mt-1">${email.scores.header}/50</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-400 text-sm mb-1">Content Analysis</p>
-                        <div class="progress-bar">
-                            <div class="progress-fill-${email.scores.text > 30 ? 'high' : email.scores.text > 15 ? 'medium' : 'low'}" style="width: ${email.scores.text}%"></div>
-                        </div>
-                        <p class="text-right text-xs text-gray-400 mt-1">${email.scores.text}/50</p>
-                    </div>
-                </div>
-            `;
-            content.appendChild(scoresSection);
-            
-            // Create URLs section if there are any
-            if (email.urls && email.urls.length > 0) {
-                const urlsSection = document.createElement('div');
-                urlsSection.className = 'bg-gray-800/50 rounded-lg p-4 mb-4';
-                urlsSection.innerHTML = `
-                    <h3 class="text-white font-semibold mb-3">Detected URLs</h3>
-                    <div class="space-y-2 max-h-40 overflow-y-auto">
-                        ${email.urls.map(url => `
-                            <div class="bg-gray-700/50 p-2 rounded text-sm">
-                                <span class="text-gray-300 break-all">${url.url}</span>
-                                ${url.suspicious ? '<span class="ml-2 bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded">Suspicious</span>' : ''}
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-                content.appendChild(urlsSection);
-            }
-            
-            // Create email body preview section
-            const bodySection = document.createElement('div');
-            bodySection.className = 'bg-gray-800/50 rounded-lg p-4';
-            bodySection.innerHTML = `
-                <h3 class="text-white font-semibold mb-3">Email Content Preview</h3>
-                <div class="bg-gray-700/50 p-3 rounded text-sm text-gray-300 max-h-60 overflow-y-auto whitespace-pre-wrap">${email.body || 'No content available'}</div>
-            `;
-            content.appendChild(bodySection);
-            
-            // Show the modal
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            
-            // Add event listeners to close buttons
-            document.getElementById('closePhishingModal').addEventListener('click', hidePhishingAnalysisModal);
-            document.getElementById('closePhishingModalBtn').addEventListener('click', hidePhishingAnalysisModal);
-        }
+        // Modal functionality removed for better privacy and security
 
-        // Function to hide phishing analysis modal
-        function hidePhishingAnalysisModal() {
-            const modal = document.getElementById('phishingAnalysisModal');
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }
+        // Modal functionality removed for better privacy
 
         // Function to scan emails
         async function scanEmails() {
@@ -1979,25 +1882,7 @@
         }
     </script>
     
-    <!-- Phishing Analysis Modal -->
-    <div id="phishingAnalysisModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4 overflow-y-auto">
-        <div class="bg-gray-900 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
-                <h2 class="text-xl font-semibold text-white">Email Phishing Analysis</h2>
-                <button id="closePhishingModal" class="text-gray-400 hover:text-white">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div id="phishingAnalysisContent" class="p-4 overflow-y-auto flex-grow space-y-4">
-                <!-- Content will be dynamically populated -->
-            </div>
-            <div class="p-4 border-t border-gray-700 flex justify-end">
-                <button id="closePhishingModalBtn" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
-                    Close
-                </button>
-            </div>
-        </div>
-    </div>
+    <!-- No modals - removed for better privacy -->
     
     <!-- Add CSS for the phishing analysis modal -->
     <style>
@@ -2047,5 +1932,191 @@
             height: 100%;
         }
     </style>
+    
+    <!-- React Component Scripts -->
+    <script type="text/babel">
+        // Import the React components
+        const PhishingScoreOverview = ({ totalScore }) => {
+          // Determine risk level and color based on score
+          const getRiskLevel = (score) => {
+            if (score >= 80) return { level: 'Low Risk', color: 'bg-green-500' };
+            if (score >= 60) return { level: 'Medium Risk', color: 'bg-yellow-500' };
+            return { level: 'High Risk', color: 'bg-red-500' };
+          };
+
+          const { level, color } = getRiskLevel(totalScore);
+
+          return (
+            <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Phishing Risk Overview</h2>
+              
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-lg font-medium">
+                  Total Score: {totalScore}%
+                </span>
+                <span className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
+                  color === 'bg-green-500' ? 'bg-green-500' : 
+                  color === 'bg-yellow-500' ? 'bg-yellow-500' : 'bg-red-500'
+                }`}>
+                  {level}
+                </span>
+              </div>
+              
+              <div className="w-full bg-gray-200 rounded-full h-4 mb-2">
+                <div 
+                  className={`${color} h-4 rounded-full transition-all duration-500 ease-in-out`} 
+                  style={{ width: `${totalScore}%` }}
+                ></div>
+              </div>
+              
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>High Risk</span>
+                <span>Medium Risk</span>
+                <span>Low Risk</span>
+              </div>
+            </div>
+          );
+        };
+
+        const EmailScanFeature = ({ onScanComplete }) => {
+          const [isScanning, setIsScanning] = React.useState(false);
+          const [scanResults, setScanResults] = React.useState(null);
+          const [error, setError] = React.useState(null);
+
+          // Categories for detailed score breakdown
+          const scoreCategories = [
+            { name: 'Header Analysis', score: scanResults?.scores?.header || 0, id: 'header' },
+            { name: 'Content Analysis', score: scanResults?.scores?.text || 0, id: 'content' },
+            { name: 'URL Analysis', score: scanResults?.scores?.urls || 0, id: 'urls' },
+            { name: 'Attachment Analysis', score: scanResults?.scores?.attachments || 0, id: 'attachments' }
+          ];
+
+          // Function to handle the scan action
+          const handleScan = async () => {
+            try {
+              setIsScanning(true);
+              setError(null);
+              
+              // Get token from localStorage
+              const token = localStorage.getItem('token');
+              if (!token) {
+                throw new Error('Authentication required. Please log in again.');
+              }
+              
+              // Call the API to scan emails
+              const response = await fetch(`${getBaseUrl()}/api/gmail/scan`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+              });
+              
+              if (!response.ok) {
+                throw new Error(`Error ${response.status}: ${response.statusText}`);
+              }
+              
+              const data = await response.json();
+              setScanResults(data);
+              
+              // Call the callback function if provided
+              if (onScanComplete) {
+                onScanComplete(data);
+              }
+              
+              // Show success notification
+              showSuccessNotification('Scan Complete', 'Your emails have been successfully scanned for threats.');
+              
+              // Load emails after scan
+              loadUserEmails();
+            } catch (error) {
+              console.error('Scan error:', error);
+              setError(error.message);
+              showError('Scan Error', error.message);
+            } finally {
+              setIsScanning(false);
+            }
+          };
+
+          // Function to get color based on score
+          const getScoreColor = (score) => {
+            if (score >= 80) return 'bg-green-500';
+            if (score >= 60) return 'bg-yellow-500';
+            return 'bg-red-500';
+          };
+
+          return (
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
+                <h1 className="text-2xl font-bold text-gray-800 mb-4">Email Security Scanner</h1>
+                <p className="text-gray-600 mb-6">
+                  Scan your inbox for potential phishing threats and security risks. Our advanced AI analyzes email headers, 
+                  content, URLs, and attachments to identify suspicious patterns.
+                </p>
+                
+                <button
+                  onClick={handleScan}
+                  disabled={isScanning}
+                  className={`w-full py-3 rounded-lg font-medium text-white transition-all duration-300 ${
+                    isScanning 
+                      ? 'bg-blue-400 cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {isScanning ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Scanning Emails...
+                    </span>
+                  ) : (
+                    'Scan Emails for Threats'
+                  )}
+                </button>
+              </div>
+              
+              {scanResults && (
+                <>
+                  {/* Total Score Overview Component */}
+                  <PhishingScoreOverview totalScore={scanResults.scores?.total || 0} />
+                  
+                  {/* Detailed Score Breakdown */}
+                  <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4">Detailed Analysis</h2>
+                    
+                    <div className="space-y-4">
+                      {scoreCategories.map((category) => (
+                        <div key={category.id}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-gray-700">{category.name}</span>
+                            <span className="text-gray-700 font-medium">{category.score}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div 
+                              className={`${getScoreColor(category.score)} h-3 rounded-full transition-all duration-500 ease-in-out`} 
+                              style={{ width: `${category.score}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        };
+
+        // Render the React component when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+          const rootElement = document.getElementById('reactScanFeatureRoot');
+          if (rootElement) {
+            ReactDOM.render(<EmailScanFeature />, rootElement);
+          }
+        });
+    </script>
 </body>
 </html>
