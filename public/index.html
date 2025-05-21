@@ -4,8 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Email Analysis Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <script src="https://cdn.tailwindcss.com?v=3.3.0"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Force reload CSS -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -96,6 +100,11 @@
             <div class="loader mb-4"></div>
             <p class="text-white">Processing your request...</p>
         </div>
+    </div>
+    
+    <!-- Cache refresh button -->
+    <div id="refreshButton" class="fixed bottom-4 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg cursor-pointer z-40 flex items-center justify-center" onclick="clearCacheAndReload()">
+        <i class="fas fa-sync-alt"></i>
     </div>
     
     <!-- Gmail Authorization Modal -->
@@ -1939,6 +1948,35 @@
             }
         }
         document.addEventListener('DOMContentLoaded', initializePage);
+        
+        // Function to clear cache and reload the page
+        function clearCacheAndReload() {
+            // Show loading animation
+            showLoading();
+            
+            // Clear localStorage cache (except authentication tokens)
+            const token = localStorage.getItem('token');
+            const refreshToken = localStorage.getItem('refreshToken');
+            const userRole = localStorage.getItem('userRole');
+            
+            // Store authentication data
+            const authData = {
+                token,
+                refreshToken,
+                userRole
+            };
+            
+            // Clear all localStorage
+            localStorage.clear();
+            
+            // Restore authentication data
+            if (authData.token) localStorage.setItem('token', authData.token);
+            if (authData.refreshToken) localStorage.setItem('refreshToken', authData.refreshToken);
+            if (authData.userRole) localStorage.setItem('userRole', authData.userRole);
+            
+            // Force reload from server (bypass cache)
+            window.location.reload(true);
+        }
     </script>
     
     <!-- Phishing Analysis Modal -->
