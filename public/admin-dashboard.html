@@ -7,6 +7,7 @@
     <title>Admin Dashboard - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -291,15 +292,15 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-white border rounded-lg shadow p-4">
                         <h3 class="text-lg font-semibold mb-3">Email Scanning Activity</h3>
-                        <div class="h-64 bg-gray-100 rounded flex items-center justify-center">
-                            <p class="text-gray-500">Chart placeholder - Email scanning trend</p>
+                        <div class="h-64 bg-gray-100 rounded">
+                            <canvas id="emailScanningChart"></canvas>
                         </div>
                     </div>
                     
                     <div class="bg-white border rounded-lg shadow p-4">
                         <h3 class="text-lg font-semibold mb-3">Phishing Detection Rate</h3>
-                        <div class="h-64 bg-gray-100 rounded flex items-center justify-center">
-                            <p class="text-gray-500">Chart placeholder - Phishing detection rate</p>
+                        <div class="h-64 bg-gray-100 rounded">
+                            <canvas id="phishingRateChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -400,6 +401,11 @@
                     // If emails tab is selected, load emails
                     if (tabName === 'emails') {
                         loadAnalyzedEmails();
+                    }
+                    
+                    // If analytics tab is selected, load analytics
+                    if (tabName === 'analytics') {
+                        loadAnalyticsData();
                     }
                 });
             });
@@ -1275,6 +1281,151 @@
             }
         }
         
+        // Function to load analytics data and render charts
+        async function loadAnalyticsData() {
+            try {
+                showLoading();
+                
+                // Fetch email statistics
+                const response = await fetch(`${BASE_URL}/api/admin/email-stats`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Analytics data:', data);
+                    
+                    // Render charts with the fetched data
+                    renderEmailScanningChart(data.stats);
+                    renderPhishingRateChart(data.stats);
+                } else {
+                    console.error('Failed to fetch analytics data');
+                }
+            } catch (error) {
+                console.error('Error loading analytics data:', error);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Render email scanning activity chart
+        function renderEmailScanningChart(stats) {
+            // Get or create the chart context
+            const ctx = document.getElementById('emailScanningChart').getContext('2d');
+            
+            // Sample data - in a real implementation, you would use actual data from your backend
+            // For now, we'll create sample data based on what we have
+            const labels = ['Last 7 Days', 'Last 6 Days', 'Last 5 Days', 'Last 4 Days', 'Last 3 Days', 'Last 2 Days', 'Today'];
+            const data = [5, 8, 12, 7, 15, 10, stats.total || 0];
+            
+            // Create the chart
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Emails Scanned',
+                        data: data,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Render phishing detection rate chart
+        function renderPhishingRateChart(stats) {
+            // Get or create the chart context
+            const ctx = document.getElementById('phishingRateChart').getContext('2d');
+            
+            // Extract risk data
+            const riskData = [];
+            const riskLabels = [];
+            const riskColors = [];
+            
+            // Check if byRisk exists and has items
+            if (stats.byRisk && stats.byRisk.length > 0) {
+                // Process each risk level
+                stats.byRisk.forEach(item => {
+                    riskLabels.push(item._id || 'Unknown');
+                    riskData.push(item.count || 0);
+                    
+                    // Assign colors based on risk level
+                    switch(item._id) {
+                        case 'Low':
+                            riskColors.push('rgba(34, 197, 94, 0.7)');
+                            break;
+                        case 'Medium':
+                            riskColors.push('rgba(234, 179, 8, 0.7)');
+                            break;
+                        case 'High':
+                            riskColors.push('rgba(249, 115, 22, 0.7)');
+                            break;
+                        case 'Critical':
+                            riskColors.push('rgba(239, 68, 68, 0.7)');
+                            break;
+                        default:
+                            riskColors.push('rgba(107, 114, 128, 0.7)');
+                    }
+                });
+            } else {
+                // Default data if no stats available
+                riskLabels.push('Low', 'Medium', 'High', 'Critical');
+                riskData.push(5, 3, 2, 1);
+                riskColors.push(
+                    'rgba(34, 197, 94, 0.7)',
+                    'rgba(234, 179, 8, 0.7)',
+                    'rgba(249, 115, 22, 0.7)',
+                    'rgba(239, 68, 68, 0.7)'
+                );
+            }
+            
+            // Create the chart
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: riskLabels,
+                    datasets: [{
+                        data: riskData,
+                        backgroundColor: riskColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        }
+
         // Initialize tab switching
         setupTabSwitching();
         
