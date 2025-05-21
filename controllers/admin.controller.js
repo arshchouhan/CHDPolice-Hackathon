@@ -166,6 +166,74 @@ exports.getUserById = async (req, res) => {
   }
 };
 
+// Sync emails for a specific user
+exports.syncUserEmails = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    console.log('Admin triggering email sync for user:', userId);
+    
+    // Check if user exists
+    const user = await User.findById(userId, 'gmail_connected gmail_tokens');
+    if (!user) {
+      console.error('User not found for email sync:', userId);
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Check if Gmail is connected
+    if (!user.gmail_connected) {
+      console.error('Gmail not connected for user:', userId);
+      return res.status(400).json({ message: 'Gmail not connected for this user' });
+    }
+    
+    // We need to import the Gmail controller to use its fetchEmails functionality
+    const gmailController = require('./gmail.controller');
+    
+    // Create a mock request object with the user ID
+    const mockReq = {
+      user: { id: userId }
+    };
+    
+    // Create a mock response object to capture the result
+    let emailCount = 0;
+    const mockRes = {
+      status: function(statusCode) {
+        this.statusCode = statusCode;
+        return this;
+      },
+      json: function(data) {
+        this.data = data;
+        if (data.emails) {
+          emailCount = data.emails.length;
+        }
+        return this;
+      }
+    };
+    
+    // Call the fetchEmails function from the Gmail controller
+    await gmailController.fetchEmails(mockReq, mockRes);
+    
+    // Check if the fetch was successful
+    if (mockRes.statusCode !== 200) {
+      console.error('Failed to fetch emails:', mockRes.data);
+      return res.status(mockRes.statusCode || 500).json(mockRes.data || { message: 'Failed to fetch emails' });
+    }
+    
+    // Update last_email_sync in the database
+    await User.findByIdAndUpdate(userId, { last_email_sync: new Date() });
+    
+    // Return success response
+    res.status(200).json({
+      success: true,
+      message: 'Emails synced successfully',
+      emailCount,
+      lastSync: new Date()
+    });
+  } catch (error) {
+    console.error('Error syncing emails:', error);
+    res.status(500).json({ message: 'Failed to sync emails', error: error.message });
+  }
+};
+
 // Verify Gmail connection status
 exports.verifyGmailConnection = async (req, res) => {
   try {

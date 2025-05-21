@@ -20,4 +20,7 @@ router.delete('/users/:id', requireRole('admin'), adminController.deleteUser);
 // Gmail connection verification
 router.get('/verify-connection/:id', requireRole('admin'), adminController.verifyGmailConnection);
 
+// Sync emails for a specific user
+router.post('/sync-emails/:id', requireRole('admin'), adminController.syncUserEmails);
+
 module.exports = router;

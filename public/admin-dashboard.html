@@ -1195,10 +1195,45 @@
                         refreshBtn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>Verify Connection';
                     });
                     
-                    // Add the button to the modal
+                    // Add a sync emails button
+                    const syncEmailsBtn = document.createElement('button');
+                    syncEmailsBtn.className = 'mt-4 ml-2 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm';
+                    syncEmailsBtn.innerHTML = '<i class="fas fa-envelope mr-1"></i>Sync Emails';
+                    syncEmailsBtn.addEventListener('click', async () => {
+                        syncEmailsBtn.disabled = true;
+                        syncEmailsBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Syncing...';
+                        
+                        try {
+                            const response = await fetch(`${BASE_URL}/api/admin/sync-emails/${userId}`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                }
+                            });
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                alert(`Emails synced successfully! ${data.emailCount || 0} emails processed.`);
+                                // Refresh user details to show updated last sync time
+                                await viewUserDetails(userId);
+                            } else {
+                                const errorData = await response.json();
+                                alert(`Failed to sync emails: ${errorData.message || 'Unknown error'}`); 
+                            }
+                        } catch (error) {
+                            console.error('Error syncing emails:', error);
+                            alert('Failed to sync emails. Check console for details.');
+                        } finally {
+                            syncEmailsBtn.disabled = false;
+                            syncEmailsBtn.innerHTML = '<i class="fas fa-envelope mr-1"></i>Sync Emails';
+                        }
+                    });
+                    
+                    // Add the buttons to the modal
                     const buttonContainer = document.createElement('div');
                     buttonContainer.className = 'mt-4 text-center';
                     buttonContainer.appendChild(refreshBtn);
+                    buttonContainer.appendChild(syncEmailsBtn);
                     modal.querySelector('.space-y-4').appendChild(buttonContainer);
                 }
             } catch (error) {
