@@ -286,7 +286,7 @@
                                             <h4 class="text-white font-medium">Sender IP Geolocation</h4>
                                             <p class="text-gray-400 text-sm">Origin of the email server</p>
                                         </div>
-                                        <span class="bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded font-medium">Nigeria (🇳🇬)</span>
+                                        <span class="bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded font-medium">Nigeria (dY╪3dY╪¬)</span>
                                     </div>
                                 </div>
                                 
@@ -494,7 +494,6 @@
                 
                 // Get environment information
                 const baseUrl = getBaseUrl();
-                const hostname = window.location.hostname;
                 const platform = hostname.includes('vercel.app') ? 'vercel' : 
                                hostname.includes('onrender.com') ? 'render' : 'other';
                 
@@ -1278,108 +1277,74 @@
                 
                 console.log('Checking auth status - Role:', userRole, 'Token exists:', !!token);
                 
-                // If user is an admin, they should be on admin dashboard
-                if (userRole === 'admin' && token) {
-                    console.log('Admin user detected, redirecting to admin dashboard');
-                    window.location.href = `${baseUrl}/admin-dashboard.html`;
+                // If we don't have a token, redirect to login
+                if (!token) {
+                    console.log('No token found, redirecting to login');
+                    window.location.href = `${baseUrl}/login.html`;
                     return;
                 }
                 
-                // For regular users, continue with standard auth check
-                if (token) {
-                    console.log('Found token in localStorage');
-                    
-                    // Verify the token is valid
-                    try {
-                        const response = await fetch(`${baseUrl}/auth/check-auth`, {
-                            method: 'GET',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json'
-                            },
-                            credentials: 'include'
-                        });
-                        
-                        console.log('Auth check response status:', response.status);
-                        
-                        if (response.ok) {
-                            const data = await response.json();
-                            console.log('Auth check response:', data);
-                            
-                            // If user is admin, redirect to admin dashboard
-                            if (data.user && data.user.role === 'admin') {
-                                localStorage.setItem('userRole', 'admin');
-                                window.location.href = `${baseUrl}/admin-dashboard.html`;
-                                return;
-                            }
-                            
-                            // User token is valid, stay on user dashboard
-                            localStorage.setItem('userRole', 'user');
-                            
-                            // If we have user data, update the email display
-                            if (data.user && data.user.email) {
-                                document.getElementById('userEmail').textContent = data.user.email;
-                                localStorage.setItem('userEmail', data.user.email);
-                            }
-                            
-                            return;
-                        } else {
-                            // Token is invalid
-                            console.log('Token validation failed');
-                            localStorage.removeItem('token');
-                            localStorage.removeItem('userRole');
+                // If we have a token, verify it with the server
+                try {
+                    const response = await fetch(`${baseUrl}/api/auth/verify`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
                         }
-                    } catch (verifyError) {
-                        console.error('Error verifying token:', verifyError);
-                    }
-                }
-                
-                // If no token in localStorage or validation failed, check with server cookies
-                console.log('Checking with server cookies...');
-                const cookieResponse = await fetch(`${baseUrl}/auth/check-auth`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include' // Send cookies
-                });
-                
-                console.log('Cookie auth check response status:', cookieResponse.status);
-                
-                if (cookieResponse.ok) {
-                    // User is authenticated via cookies
-                    const data = await cookieResponse.json();
-                    console.log('Cookie auth check response:', data);
+                    });
                     
-                    // Store the token if provided
-                    if (data.token) {
-                        localStorage.setItem('token', data.token);
-                    }
-                    
-                    // If user is admin, redirect to admin dashboard
-                    if (data.user && data.user.role === 'admin') {
-                        localStorage.setItem('userRole', 'admin');
-                        window.location.href = `${baseUrl}/admin-dashboard.html`;
+                    // If the token is invalid, redirect to login
+                    if (!response.ok) {
+                        console.error('Token verification failed:', response.status);
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('userRole');
+                        window.location.href = `${baseUrl}/login.html`;
                         return;
                     }
                     
-                    // Otherwise stay on user dashboard
-                    localStorage.setItem('userRole', 'user');
+                    // Token is valid, get user data
+                    const data = await response.json();
+                    console.log('Auth verification successful:', data);
                     
-                    // If we have user data, update the email display
+                    // Update user email in the UI
                     if (data.user && data.user.email) {
-                        document.getElementById('userEmail').textContent = data.user.email;
-                        localStorage.setItem('userEmail', data.user.email);
+                        console.log('Setting user email in UI:', data.user.email);
+                        const userEmailElement = document.getElementById('userEmail');
+                        if (userEmailElement) {
+                            userEmailElement.textContent = data.user.email;
+                            localStorage.setItem('userEmail', data.user.email);
+                        } else {
+                            console.warn('userEmail element not found in DOM');
+                        }
+                    } else {
+                        console.warn('User data missing email property:', data);
                     }
                     
                     return;
+                } catch (error) {
+                    console.error('Error verifying token:', error);
+                    
+                    // If there was a network error, don't redirect - might be offline
+                    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                        console.warn('Network error during auth check, using cached credentials');
+                        
+                        // Use cached credentials if available
+                        if (token && userRole) {
+                            console.log('Using cached credentials - Role:', userRole);
+                            return;
+                        }
+                    }
+                    
+                    // For other errors, redirect to login
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('userRole');
+                    window.location.href = `${baseUrl}/login.html`;
+                    return;
                 }
                 
-                // If neither method authenticated the user, redirect to login
+                // This code will only run if all authentication methods fail
                 console.log('Not authenticated, redirecting to login');
-                const loginUrl = `${baseUrl}/login.html`;
-                console.log('Redirecting to:', loginUrl);
-                window.location.href = loginUrl;
+                window.location.href = `${baseUrl}/login.html`;
             } catch (error) {
                 console.error('Auth check error:', error);
                 // Don't redirect immediately on error
@@ -1387,111 +1352,50 @@
             }
         }
 
-        // Fix 5: Add debug console logs to help troubleshoot Gmail connection
-        function initializePage() {
+        // Initialize the page after DOM is fully loaded
+        async function initializePage() {
             console.log('Initializing page...');
             
-            // Check if this is an OAuth callback
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('code') || urlParams.has('error')) {
-                console.log('Detected OAuth callback parameters in URL');
-                handleGmailOAuthCallback();
-                return; // Don't proceed with normal initialization during OAuth callback
-            }
-            
-            // Check Gmail connection status from localStorage
-            const isGmailConnected = localStorage.getItem('gmailConnected') === 'true';
-            const userEmail = localStorage.getItem('gmailEmail') || localStorage.getItem('userEmail') || '';
-            
-            console.log('Gmail connected status from localStorage:', isGmailConnected);
-            console.log('User email from localStorage:', userEmail);
-            
-            // Update UI based on connection status
-            updateGmailConnectionStatus(isGmailConnected, userEmail);
-            
-            // If connected, show emails section
-            if (isGmailConnected) {
-                const emailsSection = document.getElementById('emailsSection');
-                if (emailsSection) {
-                    emailsSection.classList.remove('hidden');
-                    loadUserEmails();
-                }
-            }
-            
-            // Event listeners for Gmail connection
-            const connectBtn = document.getElementById('connectGmailBtn');
-            if (connectBtn) {
-                connectBtn.addEventListener('click', showGmailAuthModal);
-            }
-            
-            // Modal event listeners
-            document.getElementById('closeModal')?.addEventListener('click', hideGmailAuthModal);
-            document.getElementById('authorizeGmailBtn')?.addEventListener('click', connectGmail);
-            document.getElementById('cancelGmailAuthBtn')?.addEventListener('click', hideGmailAuthModal);
-            
-            // Also check with server for Gmail connection status
-            checkGmailStatus().catch(err => console.error('Error checking Gmail status:', err));
-        }
-
-        // Initialize the app with improved cross-platform compatibility
-        document.addEventListener('DOMContentLoaded', async function() {
-            console.log('DOM loaded - Initializing application');
-            console.log('Environment:', window.location.hostname);
-            console.log('Using BASE_URL:', getBaseUrl());
-            
             try {
-                // Handle OAuth callback from Google
-                async function handleGmailOAuthCallback() {
-                    // Check if we have a code parameter in the URL
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const code = urlParams.get('code');
-                    const error = urlParams.get('error');
-                    
-                    if (error) {
-                        console.error('OAuth error:', error);
-                        showError('Gmail Connection Error', 'Authorization was denied or an error occurred during the OAuth process.');
-                        return false;
-                    }
-                    
-                    if (code) {
-                        console.log('OAuth code detected in URL, processing callback...');
-                        showLoading();
-                        
-                        try {
-                            // Exchange the code for tokens
-                            await exchangeCodeForTokens(code);
-                            return true;
-                        } catch (error) {
-                            console.error('Error handling OAuth callback:', error);
-                            showError('Gmail Connection Error', 'Failed to complete the OAuth process. ' + error.message);
-                            return false;
-                        } finally {
-                            hideLoading();
-                        }
-                    }
-                    
-                    return false;
+                // Check if this is an OAuth callback
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.has('code') || urlParams.has('error')) {
+                    console.log('Detected OAuth callback parameters in URL');
+                    await handleGmailOAuthCallback();
+                    return; // Don't proceed with normal initialization during OAuth callback
                 }
                 
-                // First check if this is an OAuth callback
-                const isOAuthCallback = await handleGmailOAuthCallback();
-                if (isOAuthCallback) {
-                    console.log('OAuth callback handled successfully');
-                    // No need to continue with normal initialization
-                    return;
-                }
-                
-                // Normal initialization flow
-                console.log('Proceeding with normal initialization');
-                
-                // Check if user is authenticated
+                // Check if user is authenticated first
                 await checkAuth();
                 
-                // Check if Gmail is connected
-                await checkGmailConnection();
+                // Check Gmail connection status from localStorage for faster UI update
+                const gmailConnected = localStorage.getItem('gmailConnected') === 'true';
+                const gmailEmail = localStorage.getItem('gmailEmail');
                 
-                // Initialize UI components
-                initializeUI();
+                console.log('Gmail connection from localStorage:', gmailConnected ? 'Connected' : 'Not connected');
+                if (gmailConnected) {
+                    updateGmailConnectionStatus(true, gmailEmail || localStorage.getItem('userEmail'));
+                    
+                    // Show emails section if it exists
+                    const emailsSection = document.getElementById('emailsSection');
+                    if (emailsSection) {
+                        emailsSection.classList.remove('hidden');
+                    }
+                }
+                
+                // Add event listeners for Gmail connection buttons
+                const connectBtn = document.getElementById('connectGmailBtn');
+                if (connectBtn) {
+                    connectBtn.addEventListener('click', showGmailAuthModal);
+                }
+                
+                // Modal event listeners
+                document.getElementById('closeModal')?.addEventListener('click', hideGmailAuthModal);
+                document.getElementById('authorizeGmailBtn')?.addEventListener('click', connectGmail);
+                document.getElementById('cancelGmailAuthBtn')?.addEventListener('click', hideGmailAuthModal);
+                
+                // Check Gmail connection status from server
+                await checkGmailConnection();
                 
                 // Set up error handling for fetch operations
                 window.addEventListener('unhandledrejection', function(event) {
@@ -1506,7 +1410,43 @@
                 console.error('Error during application initialization:', error);
                 showError('Initialization Error', 'Something went wrong while loading the application. Please refresh the page.');
             }
-        });    
+        }
+
+        // Handle OAuth callback from Google
+        async function handleGmailOAuthCallback() {
+            // Check if we have a code parameter in the URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const error = urlParams.get('error');
+            
+            if (error) {
+                console.error('OAuth error:', error);
+                showError('Gmail Connection Error', 'Authorization was denied or an error occurred during the OAuth process.');
+                return false;
+            }
+            
+            if (code) {
+                console.log('OAuth code detected in URL, processing callback...');
+                showLoading();
+                
+                try {
+                    // Exchange the code for tokens
+                    await exchangeCodeForTokens(code);
+                    return true;
+                } catch (error) {
+                    console.error('Error handling OAuth callback:', error);
+                    showError('Gmail Connection Error', 'Failed to complete the OAuth process. ' + error.message);
+                    return false;
+                } finally {
+                    hideLoading();
+                }
+            }
+            
+            return false;
+        }
+        
+        // Initialize the application when the DOM is loaded
+        document.addEventListener('DOMContentLoaded', initializePage);
 
         // Handle logout with special handling for Render deployment
         document.getElementById('logoutBtn').addEventListener('click', async () => {
