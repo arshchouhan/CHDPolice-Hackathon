@@ -809,10 +809,18 @@
                             statusClass = 'bg-green-100 text-green-800';
                         }
                         
+                        // Enhance privacy by masking sensitive information
+                        const maskedFrom = email.from.split('@').length > 1 ? 
+                            `${email.from.split('@')[0].substring(0, 3)}***@${email.from.split('@')[1]}` : 
+                            'Protected Email';
+                        
+                        // Don't show the actual subject, just indicate if it exists
+                        const privacySubject = email.subject ? 'Email Subject (Protected)' : '(No Subject)';
+                        
                         row.innerHTML = `
-                            <td class="py-2 px-4 border-b">${email.from}</td>
-                            <td class="py-2 px-4 border-b">${email.subject || '(No Subject)'}</td>
-                            <td class="py-2 px-4 border-b">${email.userId?.username || email.userId?.email || 'Unknown'}</td>
+                            <td class="py-2 px-4 border-b">${maskedFrom}</td>
+                            <td class="py-2 px-4 border-b">${privacySubject}</td>
+                            <td class="py-2 px-4 border-b">${email.userId?.username || 'User'}</td>
                             <td class="py-2 px-4 border-b">${date}</td>
                             <td class="py-2 px-4 border-b">
                                 <span class="${riskClass} px-2 py-1 rounded-full text-xs font-medium">
@@ -870,32 +878,63 @@
                     // Format date
                     const date = new Date(email.date).toLocaleString();
                     
-                    // Prepare email details HTML
+                    // Mask sender email for privacy
+                    const maskedFrom = email.from.split('@').length > 1 ? 
+                        `${email.from.split('@')[0].substring(0, 3)}***@${email.from.split('@')[1]}` : 
+                        'Protected Email';
+                    
+                    // Don't show the actual subject, just indicate if it exists
+                    const privacySubject = email.subject ? 'Email Subject (Protected)' : '(No Subject)';
+                    
+                    // Get risk level class for visual indication
+                    let riskLevelClass = 'bg-green-100 text-green-800';
+                    if (email.phishingRisk === 'Medium') {
+                        riskLevelClass = 'bg-yellow-100 text-yellow-800';
+                    } else if (email.phishingRisk === 'High') {
+                        riskLevelClass = 'bg-orange-100 text-orange-800';
+                    } else if (email.phishingRisk === 'Critical') {
+                        riskLevelClass = 'bg-red-100 text-red-800';
+                    }
+                    
+                    // Count suspicious URLs if they exist
+                    let suspiciousUrlCount = 0;
+                    let totalUrlCount = 0;
+                    if (email.urls && email.urls.length > 0) {
+                        totalUrlCount = email.urls.length;
+                        suspiciousUrlCount = email.urls.filter(url => url.suspicious).length;
+                    }
+                    
+                    // Prepare email details HTML with enhanced privacy
                     const detailsHTML = `
                         <div class="space-y-4">
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-bold">Email Security Analysis</h3>
+                                <span class="${riskLevelClass} px-3 py-1 rounded-full text-sm font-medium">
+                                    ${email.phishingRisk} Risk Level
+                                </span>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
                                 <div>
-                                    <p class="text-gray-600 text-sm">From:</p>
-                                    <p class="font-medium">${email.from}</p>
+                                    <p class="text-gray-600 text-sm">Source Domain:</p>
+                                    <p class="font-medium">${maskedFrom.split('@')[1] || 'Unknown'}</p>
                                 </div>
                                 <div>
-                                    <p class="text-gray-600 text-sm">Date:</p>
+                                    <p class="text-gray-600 text-sm">Date Received:</p>
                                     <p class="font-medium">${date}</p>
                                 </div>
-                            </div>
-                            
-                            <div>
-                                <p class="text-gray-600 text-sm">Subject:</p>
-                                <p class="font-medium">${email.subject || '(No Subject)'}</p>
-                            </div>
-                            
-                            <div>
-                                <p class="text-gray-600 text-sm">User:</p>
-                                <p class="font-medium">${email.userId?.username || email.userId?.email || 'Unknown'}</p>
+                                <div>
+                                    <p class="text-gray-600 text-sm">User:</p>
+                                    <p class="font-medium">${email.userId?.username || 'User'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-600 text-sm">Email Status:</p>
+                                    <p class="font-medium">${email.status || 'Pending Review'}</p>
+                                </div>
                             </div>
                             
                             <div class="border-t pt-4">
-                                <p class="text-gray-600 text-sm font-medium">Phishing Analysis:</p>
+                                <p class="text-gray-600 text-sm font-medium mb-3">Phishing Risk Analysis:</p>
                                 <div class="grid grid-cols-5 gap-2 mt-2 text-center">
                                     <div class="bg-gray-100 p-2 rounded">
                                         <p class="text-gray-600 text-xs">Header</p>
@@ -918,42 +957,48 @@
                                         <p class="font-medium">${email.scores.total}</p>
                                     </div>
                                 </div>
-                            </div>
-                            
-                            <div class="border-t pt-4">
-                                <p class="text-gray-600 text-sm">Email Body:</p>
-                                <div class="mt-2 p-3 bg-gray-50 rounded border whitespace-pre-wrap">${email.body || 'No content'}</div>
+                                
+                                <!-- Risk score visualization -->
+                                <div class="mt-4">
+                                    <p class="text-gray-600 text-sm mb-1">Risk Score:</p>
+                                    <div class="bg-gray-200 rounded-full h-2.5">
+                                        <div class="h-2.5 rounded-full ${email.phishingRisk === 'High' || email.phishingRisk === 'Critical' ? 'bg-red-500' : email.phishingRisk === 'Medium' ? 'bg-yellow-500' : 'bg-green-500'}" 
+                                            style="width: ${email.scores.total}%"></div>
+                                    </div>
+                                </div>
                             </div>
                             
                             ${email.attachmentInfo && email.attachmentInfo.length > 0 ? `
                                 <div class="border-t pt-4">
-                                    <p class="text-gray-600 text-sm">Attachments:</p>
-                                    <ul class="mt-2 space-y-1">
-                                        ${email.attachmentInfo.map(attachment => `
-                                            <li class="flex items-center">
-                                                <i class="fas fa-paperclip mr-2 text-gray-400"></i>
-                                                <span>${attachment.name}</span>
-                                                <span class="text-xs text-gray-500 ml-2">(${attachment.contentType}, ${formatFileSize(attachment.size)})</span>
-                                            </li>
-                                        `).join('')}
-                                    </ul>
+                                    <p class="text-gray-600 text-sm font-medium mb-2">Attachment Information:</p>
+                                    <div class="bg-gray-50 p-3 rounded-lg">
+                                        <p class="text-sm">This email contains ${email.attachmentInfo.length} attachment(s)</p>
+                                        <p class="text-xs text-gray-500 mt-1">For security and privacy reasons, attachment details are not displayed</p>
+                                    </div>
                                 </div>
                             ` : ''}
                             
                             ${email.urls && email.urls.length > 0 ? `
                                 <div class="border-t pt-4">
-                                    <p class="text-gray-600 text-sm">URLs in email:</p>
-                                    <ul class="mt-2 space-y-1">
-                                        ${email.urls.map(url => `
-                                            <li class="flex items-center">
-                                                <i class="fas fa-link mr-2 text-gray-400"></i>
-                                                <span class="${url.suspicious ? 'text-red-600' : ''}">${url.url}</span>
-                                                ${url.suspicious ? '<span class="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded ml-2">Suspicious</span>' : ''}
-                                            </li>
-                                        `).join('')}
-                                    </ul>
+                                    <p class="text-gray-600 text-sm font-medium mb-2">URL Analysis:</p>
+                                    <div class="bg-gray-50 p-3 rounded-lg">
+                                        <p class="text-sm">This email contains ${totalUrlCount} URL(s)</p>
+                                        <p class="text-xs text-gray-500 mt-1">For security and privacy reasons, URLs are not displayed</p>
+                                        <p class="text-sm mt-2">
+                                            <span class="font-medium">Suspicious URLs: </span>
+                                            ${suspiciousUrlCount} of ${totalUrlCount}
+                                        </p>
+                                    </div>
                                 </div>
                             ` : ''}
+                            
+                            <div class="border-t pt-4">
+                                <p class="text-gray-600 text-sm font-medium mb-2">Content Analysis:</p>
+                                <div class="bg-gray-50 p-3 rounded-lg">
+                                    <p class="text-sm">Email content is not displayed for privacy and security reasons</p>
+                                    <p class="text-xs text-gray-500 mt-1">The system has analyzed the content and assigned risk scores accordingly</p>
+                                </div>
+                            </div>
                             
                             <div class="border-t pt-4">
                                 <p class="text-gray-600 text-sm">Current Status:</p>

@@ -624,7 +624,7 @@
             }
         }
         
-        // Function to load user emails
+        // Function to load user emails with enhanced privacy
         async function loadUserEmails() {
             try {
                 console.log('Loading user emails...');
@@ -680,11 +680,19 @@
                         
                         const date = new Date(email.date).toLocaleString();
                         
+                        // Mask sender email for privacy
+                        const maskedFrom = email.from.split('@').length > 1 ? 
+                            `${email.from.split('@')[0].substring(0, 3)}***@${email.from.split('@')[1]}` : 
+                            'Protected Email';
+                        
+                        // Don't show the actual subject, just indicate if it exists
+                        const privacySubject = email.subject ? 'Email Subject (Protected)' : '(No Subject)';
+                        
                         emailItem.innerHTML = `
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <h3 class="text-white font-medium">${email.subject || '(No Subject)'}</h3>
-                                    <p class="text-gray-400 text-sm">From: ${email.from}</p>
+                                    <h3 class="text-white font-medium">${privacySubject}</h3>
+                                    <p class="text-gray-400 text-sm">From: ${maskedFrom}</p>
                                     <p class="text-gray-400 text-sm">Date: ${date}</p>
                                 </div>
                                 <div class="${riskBgClass} px-3 py-1 rounded-full">
