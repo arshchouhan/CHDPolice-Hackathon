@@ -96,6 +96,11 @@ exports.updateEmailStatus = async (req, res) => {
 // Get email statistics
 exports.getEmailStats = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     // Get count by risk level
     const riskStats = await Email.aggregate([
       { $group: { _id: '$phishingRisk', count: { $sum: 1 } } }
@@ -183,9 +188,29 @@ exports.syncUserEmails = async (req, res) => {
       return res.status(400).json({ message: 'Gmail not connected for this user' });
     }
     
+    // Create a modified request object to pass to fetchEmails
+    const modifiedReq = {
+      user: user  // Set the user object directly
+    };
+    
+    // Create a response handler
+    let fetchResult = [];
+    const responseHandler = {
+      status: function(code) {
+        return {
+          json: function(data) {
+            if (code === 200 && data.emails) {
+              fetchResult = data.emails;
+            }
+            return data;
+          }
+        };
+      }
+    };
+    
     // Call the fetchEmails function from the Gmail controller
     const gmailController = require('./gmail.controller');
-    const fetchResult = await gmailController.fetchEmails(user);
+    await gmailController.fetchEmails(modifiedReq, responseHandler);
     
     // Update last sync time
     user.last_email_sync = new Date();

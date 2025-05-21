@@ -280,6 +280,11 @@ exports.handleCallback = async (req, res) => {
 exports.fetchEmails = async (req, res) => {
   try {
     console.log('Fetching emails for user...');
+    // Check if req.user exists before accessing its properties
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
     const userId = req.user.id;
     const user = await User.findById(userId);
     
