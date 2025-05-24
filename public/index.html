@@ -16,7 +16,6 @@
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link rel="stylesheet" href="/css/email-analysis.css">
-    <link rel="stylesheet" href="/react-components/SkeletonLoader.css">
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -145,11 +144,6 @@
 
     <!-- Main Dashboard Container -->
     <div class="container mx-auto px-4 py-8 relative z-10">
-        <!-- Skeleton Loader - Will be shown during loading -->
-        <div id="skeletonLoaderRoot"></div>
-        
-        <!-- Main Content - Will be hidden until data is loaded -->
-        <div id="mainContent" class="hidden">
         <!-- Top Navigation -->
         <nav class="bg-white/10 backdrop-blur-lg rounded-lg p-4 mb-8 flex justify-between items-center">
             <div class="flex items-center space-x-2">
@@ -2158,69 +2152,10 @@
         });
     </script>
     
-    </div> <!-- End of mainContent div -->
-    </div> <!-- End of container div -->
-
     <!-- Email Analysis Components -->
     <script type="text/babel" src="/react-components/EmailAnalysisDetails.js"></script>
     <script type="text/babel" src="/react-components/SandboxFeedback.js"></script>
-    <script type="text/babel" src="/react-components/SkeletonLoader.js"></script>
     <script type="text/babel">
-        // Render the skeleton loader immediately when the page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            // Render skeleton loader
-            renderSkeletonLoader();
-            
-            // Hide skeleton and show main content after a delay
-            setTimeout(() => {
-                hideSkeletonLoader();
-                showMainContent();
-                
-                // Initialize the page content
-                initializeDashboard();
-            }, 1500);
-        });
-        
-        // Function to render the skeleton loader
-        function renderSkeletonLoader() {
-            const skeletonRoot = document.getElementById('skeletonLoaderRoot');
-            if (skeletonRoot) {
-                ReactDOM.render(<SkeletonLoader />, skeletonRoot);
-            }
-        }
-        
-        // Function to hide the skeleton loader
-        function hideSkeletonLoader() {
-            const skeletonRoot = document.getElementById('skeletonLoaderRoot');
-            if (skeletonRoot) {
-                skeletonRoot.classList.add('hidden');
-            }
-        }
-        
-        // Function to show the main content
-        function showMainContent() {
-            const mainContent = document.getElementById('mainContent');
-            if (mainContent) {
-                mainContent.classList.remove('hidden');
-            }
-        }
-        
-        // Function to initialize the dashboard after login
-        function initializeDashboard() {
-            // Get the user's email from localStorage
-            const userEmail = localStorage.getItem('email');
-            if (userEmail) {
-                document.getElementById('userEmail').textContent = userEmail;
-            }
-            
-            // Check if Gmail is connected
-            const gmailConnected = localStorage.getItem('gmailConnected') === 'true';
-            updateGmailConnectionStatus(gmailConnected);
-            
-            // Load user's emails
-            loadUserEmails();
-        }
-        
         // Render the Email Analysis component when viewing an email
         function renderEmailAnalysisDetails(emailId) {
             const analysisRoot = document.getElementById('emailAnalysisRoot');
@@ -2278,34 +2213,6 @@
             // Render the analysis component
             renderEmailAnalysisDetails(emailId);
         };
-        
-        // Initialize the skeleton loader and page content
-        window.addEventListener('load', function() {
-            // Render the skeleton loader
-            const skeletonRoot = document.getElementById('skeletonLoaderRoot');
-            if (skeletonRoot) {
-                ReactDOM.render(<SkeletonLoader />, skeletonRoot);
-            }
-            
-            // Hide main content initially
-            const mainContent = document.getElementById('mainContent');
-            if (mainContent) {
-                mainContent.classList.add('hidden');
-            }
-            
-            // Show main content after a delay
-            setTimeout(function() {
-                // Hide skeleton
-                if (skeletonRoot) {
-                    skeletonRoot.classList.add('hidden');
-                }
-                
-                // Show main content
-                if (mainContent) {
-                    mainContent.classList.remove('hidden');
-                }
-            }, 2000);
-        });
     </script>
 </body>
 </html>
