@@ -129,6 +129,9 @@
                 <button class="tab-button px-4 py-3 text-gray-600 hover:text-blue-600 font-medium" data-tab="analytics">
                     <i class="fas fa-chart-line mr-2"></i>Analytics
                 </button>
+                <button class="tab-button px-4 py-3 text-gray-600 hover:text-blue-600 font-medium" data-tab="sandbox">
+                    <i class="fas fa-shield-alt mr-2"></i>URL Sandbox
+                </button>
                 <button class="tab-button px-4 py-3 text-gray-600 hover:text-blue-600 font-medium" data-tab="settings">
                     <i class="fas fa-cog mr-2"></i>System Settings
                 </button>
@@ -313,6 +316,11 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Sandbox Tab -->
+            <div id="sandboxTab" class="tab-content p-4 hidden">
+                <div id="sandboxPanelRoot"></div>
             </div>
 
             <!-- Settings Tab -->
@@ -1609,6 +1617,42 @@
             // Force reload from server (bypass cache)
             window.location.reload(true);
         }
+    </script>
+    
+    <!-- React Components for URL Sandbox -->
+    <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- URL Sandbox Components -->
+    <script type="text/babel" src="/react-components/UrlSandboxViewer.js"></script>
+    <script type="text/babel" src="/react-components/AdminSandboxPanel.js"></script>
+    
+    <!-- Initialize URL Sandbox -->
+    <script type="text/babel">
+        document.addEventListener('DOMContentLoaded', function() {
+            // Render the AdminSandboxPanel component when the sandbox tab is selected
+            const renderSandboxPanel = () => {
+                const sandboxPanelRoot = document.getElementById('sandboxPanelRoot');
+                if (sandboxPanelRoot) {
+                    ReactDOM.render(<AdminSandboxPanel />, sandboxPanelRoot);
+                }
+            };
+            
+            // Add event listener for the sandbox tab button
+            const sandboxTabButton = document.querySelector('.tab-button[data-tab="sandbox"]');
+            if (sandboxTabButton) {
+                sandboxTabButton.addEventListener('click', renderSandboxPanel);
+            }
+            
+            // If the sandbox tab is active on page load, render the component
+            if (window.location.hash === '#sandbox') {
+                // Simulate click on the sandbox tab button
+                if (sandboxTabButton) {
+                    sandboxTabButton.click();
+                }
+            }
+        });
     </script>
 </body>
 </html>
