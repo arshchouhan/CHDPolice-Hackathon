@@ -1,61 +1,42 @@
 /* Skeleton Loading Animation */
-.skeleton-pulse {
-  display: inline-block;
-  height: 100%;
-  width: 100%;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.05) 75%);
-  background-size: 200% 100%;
-  animation: pulse 1.5s ease-in-out infinite;
-  border-radius: 4px;
-}
-
-@keyframes pulse {
+@keyframes shimmer {
   0% {
-    background-position: 200% 0;
-  }
-  100% {
     background-position: -200% 0;
   }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
-.skeleton-container {
-  overflow: hidden;
-  position: relative;
-}
-
-.skeleton-text {
-  height: 1rem;
-  margin-bottom: 0.5rem;
+.skeleton-loader {
+  background: #2a3441;
+  background-image: linear-gradient(90deg, 
+                    rgba(255, 255, 255, 0.05) 0%, 
+                    rgba(255, 255, 255, 0.1) 50%, 
+                    rgba(255, 255, 255, 0.05) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
   border-radius: 4px;
-}
-
-.skeleton-text.sm {
-  height: 0.75rem;
-}
-
-.skeleton-text.lg {
-  height: 1.25rem;
-}
-
-.skeleton-circle {
-  border-radius: 50%;
-}
-
-.skeleton-card {
-  border-radius: 0.5rem;
+  display: inline-block;
+  line-height: 1;
+  position: relative;
   overflow: hidden;
-  background-color: rgba(255, 255, 255, 0.05);
+  min-height: 1rem;
 }
 
-/* Dashboard Skeleton */
-.dashboard-skeleton {
-  display: none;
+/* Make sure skeleton elements have proper dimensions */
+.skeleton-loader {
+  min-width: 2rem;
+  min-height: 1rem;
 }
 
-.loading .dashboard-skeleton {
-  display: block;
+/* Ensure skeleton dashboard is properly displayed */
+#skeleton-dashboard {
+  width: 100%;
 }
 
-.loading .dashboard-content {
+/* Ensure actual content is hidden while skeleton is showing */
+.loading #emailConnectionStatus,
+.loading #emailAnalysisDashboard {
   display: none;
 }
