@@ -16,6 +16,7 @@
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link rel="stylesheet" href="/css/email-analysis.css">
+    <link rel="stylesheet" href="/css/skeleton-loading.css">
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -143,7 +144,7 @@
     </div>
 
     <!-- Main Dashboard Container -->
-    <div class="container mx-auto px-4 py-8 relative z-10">
+    <div class="container mx-auto px-4 py-8 relative z-10 loading" id="dashboardContainer">
         <!-- Top Navigation -->
         <nav class="bg-white/10 backdrop-blur-lg rounded-lg p-4 mb-8 flex justify-between items-center">
             <div class="flex items-center space-x-2">
@@ -163,6 +164,98 @@
             </div>
         </nav>
 
+        <!-- Skeleton Loading UI -->
+        <div class="dashboard-skeleton">
+            <!-- Skeleton Connection Status -->
+            <div class="bg-white/10 backdrop-blur-lg rounded-lg p-6 mb-8 skeleton-card">
+                <div class="flex items-start space-x-4">
+                    <div class="w-12 h-12 skeleton-circle skeleton-container">
+                        <div class="skeleton-pulse"></div>
+                    </div>
+                    <div class="flex-grow">
+                        <div class="w-48 skeleton-text lg skeleton-container mb-3">
+                            <div class="skeleton-pulse"></div>
+                        </div>
+                        <div class="w-64 skeleton-text skeleton-container mb-4">
+                            <div class="skeleton-pulse"></div>
+                        </div>
+                        <div class="w-40 h-8 rounded-md skeleton-container">
+                            <div class="skeleton-pulse"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Skeleton Email Analysis -->
+            <div class="bg-white/10 backdrop-blur-lg rounded-lg p-6 mb-8 skeleton-card">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <div class="w-32 skeleton-text lg skeleton-container mb-2">
+                            <div class="skeleton-pulse"></div>
+                        </div>
+                        <div class="w-48 skeleton-text sm skeleton-container">
+                            <div class="skeleton-pulse"></div>
+                        </div>
+                    </div>
+                    <div class="w-40 h-10 rounded-md skeleton-container">
+                        <div class="skeleton-pulse"></div>
+                    </div>
+                </div>
+                
+                <!-- Skeleton Risk Card -->
+                <div class="bg-gray-800/50 rounded-lg p-4 mb-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 skeleton-circle skeleton-container mr-3">
+                                <div class="skeleton-pulse"></div>
+                            </div>
+                            <div>
+                                <div class="w-40 skeleton-text skeleton-container mb-2">
+                                    <div class="skeleton-pulse"></div>
+                                </div>
+                                <div class="w-56 skeleton-text sm skeleton-container">
+                                    <div class="skeleton-pulse"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="w-24 h-6 rounded-full skeleton-container">
+                            <div class="skeleton-pulse"></div>
+                        </div>
+                    </div>
+                    <div class="h-2 w-full rounded-full bg-gray-700 mt-4"></div>
+                </div>
+                
+                <!-- Skeleton Email Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Array(3).fill().map((_, i) => (
+                        <div class="bg-gray-800/30 rounded-lg p-4 skeleton-card">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="w-32 skeleton-text skeleton-container">
+                                    <div class="skeleton-pulse"></div>
+                                </div>
+                                <div class="w-16 h-6 rounded-full skeleton-container">
+                                    <div class="skeleton-pulse"></div>
+                                </div>
+                            </div>
+                            <div class="w-full skeleton-text sm skeleton-container mb-2">
+                                <div class="skeleton-pulse"></div>
+                            </div>
+                            <div class="w-3/4 skeleton-text sm skeleton-container mb-4">
+                                <div class="skeleton-pulse"></div>
+                            </div>
+                            <div class="flex justify-end">
+                                <div class="w-20 h-8 rounded-md skeleton-container">
+                                    <div class="skeleton-pulse"></div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Real Dashboard Content -->
+        <div class="dashboard-content">
         <!-- Email Connection Status -->
         <div id="emailConnectionStatus" class="bg-yellow-600/20 backdrop-blur-lg rounded-lg p-6 mb-8 border border-yellow-600/30">
             <!-- Not Connected State -->
@@ -529,6 +622,8 @@
                 if (!token) {
                     console.log('No authentication token found, Gmail not connected');
                     updateGmailConnectionStatus(false);
+                    // Hide skeleton loading since we know the user isn't connected
+                    hideSkeletonLoading();
                     return;
                 }
                 
@@ -664,6 +759,9 @@
                 });
                 
                 console.log('Email fetch response status:', response.status);
+                
+                // Hide skeleton loading once we have real data
+                hideSkeletonLoading();
                 
                 if (response.ok) {
                     const data = await response.json();
@@ -1733,8 +1831,23 @@
             return false;
         }
         
+        // Function to hide skeleton loading and show actual content
+        function hideSkeletonLoading() {
+            const dashboardContainer = document.getElementById('dashboardContainer');
+            if (dashboardContainer) {
+                dashboardContainer.classList.remove('loading');
+                console.log('Skeleton loading hidden, showing actual content');
+            }
+        }
+        
         // Initialize the application when the DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
+            // Show skeleton loading by default
+            const dashboardContainer = document.getElementById('dashboardContainer');
+            if (dashboardContainer) {
+                dashboardContainer.classList.add('loading');
+            }
+            
             initializePage();
             
             // Add event listeners for Gmail connection buttons
