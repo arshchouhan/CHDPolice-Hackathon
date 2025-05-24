@@ -144,6 +144,11 @@
 
     <!-- Main Dashboard Container -->
     <div class="container mx-auto px-4 py-8 relative z-10">
+        <!-- Skeleton Loader - Will be shown during loading -->
+        <div id="skeletonLoaderRoot"></div>
+        
+        <!-- Main Content - Will be hidden until data is loaded -->
+        <div id="mainContent" class="hidden">
         <!-- Top Navigation -->
         <nav class="bg-white/10 backdrop-blur-lg rounded-lg p-4 mb-8 flex justify-between items-center">
             <div class="flex items-center space-x-2">
@@ -2155,6 +2160,7 @@
     <!-- Email Analysis Components -->
     <script type="text/babel" src="/react-components/EmailAnalysisDetails.js"></script>
     <script type="text/babel" src="/react-components/SandboxFeedback.js"></script>
+    <script type="text/babel" src="/react-components/SkeletonLoader.js"></script>
     <script type="text/babel">
         // Render the Email Analysis component when viewing an email
         function renderEmailAnalysisDetails(emailId) {
