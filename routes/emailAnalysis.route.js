@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const emailAnalysisController = require('../controllers/emailAnalysis.controller');
-const authMiddleware = require('../middlewares/auth.middleware');
+const { authenticateToken } = require('../middlewares/requireRole');
 
 // Apply authentication middleware to all routes
-router.use(authMiddleware);
+router.use(authenticateToken);
 
 // Route to analyze a specific email
 router.get('/analyze/:emailId', emailAnalysisController.analyzeEmail);
