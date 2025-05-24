@@ -932,15 +932,25 @@
 
         // Modal functionality removed for better privacy
 
-        // Function to scan emails
+        // Function to scan emails with modern sandbox feedback UI
         async function scanEmails() {
-            showLoading();
-            
             try {
                 const token = localStorage.getItem('token');
                 if (!token) {
                     throw new Error('Authentication token not found. Please log in again.');
                 }
+                
+                // Show the sandbox feedback UI instead of the loading spinner
+                // We'll pass the first email ID if available, or null to just show the process
+                const emails = document.querySelectorAll('.email-item');
+                let firstEmailId = null;
+                
+                if (emails && emails.length > 0) {
+                    firstEmailId = emails[0].getAttribute('data-email-id');
+                }
+                
+                // Render the sandbox feedback component
+                renderSandboxFeedback(firstEmailId);
                 
                 // Call the API to scan emails
                 const baseUrl = getBaseUrl();
@@ -961,26 +971,35 @@
                 }
                 
                 const data = await response.json();
-                hideLoading();
                 
-                if (data.success) {
+                // Wait a moment to allow the sandbox UI to show the process
+                // This improves user experience by showing the analysis steps
+                setTimeout(() => {
                     // If we have scanned emails with results, update the UI
-                    if (data.emails && data.emails.length > 0) {
-                        // Just refresh the emails list to show all scanned emails
-                        loadUserEmails();
-                        
-                        // Show success notification
-                        showSuccessNotification('Scan Complete', 'Emails have been successfully scanned for threats.');
+                    if (data.success) {
+                        if (data.emails && data.emails.length > 0) {
+                            // Refresh the emails list to show all scanned emails
+                            loadUserEmails();
+                            
+                            // The sandbox UI will show the success state
+                            // We don't need to close it immediately
+                        } else {
+                            // If no emails were found or processed
+                            // The sandbox UI will still show the process completed
+                        }
                     } else {
-                        // If no emails were found or processed
-                        showSuccessNotification('Scan Complete', 'No new emails were found to scan.');
+                        throw new Error(data.message || 'Failed to scan emails');
                     }
-                } else {
-                    throw new Error(data.message || 'Failed to scan emails');
-                }
+                }, 2000); // 2 second delay for better UX
+                
             } catch (error) {
                 console.error('Email scan error:', error);
-                hideLoading();
+                
+                // Hide the sandbox UI if it exists
+                const sandboxRoot = document.getElementById('sandboxFeedbackRoot');
+                if (sandboxRoot) {
+                    sandboxRoot.classList.add('hidden');
+                }
                 
                 if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
                     showError('Network Error', 'Cannot connect to the server. Please check your internet connection.');
@@ -2133,8 +2152,9 @@
         });
     </script>
     
-    <!-- Email Analysis Component -->
+    <!-- Email Analysis Components -->
     <script type="text/babel" src="/react-components/EmailAnalysisDetails.js"></script>
+    <script type="text/babel" src="/react-components/SandboxFeedback.js"></script>
     <script type="text/babel">
         // Render the Email Analysis component when viewing an email
         function renderEmailAnalysisDetails(emailId) {
@@ -2142,6 +2162,44 @@
             if (analysisRoot) {
                 ReactDOM.render(<EmailAnalysisDetails emailId={emailId} />, analysisRoot);
             }
+        }
+        
+        // Render the Sandbox Feedback component when scanning emails
+        function renderSandboxFeedback(emailId) {
+            // Create or get the sandbox feedback root element
+            let sandboxRoot = document.getElementById('sandboxFeedbackRoot');
+            
+            if (!sandboxRoot) {
+                // Create the element if it doesn't exist
+                sandboxRoot = document.createElement('div');
+                sandboxRoot.id = 'sandboxFeedbackRoot';
+                sandboxRoot.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+                document.body.appendChild(sandboxRoot);
+            } else {
+                // Make sure it's visible
+                sandboxRoot.classList.remove('hidden');
+            }
+            
+            // Render the component
+            ReactDOM.render(
+                <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 overflow-hidden">
+                    <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                        <h3 className="text-lg font-medium text-gray-900">Email Sandbox Analysis</h3>
+                        <button 
+                            onClick={() => {
+                                document.getElementById('sandboxFeedbackRoot').classList.add('hidden');
+                            }}
+                            className="text-gray-400 hover:text-gray-500"
+                        >
+                            <i className="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div className="p-6">
+                        <SandboxFeedback emailId={emailId} />
+                    </div>
+                </div>,
+                sandboxRoot
+            );
         }
         
         // Extend the showEmailDetails function to include analysis
