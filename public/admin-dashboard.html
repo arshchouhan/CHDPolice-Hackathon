@@ -1628,84 +1628,106 @@
     <script type="text/babel" src="/react-components/UrlSandboxViewer.js"></script>
     <script type="text/babel" src="/react-components/AdminSandboxPanel.js"></script>
     
-    <!-- Initialize URL Sandbox -->
-    <script type="text/babel">
+    <!-- Tab Switching Functionality -->
+    <script>
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM loaded, initializing URL Sandbox components');
+            // Tab switching functionality
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
             
-            // Render the AdminSandboxPanel component when the sandbox tab is selected
-            const renderSandboxPanel = () => {
-                console.log('Rendering sandbox panel...');
-                const sandboxPanelRoot = document.getElementById('sandboxPanelRoot');
-                console.log('Sandbox panel root element:', sandboxPanelRoot);
+            function switchTab(tabId) {
+                console.log('Switching to tab:', tabId);
                 
-                if (sandboxPanelRoot) {
-                    try {
-                        // Make sure the components are loaded
-                        if (typeof AdminSandboxPanel === 'undefined') {
-                            console.error('AdminSandboxPanel component is not defined!');
-                            // Try to load it directly
-                            sandboxPanelRoot.innerHTML = `
-                                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                                    <strong class="font-bold">Error!</strong>
-                                    <span class="block sm:inline"> Could not load the AdminSandboxPanel component. Please check the console for errors.</span>
-                                </div>
-                            `;
-                            return;
-                        }
-                        
-                        // Render the component
-                        ReactDOM.render(<AdminSandboxPanel />, sandboxPanelRoot);
-                        console.log('AdminSandboxPanel rendered successfully');
-                    } catch (error) {
-                        console.error('Error rendering AdminSandboxPanel:', error);
-                        sandboxPanelRoot.innerHTML = `
-                            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                                <strong class="font-bold">Error!</strong>
-                                <span class="block sm:inline"> ${error.message}</span>
-                            </div>
-                        `;
-                    }
-                } else {
-                    console.error('Sandbox panel root element not found!');
-                }
-            };
-            
-            // Add event listener for the sandbox tab button
-            const sandboxTabButton = document.querySelector('.tab-button[data-tab="sandbox"]');
-            console.log('Sandbox tab button:', sandboxTabButton);
-            
-            if (sandboxTabButton) {
-                sandboxTabButton.addEventListener('click', function() {
-                    console.log('Sandbox tab button clicked');
-                    // Ensure the tab is visible first
-                    const sandboxTab = document.getElementById('sandboxTab');
-                    if (sandboxTab) {
-                        // Hide all other tabs
-                        document.querySelectorAll('.tab-content').forEach(tab => {
-                            tab.classList.add('hidden');
-                        });
-                        // Show sandbox tab
-                        sandboxTab.classList.remove('hidden');
-                        // Render the component
-                        setTimeout(renderSandboxPanel, 100);
+                // Update active tab button
+                tabButtons.forEach(button => {
+                    if (button.getAttribute('data-tab') === tabId) {
+                        button.classList.add('border-b-2', 'border-blue-500', 'text-blue-600');
+                        button.classList.remove('text-gray-600');
                     } else {
-                        console.error('Sandbox tab element not found!');
+                        button.classList.remove('border-b-2', 'border-blue-500', 'text-blue-600');
+                        button.classList.add('text-gray-600');
                     }
                 });
-            } else {
-                console.error('Sandbox tab button not found!');
+                
+                // Show selected tab content, hide others
+                tabContents.forEach(content => {
+                    if (content.id === tabId + 'Tab') {
+                        content.classList.remove('hidden');
+                    } else {
+                        content.classList.add('hidden');
+                    }
+                });
+                
+                // If sandbox tab is selected, render the sandbox component
+                if (tabId === 'sandbox') {
+                    renderSandboxPanel();
+                }
+                
+                // Update URL hash
+                window.location.hash = tabId;
             }
             
-            // If the sandbox tab is active on page load, render the component
-            if (window.location.hash === '#sandbox') {
-                console.log('Sandbox tab is active on page load');
-                // Simulate click on the sandbox tab button
-                if (sandboxTabButton) {
-                    sandboxTabButton.click();
+            // Add click event listeners to tab buttons
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    switchTab(tabId);
+                });
+            });
+            
+            // Check if URL has a hash and switch to that tab
+            if (window.location.hash) {
+                const tabId = window.location.hash.substring(1);
+                const tabButton = document.querySelector(`.tab-button[data-tab="${tabId}"]`);
+                if (tabButton) {
+                    switchTab(tabId);
                 }
             }
         });
+    </script>
+    
+    <!-- Initialize URL Sandbox -->
+    <script type="text/babel">
+        // Function to render the sandbox panel
+        function renderSandboxPanel() {
+            console.log('Rendering sandbox panel...');
+            const sandboxPanelRoot = document.getElementById('sandboxPanelRoot');
+            console.log('Sandbox panel root element:', sandboxPanelRoot);
+            
+            if (sandboxPanelRoot) {
+                try {
+                    // Make sure the components are loaded
+                    if (typeof AdminSandboxPanel === 'undefined') {
+                        console.error('AdminSandboxPanel component is not defined!');
+                        // Show error message
+                        sandboxPanelRoot.innerHTML = `
+                            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                                <strong class="font-bold">Error!</strong>
+                                <span class="block sm:inline"> Could not load the AdminSandboxPanel component. Please check the console for errors.</span>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    // Render the component
+                    ReactDOM.render(<AdminSandboxPanel />, sandboxPanelRoot);
+                    console.log('AdminSandboxPanel rendered successfully');
+                } catch (error) {
+                    console.error('Error rendering AdminSandboxPanel:', error);
+                    sandboxPanelRoot.innerHTML = `
+                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                            <strong class="font-bold">Error!</strong>
+                            <span class="block sm:inline"> ${error.message}</span>
+                        </div>
+                    `;
+                }
+            } else {
+                console.error('Sandbox panel root element not found!');
+            }
+        }
+        
+        // Make renderSandboxPanel available globally
+        window.renderSandboxPanel = renderSandboxPanel;
     </script>
 </body>
 </html>
