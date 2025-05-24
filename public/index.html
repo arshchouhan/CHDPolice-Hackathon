@@ -15,6 +15,7 @@
     <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="/css/email-analysis.css">
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -2130,6 +2131,30 @@
             ReactDOM.render(<EmailScanFeature />, rootElement);
           }
         });
+    </script>
+    
+    <!-- Email Analysis Component -->
+    <script type="text/babel" src="/react-components/EmailAnalysisDetails.js"></script>
+    <script type="text/babel">
+        // Render the Email Analysis component when viewing an email
+        function renderEmailAnalysisDetails(emailId) {
+            const analysisRoot = document.getElementById('emailAnalysisRoot');
+            if (analysisRoot) {
+                ReactDOM.render(<EmailAnalysisDetails emailId={emailId} />, analysisRoot);
+            }
+        }
+        
+        // Extend the showEmailDetails function to include analysis
+        const originalShowEmailDetails = window.showEmailDetails || function() {};
+        window.showEmailDetails = function(emailId) {
+            // Call the original function if it exists
+            if (typeof originalShowEmailDetails === 'function') {
+                originalShowEmailDetails(emailId);
+            }
+            
+            // Render the analysis component
+            renderEmailAnalysisDetails(emailId);
+        };
     </script>
 </body>
 </html>

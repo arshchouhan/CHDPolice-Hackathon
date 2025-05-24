@@ -35,6 +35,7 @@ const userRoutes = require('./routes/user.route');
 const adminRoutes = require('./routes/admin.route');
 const authRoutes = require('./routes/auth.route');
 const gmailRoutes = require('./routes/gmail.route');
+const emailAnalysisRoutes = require('./routes/emailAnalysis.route');
 
 // Essential middleware
 app.use(express.json());
@@ -122,6 +123,9 @@ app.get('/api/gmail/callback', (req, res) => {
 
 // Then register other Gmail routes with authentication
 app.use('/api/gmail', authenticateUser, gmailRoutes);
+
+// Register email analysis routes with authentication
+app.use('/api/email-analysis', authenticateUser, emailAnalysisRoutes);
 
 // Then serve static files (after API routes)
 app.use(express.static(path.join(__dirname, 'public'), {
