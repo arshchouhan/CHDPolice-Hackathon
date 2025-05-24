@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # Override for API service in development
+  api:
+    environment:
+      - NODE_ENV=development
+      - DEBUG=email-detection:*
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm start
+    ports:
+      - "9229:9229"  # For Node.js debugging
+
+  # Override for browser automation in development
+  browser-automation:
+    environment:
+      - LOG_LEVEL=debug
+      - TEST_URL=https://example.com  # For testing
+    volumes:
+      - ./docker/browser-automation:/app
+      - /app/node_modules
+
+  # MongoDB development settings
+  mongodb:
+    ports:
+      - "27017:27017"  # Make MongoDB accessible locally
+    volumes:
+      - ./mongo-init:/docker-entrypoint-initdb.d
+      - mongodb_data:/data/db
