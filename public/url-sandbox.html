@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Sandbox - Email Security Platform</title>
+    <script src="https://cdn.tailwindcss.com?v=3.3.0"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800">
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-50">
+        <div class="bg-white/10 backdrop-blur-lg p-8 rounded-lg shadow-lg text-center">
+            <div class="loader mx-auto mb-4"></div>
+            <p class="text-white">Loading URL Sandbox...</p>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-slate-800/50 backdrop-blur-lg border-b border-slate-700/50 py-4">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-blue-600 p-2 rounded-lg shadow-lg">
+                        <i class="fas fa-shield-alt text-white"></i>
+                    </div>
+                    <h1 class="text-xl font-bold text-white">Email Security Platform</h1>
+                </div>
+                <nav>
+                    <ul class="flex space-x-6">
+                        <li>
+                            <a href="/admin-dashboard.html" class="text-gray-300 hover:text-white transition-colors">
+                                <i class="fas fa-tachometer-alt mr-1"></i> Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/url-sandbox.html" class="text-blue-400 border-b-2 border-blue-400 pb-1">
+                                <i class="fas fa-shield-alt mr-1"></i> URL Sandbox
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <div class="bg-white/10 backdrop-blur-lg rounded-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-xl font-bold text-white">URL Sandbox Analysis</h2>
+                    <p class="text-gray-400 text-sm">Safely analyze URLs from suspicious emails</p>
+                </div>
+                <a href="/admin-dashboard.html" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm transition-colors">
+                    <i class="fas fa-arrow-left mr-1"></i> Back to Dashboard
+                </a>
+            </div>
+            
+            <!-- Sandbox Panel Root -->
+            <div id="sandboxPanelRoot"></div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800/50 backdrop-blur-lg border-t border-slate-700/50 py-4 mt-8">
+        <div class="container mx-auto px-4">
+            <p class="text-center text-gray-400 text-sm">
+                &copy; 2025 Email Security Platform | Chandigarh Police Hackathon
+            </p>
+        </div>
+    </footer>
+
+    <!-- URL Sandbox Components -->
+    <script type="text/babel" src="/react-components/UrlSandboxViewer.js"></script>
+    <script type="text/babel" src="/react-components/AdminSandboxPanel.js"></script>
+    
+    <!-- Initialize URL Sandbox -->
+    <script type="text/babel">
+        // Authentication check
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return false;
+            }
+            return true;
+        }
+        
+        // Function to get base URL
+        function getBaseUrl() {
+            const hostname = window.location.hostname;
+            if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+                return '';
+            } else if (hostname.includes('vercel.app')) {
+                return 'https://chd-police-hackathon.vercel.app';
+            } else if (hostname.includes('onrender.com')) {
+                return 'https://email-detection-api.onrender.com';
+            } else {
+                return '';
+            }
+        }
+        
+        // Make getBaseUrl available globally
+        window.getBaseUrl = getBaseUrl;
+        
+        // Show success notification
+        window.showSuccessNotification = function(title, message) {
+            alert(`${title}: ${message}`);
+        };
+        
+        // Show error notification
+        window.showErrorNotification = function(title, message) {
+            alert(`${title}: ${message}`);
+        };
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing URL Sandbox');
+            
+            // Check authentication
+            if (!checkAuth()) {
+                return;
+            }
+            
+            // Render the AdminSandboxPanel component
+            try {
+                ReactDOM.render(<AdminSandboxPanel />, document.getElementById('sandboxPanelRoot'));
+                console.log('AdminSandboxPanel rendered successfully');
+            } catch (error) {
+                console.error('Error rendering AdminSandboxPanel:', error);
+                document.getElementById('sandboxPanelRoot').innerHTML = `
+                    <div class="bg-red-500/20 text-red-200 p-4 rounded-md">
+                        <p class="font-medium">Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+            
+            // Hide loading overlay
+            setTimeout(() => {
+                const loadingOverlay = document.getElementById('loadingOverlay');
+                if (loadingOverlay) {
+                    loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
+                    loadingOverlay.style.transition = 'opacity 0.5s ease-out';
+                    setTimeout(() => {
+                        loadingOverlay.style.display = 'none';
+                    }, 500);
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
