@@ -110,37 +110,11 @@ exports.handleCallback = async (req, res) => {
   console.log('Request method:', req.method);
   
   // Get the frontend URL from environment variable or default based on environment
-  const getFrontendUrl = (req) => {
-    // If FRONTEND_URL is explicitly set, use it
+  const getFrontendUrl = () => {
     if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
-    
-    // Check for platform-specific headers
-    const host = req.headers.host || '';
-    const referer = req.headers.referer || '';
-    const origin = req.headers.origin || '';
-    
-    console.log('Redirection - Headers info:', { host, referer, origin });
-    
-    // Check if we're on Vercel
-    if (host.includes('vercel.app') || referer.includes('vercel.app') || origin.includes('vercel.app')) {
-      console.log('Detected Vercel deployment, using Vercel URL');
-      return 'https://chd-police-hackathon.vercel.app';
-    }
-    
-    // Check if we're on Render
-    if (host.includes('onrender.com') || referer.includes('onrender.com') || origin.includes('onrender.com')) {
-      console.log('Detected Render deployment, using Render URL');
-      return 'https://email-detection-api.onrender.com';
-    }
-    
-    // Default to Vercel URL for safety in production
     if (process.env.NODE_ENV === 'production') {
-      console.log('Production environment detected, using Vercel URL');
       return 'https://chd-police-hackathon.vercel.app';
     }
-    
-    // Only use localhost for local development
-    console.log('Using localhost URL for local development');
     return 'http://localhost:3000';
   };
   
@@ -355,11 +329,7 @@ exports.handleCallback = async (req, res) => {
         throw new Error(`Failed to update user with tokens: ${dbError.message}`);
       }
       
-      // Use a hardcoded Vercel URL for simplicity and reliability
-      const frontendUrl = 'https://chd-police-hackathon.vercel.app';
-      console.log('Using hardcoded frontend URL for redirection:', frontendUrl);
-      
-      // Return a simple HTML response with success message and redirection
+      // Return HTML response with success message and improved redirection
       return res.send(`
         <html>
           <head>
@@ -373,7 +343,6 @@ exports.handleCallback = async (req, res) => {
               .btn:hover { background-color: #3367D6; }
               .redirect-text { margin-top: 20px; color: #666; font-size: 14px; }
             </style>
-            <meta http-equiv="refresh" content="3;url=${frontendUrl}/index.html?connected=true&redirect=dashboard">
           </head>
           <body>
             <div class="container">
@@ -381,21 +350,43 @@ exports.handleCallback = async (req, res) => {
               <h1>Gmail Connected Successfully</h1>
               <p>Your Gmail account has been successfully connected to the application.</p>
               <p>You will now be able to scan and analyze your emails for security threats.</p>
-              <a href="${frontendUrl}/index.html?connected=true&redirect=dashboard" class="btn">Return to Dashboard</a>
+              <a href="${frontendUrl}/index.html?connected=true&redirect=dashboard" class="btn" onclick="event.preventDefault(); window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard');">Return to Dashboard</a>
               <p class="redirect-text">Redirecting automatically in <span id="countdown">3</span> seconds...</p>
             </div>
             
             <script>
-              // Simple countdown timer
-              let seconds = 3;
-              const countdownElement = document.getElementById('countdown');
-              const countdownInterval = setInterval(() => {
-                seconds--;
-                countdownElement.textContent = seconds;
-                if (seconds <= 0) {
-                  clearInterval(countdownInterval);
+              // Ensure we're running in a browser context
+              try {
+                // Store success status in localStorage
+                localStorage.setItem('gmailConnected', 'true');
+                localStorage.setItem('gmailConnectTime', Date.now());
+                
+                // Countdown timer
+                let seconds = 3;
+                const countdownElement = document.getElementById('countdown');
+                const countdownInterval = setInterval(() => {
+                  seconds--;
+                  countdownElement.textContent = seconds;
+                  if (seconds <= 0) {
+                    clearInterval(countdownInterval);
+                  }
+                }, 1000);
+              } catch (e) {
+                console.error('Error setting localStorage:', e);
+              }
+              
+              // Auto-redirect after 3 seconds - using a more reliable approach
+              setTimeout(function() {
+                try {
+                  console.log('Redirecting to dashboard...');
+                  // Force the redirect with replace() instead of href assignment
+                  window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard');
+                } catch (e) {
+                  console.error('Redirect error:', e);
+                  // Fallback redirect method
+                  document.location.href = '${frontendUrl}/index.html?connected=true&redirect=dashboard';
                 }
-              }, 1000);
+              }, 3000);
             </script>
           </body>
         </html>
