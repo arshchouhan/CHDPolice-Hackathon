@@ -1,4 +1,5 @@
 const express = require('express');
+const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
@@ -132,6 +133,22 @@ const authenticateUser = (req, res, next) => {
 
 // Register authentication routes (no auth required)
 app.use('/auth', authRoutes);
+
+// Health check endpoint for Render deployment
+app.get('/health', (req, res) => {
+    const healthcheck = {
+        uptime: process.uptime(),
+        message: 'OK',
+        timestamp: Date.now(),
+        mongoStatus: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    };
+    try {
+        res.status(200).json(healthcheck);
+    } catch (error) {
+        healthcheck.message = error;
+        res.status(503).json(healthcheck);
+    }
+});
 
 // Apply authentication middleware to protected API routes
 app.use('/api/users', authenticateUser, userRoutes);

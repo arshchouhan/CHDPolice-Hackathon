@@ -9,7 +9,7 @@ services:
     startCommand: node server.js
     autoDeploy: true
     healthCheckPath: /health
-    healthCheckTimeout: 180
+    healthCheckTimeout: 300
     pullRequestPreviewsEnabled: false
     envVars:
       - key: NODE_ENV
@@ -29,7 +29,7 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=512"
+        value: "--max-old-space-size=768"
     headers:
       - path: /*
         name: Access-Control-Allow-Origin

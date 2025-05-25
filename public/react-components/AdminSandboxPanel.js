@@ -612,10 +612,23 @@ class AdminSandboxPanel extends React.Component {
                     <p className="text-white text-sm break-all">{selectedUrl}</p>
                   </div>
                   
-                  <UrlSandboxViewer 
-                    url={selectedUrl}
-                    onComplete={this.handleAnalysisComplete}
-                  />
+                  <ErrorBoundary fallback={
+                    <div className="p-4 bg-gray-700/50 rounded-md">
+                      <p className="text-yellow-400 mb-2">Sandbox viewer encountered an error</p>
+                      <p className="text-gray-300 text-sm">The URL analysis is still processing in the background.</p>
+                      <button 
+                        onClick={() => window.location.reload()}
+                        className="mt-3 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+                      >
+                        Reload page
+                      </button>
+                    </div>
+                  }>
+                    <UrlSandboxViewer 
+                      url={selectedUrl}
+                      onComplete={this.handleAnalysisComplete}
+                    />
+                  </ErrorBoundary>
                 </div>
               )}
             </div>
