@@ -1838,6 +1838,63 @@
         async function initializePage() {
             console.log('Initializing admin page...');
             
+            // Set up Gmail modal dialog
+            const gmailAuthModal = document.getElementById('gmailAuthModal');
+            const closeModalBtn = document.getElementById('closeModal');
+            
+            // Close modal button event listener
+            if (closeModalBtn) {
+                console.log('Setting up close modal button event listener');
+                closeModalBtn.addEventListener('click', function() {
+                    console.log('Close modal button clicked');
+                    if (gmailAuthModal) {
+                        gmailAuthModal.classList.add('hidden');
+                    }
+                });
+            }
+            
+            // Set up Gmail authorization button event listeners for all buttons
+            const authorizeGmailBtn = document.getElementById('authorizeGmailBtn');
+            const connectGmailBtn = document.getElementById('connectGmailBtn');
+            
+            // Add event listener to the button in the modal
+            if (authorizeGmailBtn) {
+                console.log('Setting up modal Gmail authorization button event listener');
+                authorizeGmailBtn.addEventListener('click', function(e) {
+                    console.log('Modal Gmail button clicked');
+                    // Hide the modal first
+                    if (gmailAuthModal) {
+                        gmailAuthModal.classList.add('hidden');
+                    }
+                    // Then connect to Gmail
+                    connectGmail();
+                });
+            } else {
+                console.error('Modal Gmail authorization button not found in DOM');
+            }
+            
+            // Function to show the Gmail authorization modal
+            function showGmailAuthModal() {
+                console.log('Showing Gmail authorization modal');
+                if (gmailAuthModal) {
+                    gmailAuthModal.classList.remove('hidden');
+                } else {
+                    console.error('Gmail auth modal not found in DOM');
+                }
+            }
+            
+            // Add event listener to the button in the Gmail connection section
+            if (connectGmailBtn) {
+                console.log('Setting up secondary Gmail connection button event listener');
+                connectGmailBtn.addEventListener('click', function(e) {
+                    console.log('Secondary Gmail button clicked');
+                    // Show the modal instead of directly connecting
+                    showGmailAuthModal();
+                });
+            } else {
+                console.error('Secondary Gmail connection button not found in DOM');
+            }
+            
             // Check if user is logged in
             if (!localStorage.getItem('token')) {
                 console.log('No token found, redirecting to login');
