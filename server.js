@@ -36,6 +36,7 @@ const adminRoutes = require('./routes/admin.route');
 const authRoutes = require('./routes/auth.route');
 const gmailRoutes = require('./routes/gmail.route');
 const emailAnalysisRoutes = require('./routes/emailAnalysis.route');
+const geminiAnalysisRoutes = require('./routes/geminiAnalysis.route');
 
 // Essential middleware
 app.use(express.json());
@@ -112,6 +113,7 @@ app.use('/auth', authRoutes);
 // Apply authentication middleware to protected API routes
 app.use('/api/users', authenticateUser, userRoutes);
 app.use('/api/admin', authenticateUser, adminRoutes);
+app.use('/api/gemini', authenticateUser, geminiAnalysisRoutes);
 
 // Special handling for Gmail routes
 // First register the callback route without authentication

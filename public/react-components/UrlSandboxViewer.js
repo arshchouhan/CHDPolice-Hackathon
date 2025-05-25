@@ -193,13 +193,23 @@ class UrlSandboxViewer extends React.Component {
     }
   }
   
-  // Simulate a step in the sandbox process
-  simulateStep = (step, message, duration) => {
-    return new Promise(resolve => {
-      setTimeout(() => {
-        this.addLog(message + ' - Complete', 'success');
+  // Simulate a step with a progress message and delay
+  simulateStep = async (step, message, delay) => {
+    this.addLog(message, 'info');
+    
+    // Add error handling and timeout protection
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        this.addLog(`Completed ${message}`, 'success');
         resolve();
-      }, duration);
+      }, delay);
+      
+      // Add a safety timeout to prevent getting stuck
+      const safetyTimeout = setTimeout(() => {
+        this.addLog(`Safety timeout triggered for: ${message}`, 'warning');
+        clearTimeout(timeoutId);
+        resolve();
+      }, delay + 2000); // 2 seconds longer than expected delay
     });
   }
   
@@ -767,6 +777,8 @@ class UrlSandboxViewer extends React.Component {
                     {currentStep === 'connecting' && 'Establishing Connection...'}
                     {currentStep === 'loading' && 'Loading Content...'}
                     {currentStep === 'screenshot' && 'Capturing Screenshot...'}
+                    {currentStep === 'network' && 'Monitoring Network Traffic...'}
+                    {currentStep === 'dns_analysis' && 'Analyzing DNS Records...'}
                     {currentStep === 'analyzing' && 'Analyzing Security Threats...'}
                   </p>
                   <div className="w-48 h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -776,10 +788,12 @@ class UrlSandboxViewer extends React.Component {
                         width: (() => {
                           switch(currentStep) {
                             case 'initializing': return '10%';
-                            case 'dns': return '25%';
-                            case 'connecting': return '40%';
-                            case 'loading': return '60%';
-                            case 'screenshot': return '80%';
+                            case 'dns': return '20%';
+                            case 'connecting': return '30%';
+                            case 'loading': return '45%';
+                            case 'screenshot': return '60%';
+                            case 'network': return '75%';
+                            case 'dns_analysis': return '85%';
                             case 'analyzing': return '95%';
                             case 'complete': return '100%';
                             default: return '0%';
