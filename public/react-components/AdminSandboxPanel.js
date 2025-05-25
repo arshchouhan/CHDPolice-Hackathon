@@ -693,41 +693,7 @@ class AdminSandboxPanel extends React.Component {
               )}
             </div>
           </div>
-          
-          {/* Sandbox Viewer */}
-          <div className="lg:col-span-1">
-            <div className="bg-gray-800/30 rounded-lg p-4 h-full">
-              <h3 className="text-white font-medium mb-3">URL Sandbox</h3>
-              
-              {!selectedUrl ? (
-                <p className="text-gray-400 text-center py-4">Select a URL to analyze in the sandbox</p>
-              ) : (
-                <div>
-                  <div className="mb-3 p-2 bg-gray-700/50 rounded-md">
-                    <p className="text-white text-sm break-all">{selectedUrl}</p>
-                  </div>
-                  
-                  <ErrorBoundary fallback={
-                    <div className="p-4 bg-gray-700/50 rounded-md">
-                      <p className="text-yellow-400 mb-2">Sandbox viewer encountered an error</p>
-                      <p className="text-gray-300 text-sm">The URL analysis is still processing in the background.</p>
-                      <button 
-                        onClick={() => window.location.reload()}
-                        className="mt-3 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
-                      >
-                        Reload page
-                      </button>
-                    </div>
-                  }>
-                    <UrlSandboxViewer 
-                      url={selectedUrl}
-                      onComplete={this.handleAnalysisComplete}
-                    />
-                  </ErrorBoundary>
-                </div>
-              )}
-            </div>
-          </div>
+          {/* End of grid layout */}
         </div>
       </div>
     );
