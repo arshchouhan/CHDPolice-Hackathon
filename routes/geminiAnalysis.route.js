@@ -11,6 +11,9 @@ const geminiController = require('../controllers/geminiAnalysis.controller');
 // Analyze an email using Gemini API
 router.post('/analyze-email', geminiController.analyzeEmail);
 
+// Analyze a URL using Gemini API
+router.post('/analyze-url', geminiController.analyzeUrl);
+
 // Get suspicious URLs from an email
 router.get('/suspicious-urls/:emailId', geminiController.getSuspiciousUrls);
 

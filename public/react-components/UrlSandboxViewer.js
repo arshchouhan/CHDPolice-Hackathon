@@ -164,14 +164,67 @@ class UrlSandboxViewer extends React.Component {
     const dnsData = await this.generateDnsAnalysisData(url);
     this.setState({ dnsAnalysisData: dnsData });
     
-    // Simulate security analysis
+    // Simulate security analysis using Gemini AI
     this.setState({ currentStep: 'analyzing' });
-    this.addLog(`Analyzing page for security threats...`, 'info');
+    this.addLog(`Analyzing security threats with Gemini AI...`, 'info');
     
-    await this.simulateStep('analyzing', 'Analyzing security threats', 1500);
+    await this.simulateStep('analyzing', 'Analyzing with Gemini AI', 2500);
     
-    // Generate security findings
-    const findings = await this.generateSecurityFindings(url);
+    // Use Gemini AI for security analysis
+    let findings = [];
+    try {
+      // Get authentication token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+      
+      // Get base URL
+      const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+      
+      // Prepare data for Gemini analysis
+      const analysisData = {
+        url: url,
+        networkData: this.state.networkTrafficData,
+        dnsData: this.state.dnsAnalysisData
+      };
+      
+      this.addLog(`Sending data to Gemini AI for advanced threat analysis...`, 'info');
+      
+      // Call the Gemini API
+      const response = await fetch(`${baseUrl}/api/gemini/analyze-url`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(analysisData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        this.addLog(`Gemini AI analysis complete`, 'success');
+        
+        // Use findings from Gemini
+        if (data.findings && Array.isArray(data.findings)) {
+          findings = data.findings;
+        } else {
+          // Fallback to local findings if Gemini doesn't return expected format
+          findings = await this.generateSecurityFindings(url);
+        }
+      } else {
+        throw new Error(data.message || 'Unknown error from Gemini API');
+      }
+    } catch (error) {
+      this.addLog(`Error with Gemini analysis: ${error.message}. Using local analysis instead.`, 'error');
+      // Fallback to local findings if Gemini analysis fails
+      findings = await this.generateSecurityFindings(url);
+    }
     
     // Add network-based findings
     if (networkData && networkData.suspicious_domains && networkData.suspicious_domains.length > 0) {

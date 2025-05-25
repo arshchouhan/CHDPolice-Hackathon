@@ -444,27 +444,8 @@ class AdminSandboxPanel extends React.Component {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-xl font-bold text-white">Email Sandbox Analysis</h2>
-            <p className="text-gray-400 text-sm">Safely analyze URLs from suspicious emails</p>
+            <p className="text-gray-400 text-sm">Safely analyze URLs from suspicious emails with Gemini AI</p>
           </div>
-          {selectedEmail && (
-            <button
-              onClick={() => this.analyzeEmailWithGemini(selectedEmail)}
-              disabled={isAnalyzingWithGemini}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm transition-colors disabled:opacity-50 flex items-center"
-            >
-              {isAnalyzingWithGemini ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-robot mr-2"></i>
-                  Analyze with Gemini
-                </>
-              )}
-            </button>
-          )}
         </div>
         
         {error && (

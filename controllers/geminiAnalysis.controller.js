@@ -141,6 +141,119 @@ exports.getSuspiciousUrls = async (req, res) => {
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
+/**
+ * Analyze a URL using Gemini AI
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+exports.analyzeUrl = async (req, res) => {
+  try {
+    const { url, networkData, dnsData } = req.body;
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        message: 'URL is required'
+      });
+    }
+
+    // Initialize the Gemini API
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+    // Prepare the prompt for URL analysis
+    let prompt = `Analyze this URL for security threats: ${url}\n\n`;
+    
+    // Add network data if available
+    if (networkData) {
+      prompt += `Network traffic data: ${JSON.stringify(networkData)}\n\n`;
+    }
+    
+    // Add DNS data if available
+    if (dnsData) {
+      prompt += `DNS analysis data: ${JSON.stringify(dnsData)}\n\n`;
+    }
+    
+    prompt += `Please provide a detailed security analysis of this URL. Include the following:\n
+1. Is this URL suspicious or malicious?\n
+2. What is the risk level (low, medium, high)?\n
+3. What specific threats or indicators of compromise are present?\n
+4. Return the analysis in JSON format with the following structure:\n{
+  "isMalicious": boolean,\n  "riskLevel": "low"|"medium"|"high",\n  "findings": [\n    {\n      "type": string,\n      "message": string,\n      "severity": number (0-100),\n      "details": string\n    }\n  ]\n}`;
+
+    // Generate content with Gemini
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    // Try to parse the JSON response
+    try {
+      // Extract JSON from the response (it might be wrapped in markdown code blocks)
+      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || 
+                       text.match(/```\n([\s\S]*?)\n```/) || 
+                       text.match(/{[\s\S]*}/);
+      
+      let jsonResponse;
+      if (jsonMatch) {
+        // If JSON is in a code block, extract it
+        jsonResponse = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+      } else {
+        // Try to parse the whole response as JSON
+        jsonResponse = JSON.parse(text);
+      }
+      
+      // Format the findings to match our expected structure
+      const formattedFindings = jsonResponse.findings.map(finding => ({
+        type: finding.type || 'unknown',
+        message: finding.message || 'Unknown issue detected',
+        severity: finding.severity || 50,
+        details: finding.details || ''
+      }));
+      
+      // Calculate overall risk score based on findings
+      const overallRiskScore = Math.min(
+        100,
+        formattedFindings.reduce((score, finding) => score + finding.severity, 0) / formattedFindings.length
+      );
+      
+      return res.status(200).json({
+        success: true,
+        isMalicious: jsonResponse.isMalicious,
+        riskLevel: jsonResponse.riskLevel,
+        findings: formattedFindings,
+        overallRiskScore
+      });
+    } catch (jsonError) {
+      console.error('Error parsing Gemini response as JSON:', jsonError);
+      console.log('Raw Gemini response:', text);
+      
+      // Fallback: Create a generic finding
+      const fallbackFindings = [{
+        type: 'gemini_analysis',
+        message: 'URL analysis completed but response format was unexpected',
+        severity: 50,
+        details: text.substring(0, 500) // Include part of the raw response
+      }];
+      
+      return res.status(200).json({
+        success: true,
+        isMalicious: text.toLowerCase().includes('malicious') || text.toLowerCase().includes('suspicious'),
+        riskLevel: 'medium',
+        findings: fallbackFindings,
+        overallRiskScore: 50
+      });
+    }
+  } catch (error) {
+    console.error('Error analyzing URL with Gemini:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'An error occurred during URL analysis'
+    });
+  }
+};
+
 exports.submitUrlsToSandbox = async (req, res) => {
   try {
     const { emailId } = req.params;
