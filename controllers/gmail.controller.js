@@ -111,14 +111,31 @@ exports.handleCallback = async (req, res) => {
   
   // Get the frontend URL from environment variable or default based on environment
   const getFrontendUrl = () => {
-    if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
-    if (process.env.NODE_ENV === 'production') {
-      return 'https://chd-police-hackathon.vercel.app';
+    // Check if a specific URL is provided in the query parameters
+    const referer = req.headers.referer || '';
+    
+    // If the referer contains vercel.app, use that as the frontend URL
+    if (referer.includes('vercel.app')) {
+      const vercelUrl = new URL(referer).origin;
+      console.log('Using Vercel URL from referer:', vercelUrl);
+      return vercelUrl;
     }
-    return 'http://localhost:3000';
+    
+    // If FRONTEND_URL is set in environment variables, use that
+    if (process.env.FRONTEND_URL) {
+      console.log('Using FRONTEND_URL from env:', process.env.FRONTEND_URL);
+      return process.env.FRONTEND_URL;
+    }
+    
+    // Always prefer the Vercel URL for production-like environments
+    // This ensures callbacks go to the Vercel deployment
+    const vercelUrl = 'https://chd-police-hackathon.vercel.app';
+    console.log('Using default Vercel URL:', vercelUrl);
+    return vercelUrl;
   };
   
   const frontendUrl = getFrontendUrl();
+  console.log('Frontend URL for callback:', frontendUrl);
   
   try {
     const { code, state, error } = req.query;
