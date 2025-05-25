@@ -110,11 +110,37 @@ exports.handleCallback = async (req, res) => {
   console.log('Request method:', req.method);
   
   // Get the frontend URL from environment variable or default based on environment
-  const getFrontendUrl = () => {
+  const getFrontendUrl = (req) => {
+    // If FRONTEND_URL is explicitly set, use it
     if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
-    if (process.env.NODE_ENV === 'production') {
+    
+    // Check for platform-specific headers
+    const host = req.headers.host || '';
+    const referer = req.headers.referer || '';
+    const origin = req.headers.origin || '';
+    
+    console.log('Redirection - Headers info:', { host, referer, origin });
+    
+    // Check if we're on Vercel
+    if (host.includes('vercel.app') || referer.includes('vercel.app') || origin.includes('vercel.app')) {
+      console.log('Detected Vercel deployment, using Vercel URL');
       return 'https://chd-police-hackathon.vercel.app';
     }
+    
+    // Check if we're on Render
+    if (host.includes('onrender.com') || referer.includes('onrender.com') || origin.includes('onrender.com')) {
+      console.log('Detected Render deployment, using Render URL');
+      return 'https://email-detection-api.onrender.com';
+    }
+    
+    // Default to Vercel URL for safety in production
+    if (process.env.NODE_ENV === 'production') {
+      console.log('Production environment detected, using Vercel URL');
+      return 'https://chd-police-hackathon.vercel.app';
+    }
+    
+    // Only use localhost for local development
+    console.log('Using localhost URL for local development');
     return 'http://localhost:3000';
   };
   
@@ -329,6 +355,10 @@ exports.handleCallback = async (req, res) => {
         throw new Error(`Failed to update user with tokens: ${dbError.message}`);
       }
       
+      // Determine the frontend URL for redirection
+      const frontendUrl = getFrontendUrl(req);
+      console.log('Using frontend URL for redirection:', frontendUrl);
+      
       // Return HTML response with success message and improved redirection
       return res.send(`
         <html>
@@ -381,6 +411,23 @@ exports.handleCallback = async (req, res) => {
                   console.log('Redirecting to dashboard...');
                   // Force the redirect with replace() instead of href assignment
                   window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard');
+                  
+                  // If the above doesn't work, try these fallbacks after a short delay
+                  setTimeout(function() {
+                    try {
+                      // Try alternate methods if the first redirect didn't work
+                      console.log('Trying alternate redirect methods...');
+                      // Fallback 1: Use assign instead of replace
+                      window.location.assign('${frontendUrl}/index.html?connected=true&redirect=dashboard');
+                      
+                      // Fallback 2: Direct property assignment
+                      setTimeout(function() {
+                        window.location.href = '${frontendUrl}/index.html?connected=true&redirect=dashboard';
+                      }, 500);
+                    } catch (innerError) {
+                      console.error('Fallback redirect error:', innerError);
+                    }
+                  }, 1000);
                 } catch (e) {
                   console.error('Redirect error:', e);
                   // Fallback redirect method
