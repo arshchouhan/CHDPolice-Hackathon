@@ -100,13 +100,18 @@ class AdminSandboxPanel extends React.Component {
       }
       
       const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-      const response = await fetch(`${baseUrl}/api/emails/${emailId}`, {
+      console.log('Loading email details with ID:', emailId);
+      
+      // Use the correct admin API endpoint for emails
+      const response = await fetch(`${baseUrl}/api/admin/emails/${emailId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
+      
+      console.log('Email details response status:', response.status);
       
       if (!response.ok) {
         const contentType = response.headers.get('content-type');
