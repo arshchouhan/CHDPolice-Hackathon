@@ -350,29 +350,42 @@ exports.handleCallback = async (req, res) => {
               <h1>Gmail Connected Successfully</h1>
               <p>Your Gmail account has been successfully connected to the application.</p>
               <p>You will now be able to scan and analyze your emails for security threats.</p>
-              <a href="${frontendUrl}/index.html?connected=true" class="btn">Return to Dashboard</a>
+              <a href="${frontendUrl}/index.html?connected=true&redirect=dashboard" class="btn" onclick="event.preventDefault(); window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard');">Return to Dashboard</a>
               <p class="redirect-text">Redirecting automatically in <span id="countdown">3</span> seconds...</p>
             </div>
             
             <script>
-              // Store success status in localStorage
-              localStorage.setItem('gmailConnected', 'true');
-              localStorage.setItem('gmailConnectTime', Date.now());
+              // Ensure we're running in a browser context
+              try {
+                // Store success status in localStorage
+                localStorage.setItem('gmailConnected', 'true');
+                localStorage.setItem('gmailConnectTime', Date.now());
+                
+                // Countdown timer
+                let seconds = 3;
+                const countdownElement = document.getElementById('countdown');
+                const countdownInterval = setInterval(() => {
+                  seconds--;
+                  countdownElement.textContent = seconds;
+                  if (seconds <= 0) {
+                    clearInterval(countdownInterval);
+                  }
+                }, 1000);
+              } catch (e) {
+                console.error('Error setting localStorage:', e);
+              }
               
-              // Countdown timer
-              let seconds = 3;
-              const countdownElement = document.getElementById('countdown');
-              const countdownInterval = setInterval(() => {
-                seconds--;
-                countdownElement.textContent = seconds;
-                if (seconds <= 0) {
-                  clearInterval(countdownInterval);
-                }
-              }, 1000);
-              
-              // Auto-redirect after 3 seconds
+              // Auto-redirect after 3 seconds - using a more reliable approach
               setTimeout(function() {
-                window.location.href = '${frontendUrl}/index.html?connected=true&redirect=dashboard';
+                try {
+                  console.log('Redirecting to dashboard...');
+                  // Force the redirect with replace() instead of href assignment
+                  window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard');
+                } catch (e) {
+                  console.error('Redirect error:', e);
+                  // Fallback redirect method
+                  document.location.href = '${frontendUrl}/index.html?connected=true&redirect=dashboard';
+                }
               }, 3000);
             </script>
           </body>
