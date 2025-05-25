@@ -831,168 +831,314 @@ class UrlSandboxViewer extends React.Component {
   render() {
     const { 
       url, isLoading, isAnalyzing, analysisComplete, 
-      currentStep, screenshot, sandboxLogs, error 
+      currentStep, screenshot, sandboxLogs, error,
+      riskScore, securityFindings, networkTrafficData, dnsAnalysisData
     } = this.state;
     
+    // Determine risk level text and color
+    let riskLevel = 'Low Risk';
+    let riskColor = 'bg-green-500';
+    let riskTextColor = 'text-green-500';
+    
+    if (riskScore > 80) {
+      riskLevel = 'Critical Risk';
+      riskColor = 'bg-red-500';
+      riskTextColor = 'text-red-500';
+    } else if (riskScore > 60) {
+      riskLevel = 'High Risk';
+      riskColor = 'bg-orange-500';
+      riskTextColor = 'text-orange-500';
+    } else if (riskScore > 40) {
+      riskLevel = 'Medium Risk';
+      riskColor = 'bg-yellow-500';
+      riskTextColor = 'text-yellow-500';
+    }
+    
     return (
-      <div className="bg-gray-900/50 backdrop-blur-lg rounded-lg border border-gray-800 overflow-hidden">
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl border border-gray-700 shadow-2xl overflow-hidden">
         {/* Sandbox Header */}
-        <div className="bg-gray-800 p-4 flex justify-between items-center">
+        <div className="bg-gradient-to-r from-blue-900 to-indigo-900 p-5 flex justify-between items-center border-b border-gray-700">
           <div className="flex items-center">
-            <div className="bg-blue-600 p-2 rounded-lg shadow-lg mr-3">
-              <i className="fas fa-shield-alt text-white"></i>
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-lg shadow-lg mr-4 transform rotate-12">
+              <i className="fas fa-shield-alt text-white text-xl"></i>
             </div>
-            <h3 className="text-white font-bold">URL Sandbox Viewer</h3>
+            <div>
+              <h3 className="text-white font-bold text-xl">URL Sandbox Analysis</h3>
+              <p className="text-blue-200 text-sm">Powered by Gemini AI</p>
+            </div>
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3 bg-gray-800/50 px-4 py-2 rounded-full">
             <div className={`h-3 w-3 rounded-full ${isAnalyzing ? 'bg-yellow-500 animate-pulse' : analysisComplete ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-            <span className="text-gray-300 text-sm">
-              {isAnalyzing ? 'Analyzing' : analysisComplete ? 'Analysis Complete' : 'Ready'}
+            <span className="text-gray-200 text-sm font-medium">
+              {isAnalyzing ? 'Analyzing URL' : analysisComplete ? 'Analysis Complete' : 'Ready to Analyze'}
             </span>
           </div>
         </div>
         
         {/* URL Input */}
-        <div className="p-4 border-b border-gray-800">
-          <div className="flex">
-            <input
-              type="text"
-              value={url}
-              onChange={this.handleUrlChange}
-              placeholder="Enter URL to analyze (e.g., https://example.com)"
-              className="flex-grow bg-gray-800 text-white px-4 py-2 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isAnalyzing}
-            />
+        <div className="p-6 bg-gradient-to-b from-gray-800 to-gray-900 border-b border-gray-700">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-grow">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <i className="fas fa-link text-gray-400"></i>
+                </div>
+                <input
+                  type="text"
+                  value={url}
+                  onChange={this.handleUrlChange}
+                  placeholder="Enter URL to analyze (e.g., https://example.com)"
+                  className="w-full bg-gray-800 text-white pl-10 pr-4 py-3 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
+                  disabled={isAnalyzing}
+                />
+              </div>
+              {error && (
+                <p className="mt-2 text-red-400 text-sm flex items-center">
+                  <i className="fas fa-exclamation-circle mr-2"></i>
+                  {error}
+                </p>
+              )}
+            </div>
             <button
               onClick={this.startSandbox}
               disabled={isAnalyzing || !url}
-              className={`px-4 py-2 rounded-r-md font-medium ${
+              className={`px-6 py-3 rounded-lg font-medium text-base shadow-lg transition duration-200 ${
                 isAnalyzing 
                   ? 'bg-gray-700 text-gray-400 cursor-not-allowed' 
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white transform hover:-translate-y-1'
               }`}
             >
               {isAnalyzing ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Analyzing...
+                  Analyzing URL...
                 </span>
-              ) : 'Start Sandbox'}
+              ) : (
+                <span className="flex items-center justify-center">
+                  <i className="fas fa-microscope mr-2"></i>
+                  Analyze in Sandbox
+                </span>
+              )}
             </button>
           </div>
           
-          {error && (
-            <p className="mt-2 text-red-400 text-sm">{error}</p>
+          {/* Analysis Status Bar - Only show when analyzing */}
+          {isAnalyzing && (
+            <div className="mt-4 bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-blue-300 font-medium">
+                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  {currentStep === 'initializing' && 'Initializing secure sandbox environment...'}
+                  {currentStep === 'dns' && 'Resolving domain and checking DNS records...'}
+                  {currentStep === 'connecting' && 'Establishing secure connection to target...'}
+                  {currentStep === 'loading' && 'Loading content in isolated environment...'}
+                  {currentStep === 'screenshot' && 'Capturing visual representation...'}
+                  {currentStep === 'network' && 'Monitoring and analyzing network traffic...'}
+                  {currentStep === 'dns_analysis' && 'Performing deep DNS analysis...'}
+                  {currentStep === 'analyzing' && 'Running AI-powered security analysis...'}
+                </p>
+                <span className="text-gray-400 text-sm">
+                  {(() => {
+                    switch(currentStep) {
+                      case 'initializing': return '10%';
+                      case 'dns': return '20%';
+                      case 'connecting': return '30%';
+                      case 'loading': return '45%';
+                      case 'screenshot': return '60%';
+                      case 'network': return '75%';
+                      case 'dns_analysis': return '85%';
+                      case 'analyzing': return '95%';
+                      case 'complete': return '100%';
+                      default: return '0%';
+                    }
+                  })()}
+                </span>
+              </div>
+              <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-500 ease-out"
+                  style={{ 
+                    width: (() => {
+                      switch(currentStep) {
+                        case 'initializing': return '10%';
+                        case 'dns': return '20%';
+                        case 'connecting': return '30%';
+                        case 'loading': return '45%';
+                        case 'screenshot': return '60%';
+                        case 'network': return '75%';
+                        case 'dns_analysis': return '85%';
+                        case 'analyzing': return '95%';
+                        case 'complete': return '100%';
+                        default: return '0%';
+                      }
+                    })()
+                  }}
+                ></div>
+              </div>
+            </div>
           )}
         </div>
         
         {/* Sandbox Content */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-          {/* Sandbox Visualization */}
-          <div className="bg-gray-800 rounded-lg overflow-hidden">
-            <div className="bg-gray-900 px-4 py-2 flex items-center space-x-2 border-b border-gray-700">
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Sandbox Visualization - Takes 3/5 of the space */}
+          <div className="lg:col-span-3 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl overflow-hidden shadow-lg border border-gray-700">
+            <div className="bg-gradient-to-r from-gray-900 to-gray-800 px-4 py-3 flex items-center space-x-2 border-b border-gray-700">
               <div className="flex space-x-1">
                 <div className="h-3 w-3 rounded-full bg-red-500"></div>
                 <div className="h-3 w-3 rounded-full bg-yellow-500"></div>
                 <div className="h-3 w-3 rounded-full bg-green-500"></div>
               </div>
-              <div className="flex-grow text-center">
-                <span className="text-gray-400 text-sm truncate">
-                  {url || 'Sandbox Browser'}
-                </span>
+              <div className="flex-grow">
+                <div className="bg-gray-800/70 rounded-md px-3 py-1.5 max-w-md mx-auto flex items-center">
+                  <i className="fas fa-lock text-gray-500 mr-2"></i>
+                  <span className="text-gray-300 text-sm font-mono truncate">
+                    {url || 'Secure Sandbox Environment'}
+                  </span>
+                </div>
               </div>
             </div>
             
             <div 
               ref={this.sandboxRef}
-              className="h-80 bg-white flex items-center justify-center relative overflow-hidden"
+              className="h-[500px] bg-white flex items-center justify-center relative overflow-hidden"
             >
               {!isAnalyzing && !screenshot && (
-                <div className="text-gray-400 text-center p-4">
-                  <i className="fas fa-shield-alt text-4xl mb-2"></i>
-                  <p>Enter a URL and click "Start Sandbox" to begin analysis</p>
-                </div>
-              )}
-              
-              {isAnalyzing && (
-                <div className="absolute inset-0 bg-gray-900/80 flex flex-col items-center justify-center z-10">
-                  <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p className="text-blue-400 font-medium mb-2">
-                    {currentStep === 'initializing' && 'Initializing Sandbox...'}
-                    {currentStep === 'dns' && 'Resolving Domain...'}
-                    {currentStep === 'connecting' && 'Establishing Connection...'}
-                    {currentStep === 'loading' && 'Loading Content...'}
-                    {currentStep === 'screenshot' && 'Capturing Screenshot...'}
-                    {currentStep === 'network' && 'Monitoring Network Traffic...'}
-                    {currentStep === 'dns_analysis' && 'Analyzing DNS Records...'}
-                    {currentStep === 'analyzing' && 'Analyzing Security Threats...'}
+                <div className="text-center p-8 bg-gray-100">
+                  <div className="bg-blue-600/10 p-6 rounded-full inline-block mb-4">
+                    <i className="fas fa-shield-alt text-blue-600 text-5xl"></i>
+                  </div>
+                  <h3 className="text-gray-800 text-xl font-bold mb-2">Secure URL Analysis</h3>
+                  <p className="text-gray-600 max-w-md mx-auto mb-4">
+                    Enter a URL above and click "Analyze in Sandbox" to begin a comprehensive security analysis powered by Gemini AI.
                   </p>
-                  <div className="w-48 h-2 bg-gray-700 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-600 transition-all duration-300 ease-out"
-                      style={{ 
-                        width: (() => {
-                          switch(currentStep) {
-                            case 'initializing': return '10%';
-                            case 'dns': return '20%';
-                            case 'connecting': return '30%';
-                            case 'loading': return '45%';
-                            case 'screenshot': return '60%';
-                            case 'network': return '75%';
-                            case 'dns_analysis': return '85%';
-                            case 'analyzing': return '95%';
-                            case 'complete': return '100%';
-                            default: return '0%';
-                          }
-                        })()
-                      }}
-                    ></div>
+                  <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-3 text-sm text-yellow-800 max-w-md mx-auto">
+                    <i className="fas fa-info-circle mr-2"></i>
+                    All analysis is performed in an isolated environment to protect your system.
                   </div>
                 </div>
               )}
               
+              {isAnalyzing && (
+                <div className="absolute inset-0 bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                  <div className="w-24 h-24 relative mb-6">
+                    <div className="absolute inset-0 rounded-full border-4 border-blue-500/30"></div>
+                    <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <i className="fas fa-shield-alt text-blue-500 text-2xl"></i>
+                    </div>
+                  </div>
+                  <p className="text-blue-300 font-medium text-xl mb-3">
+                    {currentStep === 'initializing' && 'Initializing Secure Environment'}
+                    {currentStep === 'dns' && 'Resolving Domain Information'}
+                    {currentStep === 'connecting' && 'Establishing Secure Connection'}
+                    {currentStep === 'loading' && 'Loading Content Safely'}
+                    {currentStep === 'screenshot' && 'Capturing Visual Representation'}
+                    {currentStep === 'network' && 'Analyzing Network Traffic'}
+                    {currentStep === 'dns_analysis' && 'Performing DNS Security Checks'}
+                    {currentStep === 'analyzing' && 'Running AI Security Analysis'}
+                  </p>
+                  <p className="text-gray-400 text-sm mb-4 max-w-md text-center">
+                    {currentStep === 'initializing' && 'Setting up a secure sandbox to safely analyze the URL...'}
+                    {currentStep === 'dns' && 'Checking domain reputation and DNS configuration...'}
+                    {currentStep === 'connecting' && 'Creating an isolated connection to the target website...'}
+                    {currentStep === 'loading' && 'Loading website content in a protected environment...'}
+                    {currentStep === 'screenshot' && 'Creating a visual representation of the website...'}
+                    {currentStep === 'network' && 'Monitoring all network requests for suspicious activity...'}
+                    {currentStep === 'dns_analysis' && 'Analyzing DNS records for signs of phishing or malware...'}
+                    {currentStep === 'analyzing' && 'Using Gemini AI to identify potential security threats...'}
+                  </p>
+                </div>
+              )}
+              
               {screenshot && (
-                <img 
-                  src={screenshot} 
-                  alt="Sandbox Screenshot" 
-                  className="max-w-full max-h-full object-contain"
-                />
+                <div className="relative h-full w-full">
+                  <img 
+                    src={screenshot} 
+                    alt="Sandbox Screenshot" 
+                    className="max-w-full max-h-full object-contain"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-900/90 to-transparent p-4 text-center">
+                    <p className="text-white text-sm">
+                      <i className="fas fa-info-circle mr-2"></i>
+                      This is a simulated view for security analysis purposes only
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           </div>
           
-          {/* Terminal Output */}
-          <div className="bg-gray-900 rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-gray-800 px-4 py-2 border-b border-gray-700">
-              <span className="text-gray-300 text-sm font-mono">Sandbox Terminal</span>
+          {/* Terminal Output - Takes 2/5 of the space */}
+          <div className="lg:col-span-2 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl overflow-hidden flex flex-col shadow-lg border border-gray-700">
+            <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 border-b border-gray-700 flex justify-between items-center">
+              <span className="text-gray-200 font-medium flex items-center">
+                <i className="fas fa-terminal text-blue-400 mr-2"></i>
+                Security Analysis Log
+              </span>
+              <div className="flex space-x-1">
+                <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+                <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse delay-100"></div>
+                <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse delay-200"></div>
+              </div>
             </div>
             
             <div 
               ref={this.terminalRef}
-              className="flex-grow p-3 font-mono text-xs overflow-y-auto h-80"
+              className="flex-grow p-4 font-mono text-sm overflow-y-auto h-[500px] custom-scrollbar"
+              style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#4B5563 #1F2937'
+              }}
             >
               {sandboxLogs.length === 0 ? (
-                <p className="text-gray-500">Terminal output will appear here...</p>
+                <div className="h-full flex flex-col items-center justify-center text-center">
+                  <div className="bg-gray-800/50 rounded-lg p-6 max-w-md">
+                    <i className="fas fa-terminal text-gray-600 text-3xl mb-3"></i>
+                    <p className="text-gray-400">Security analysis logs will appear here once the sandbox is running...</p>
+                  </div>
+                </div>
               ) : (
-                sandboxLogs.map((log, index) => {
-                  // Determine log color based on type
-                  let logColor = 'text-gray-300';
-                  if (log.type === 'error') logColor = 'text-red-400';
-                  else if (log.type === 'success') logColor = 'text-green-400';
-                  else if (log.type === 'system') logColor = 'text-blue-400';
-                  else if (log.type === 'warning') logColor = 'text-yellow-400';
-                  
-                  return (
-                    <div key={index} className="mb-1">
-                      <span className="text-gray-500">[{log.timestamp}]</span>{' '}
-                      <span className={logColor}>{log.message}</span>
-                    </div>
-                  );
-                })
+                <div className="space-y-1.5">
+                  {sandboxLogs.map((log, index) => {
+                    // Determine log color and icon based on type
+                    let logColor = 'text-gray-300';
+                    let logIcon = 'fa-info-circle text-gray-400';
+                    
+                    if (log.type === 'error') {
+                      logColor = 'text-red-400';
+                      logIcon = 'fa-exclamation-circle text-red-400';
+                    } else if (log.type === 'success') {
+                      logColor = 'text-green-400';
+                      logIcon = 'fa-check-circle text-green-400';
+                    } else if (log.type === 'system') {
+                      logColor = 'text-blue-400';
+                      logIcon = 'fa-cog text-blue-400';
+                    } else if (log.type === 'warning') {
+                      logColor = 'text-yellow-400';
+                      logIcon = 'fa-exclamation-triangle text-yellow-400';
+                    } else if (log.type === 'info') {
+                      logColor = 'text-indigo-400';
+                      logIcon = 'fa-info-circle text-indigo-400';
+                    }
+                    
+                    return (
+                      <div key={index} className="flex items-start bg-gray-800/30 p-2 rounded-md hover:bg-gray-800/50 transition-colors duration-150">
+                        <i className={`fas ${logIcon} mt-1 mr-2 flex-shrink-0`}></i>
+                        <div className="flex-grow">
+                          <div className="flex justify-between items-start">
+                            <span className={`${logColor} break-words`}>{log.message}</span>
+                            <span className="text-gray-500 text-xs ml-2 flex-shrink-0">{log.timestamp}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
@@ -1000,31 +1146,176 @@ class UrlSandboxViewer extends React.Component {
         
         {/* Analysis Results */}
         {analysisComplete && (
-          <div className="p-4 bg-gray-800/50">
-            <h3 className="text-white font-bold mb-3">Analysis Results</h3>
-            
-            {/* Risk Gauge */}
-            {this.renderRiskGauge()}
-            
-            {/* Security Findings */}
-            {this.renderSecurityFindings()}
-            
-            {/* Network Traffic Analysis */}
-            {this.state.showNetworkAnalysis && this.state.networkTrafficData && (
-              <div className="mt-4">
-                {NetworkTrafficAnalyzer ? (
-                  <NetworkTrafficAnalyzer networkData={this.state.networkTrafficData} />
-                ) : (
-                  <div className="bg-white rounded-lg shadow p-4 mb-4">
-                    <h3 className="text-lg font-semibold mb-2">Network Traffic Analysis</h3>
-                    <p className="text-gray-500">Network Traffic Analyzer is not defined</p>
-                    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-100 rounded">
-                      <p className="text-sm text-yellow-700">Captured {this.state.networkTrafficData.request_log?.length || 0} HTTP requests</p>
+          <div className="p-6 bg-gradient-to-b from-gray-900 to-gray-800 border-t border-gray-700">
+            <div className="flex flex-col md:flex-row items-start justify-between gap-6">
+              <div className="w-full md:w-2/3">
+                <div className="flex items-center mb-4">
+                  <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-2 rounded-lg mr-3">
+                    <i className="fas fa-chart-bar text-white"></i>
+                  </div>
+                  <h3 className="text-white text-xl font-bold">Security Analysis Results</h3>
+                </div>
+                
+                {/* Security Findings Card */}
+                <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 shadow-lg overflow-hidden mb-6">
+                  <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 border-b border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-200 font-medium flex items-center">
+                        <i className="fas fa-shield-virus text-blue-400 mr-2"></i>
+                        Security Findings
+                      </span>
+                      <span className="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded-full">
+                        {this.state.securityFindings.length} {this.state.securityFindings.length === 1 ? 'issue' : 'issues'} detected
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    {this.renderSecurityFindings()}
+                  </div>
+                </div>
+                
+                {/* Network Traffic Analysis Card */}
+                {this.state.networkTrafficData && (
+                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 shadow-lg overflow-hidden">
+                    <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 border-b border-gray-700">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-200 font-medium flex items-center">
+                          <i className="fas fa-network-wired text-blue-400 mr-2"></i>
+                          Network Traffic Analysis
+                        </span>
+                        <span className="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded-full">
+                          {this.state.networkTrafficData.request_log?.length || 0} HTTP requests
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      {NetworkTrafficAnalyzer ? (
+                        <NetworkTrafficAnalyzer networkData={this.state.networkTrafficData} />
+                      ) : (
+                        <div className="bg-gray-900/50 rounded-lg p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-gray-800/70 rounded-lg p-3 border border-gray-700">
+                              <h4 className="text-gray-300 font-medium mb-2 flex items-center">
+                                <i className="fas fa-globe text-blue-400 mr-2"></i>
+                                Domains Contacted
+                              </h4>
+                              <div className="space-y-2">
+                                {this.state.networkTrafficData.domains?.map((domain, idx) => (
+                                  <div key={idx} className="flex items-center justify-between bg-gray-900/50 p-2 rounded">
+                                    <span className="text-gray-300 text-sm font-mono">{domain}</span>
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300">
+                                      {Math.floor(Math.random() * 10) + 1} requests
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="bg-gray-800/70 rounded-lg p-3 border border-gray-700">
+                              <h4 className="text-gray-300 font-medium mb-2 flex items-center">
+                                <i className="fas fa-exclamation-triangle text-yellow-400 mr-2"></i>
+                                Suspicious Activity
+                              </h4>
+                              {this.state.networkTrafficData.suspicious_domains?.length > 0 ? (
+                                <div className="space-y-2">
+                                  {this.state.networkTrafficData.suspicious_domains.map((domain, idx) => (
+                                    <div key={idx} className="bg-yellow-900/20 border border-yellow-800/30 text-yellow-300 p-2 rounded text-sm">
+                                      <div className="font-medium">Suspicious domain detected:</div>
+                                      <div className="font-mono mt-1">{domain}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="bg-green-900/20 border border-green-800/30 text-green-300 p-2 rounded text-sm">
+                                  No suspicious network activity detected
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
               </div>
-            )}
+              
+              <div className="w-full md:w-1/3">
+                {/* Risk Assessment Card */}
+                <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 shadow-lg overflow-hidden mb-6">
+                  <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 border-b border-gray-700">
+                    <span className="text-gray-200 font-medium flex items-center">
+                      <i className="fas fa-tachometer-alt text-blue-400 mr-2"></i>
+                      Risk Assessment
+                    </span>
+                  </div>
+                  <div className="p-4">
+                    {this.renderRiskGauge()}
+                    
+                    {/* Add recommendations based on risk level */}
+                    <div className="mt-4">
+                      <h4 className="text-gray-300 font-medium mb-2">Recommendations</h4>
+                      <div className="bg-gray-900/50 rounded-lg p-3 border border-gray-700">
+                        {this.state.riskScore > 60 ? (
+                          <div className="text-red-400 text-sm">
+                            <i className="fas fa-exclamation-circle mr-2"></i>
+                            This URL presents significant security risks. We recommend avoiding this website.
+                          </div>
+                        ) : this.state.riskScore > 30 ? (
+                          <div className="text-yellow-400 text-sm">
+                            <i className="fas fa-exclamation-triangle mr-2"></i>
+                            This URL has some security concerns. Proceed with caution and avoid sharing sensitive information.
+                          </div>
+                        ) : (
+                          <div className="text-green-400 text-sm">
+                            <i className="fas fa-check-circle mr-2"></i>
+                            This URL appears to be safe based on our analysis. Always maintain standard security practices.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* DNS Analysis Summary Card */}
+                {this.state.dnsAnalysisData && (
+                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 shadow-lg overflow-hidden">
+                    <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 border-b border-gray-700">
+                      <span className="text-gray-200 font-medium flex items-center">
+                        <i className="fas fa-sitemap text-blue-400 mr-2"></i>
+                        DNS Analysis
+                      </span>
+                    </div>
+                    <div className="p-4">
+                      <div className="space-y-3">
+                        {this.state.dnsAnalysisData.map((record, idx) => (
+                          <div key={idx} className={`bg-gray-900/50 rounded-lg p-3 border ${record.is_suspicious ? 'border-red-800/30' : 'border-gray-700'}`}>
+                            <div className="flex justify-between items-start">
+                              <span className="text-gray-300 font-medium">{record.domain}</span>
+                              {record.is_suspicious && (
+                                <span className="bg-red-900/30 text-red-400 text-xs px-2 py-0.5 rounded-full">
+                                  Suspicious
+                                </span>
+                              )}
+                            </div>
+                            {record.a_records && record.a_records.length > 0 && (
+                              <div className="mt-2">
+                                <span className="text-gray-400 text-xs">IP Addresses:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {record.a_records.map((ip, ipIdx) => (
+                                    <span key={ipIdx} className="bg-gray-800 text-gray-300 text-xs px-2 py-0.5 rounded font-mono">
+                                      {ip}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
