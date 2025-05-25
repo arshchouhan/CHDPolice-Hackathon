@@ -18,7 +18,8 @@ class AdminSandboxPanel extends React.Component {
       geminiAnalysisResults: null,
       isAnalyzingWithGemini: false,
       suspiciousUrls: [],
-      error: null
+      error: null,
+      showFullScreenSandbox: false // New state for full-screen modal
     };
   }
   
@@ -242,7 +243,15 @@ class AdminSandboxPanel extends React.Component {
   
   // Handle URL selection
   handleUrlSelect = (url) => {
-    this.setState({ selectedUrl: url });
+    this.setState({ 
+      selectedUrl: url,
+      showFullScreenSandbox: true // Show the full-screen modal when a URL is selected
+    });
+  }
+  
+  // Close the full-screen sandbox modal
+  closeFullScreenSandbox = () => {
+    this.setState({ showFullScreenSandbox: false });
   };
   
   // Analyze email with Gemini AI
@@ -429,14 +438,15 @@ class AdminSandboxPanel extends React.Component {
   render() {
     const { 
       emails, 
-      selectedEmail,
-      extractedUrls,
-      selectedUrl,
-      isLoading,
+      selectedEmail, 
+      extractedUrls, 
+      selectedUrl, 
+      isLoading, 
+      geminiAnalysisResults, 
       isAnalyzingWithGemini,
-      geminiAnalysisResults,
-      suspiciousUrls,
-      error
+      suspiciousUrls, 
+      error, 
+      showFullScreenSandbox 
     } = this.state;
     
     return (
@@ -695,6 +705,66 @@ class AdminSandboxPanel extends React.Component {
           </div>
           {/* End of grid layout */}
         </div>
+        
+        {/* Full-screen URL Sandbox Modal */}
+        {showFullScreenSandbox && selectedUrl && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center overflow-y-auto">
+            <div className="w-full max-w-6xl mx-auto p-4 animate-fadeIn">
+              <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl border border-gray-700 shadow-2xl overflow-hidden">
+                {/* Modal Header */}
+                <div className="bg-gradient-to-r from-blue-900 to-indigo-900 px-6 py-4 flex justify-between items-center border-b border-gray-700">
+                  <div className="flex items-center">
+                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-lg mr-3">
+                      <i className="fas fa-shield-alt text-white"></i>
+                    </div>
+                    <div>
+                      <h3 className="text-white font-medium">URL Sandbox Analysis</h3>
+                      <p className="text-blue-300 text-xs">Powered by Gemini AI</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={this.closeFullScreenSandbox}
+                    className="bg-gray-800/50 hover:bg-gray-700/50 text-gray-400 hover:text-white p-2 rounded-full transition-colors"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+                
+                {/* URL Display */}
+                <div className="bg-gray-900/50 backdrop-blur-sm p-4 border-b border-gray-700 flex items-center">
+                  <i className="fas fa-link text-blue-400 mr-2"></i>
+                  <p className="text-white text-sm font-mono break-all overflow-hidden overflow-ellipsis">{selectedUrl}</p>
+                </div>
+                
+                {/* Sandbox Content */}
+                <div className="h-[70vh] overflow-y-auto">
+                  <ErrorBoundary fallback={
+                    <div className="p-8 flex flex-col items-center justify-center h-full">
+                      <div className="bg-yellow-600/20 p-6 rounded-lg text-center max-w-md">
+                        <i className="fas fa-exclamation-triangle text-yellow-500 text-4xl mb-4"></i>
+                        <p className="text-yellow-400 text-lg font-medium mb-2">Sandbox viewer encountered an error</p>
+                        <p className="text-gray-300 text-sm mb-4">The URL analysis is still processing in the background.</p>
+                        <button 
+                          onClick={() => window.location.reload()}
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors"
+                        >
+                          Reload Page
+                        </button>
+                      </div>
+                    </div>
+                  }>
+                    <UrlSandboxViewer 
+                      url={selectedUrl} 
+                      autoStart={true}
+                      onAnalysisComplete={this.handleAnalysisComplete}
+                      isEmbedded={true}
+                    />
+                  </ErrorBoundary>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
