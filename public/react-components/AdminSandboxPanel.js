@@ -506,11 +506,23 @@ class AdminSandboxPanel extends React.Component {
           {/* URL Sandbox - Takes 6/12 of the space (central position) */}
           <div className="lg:col-span-6 lg:order-2">
             <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700 shadow-lg overflow-hidden h-full">
-              <div className="bg-gradient-to-r from-blue-900 to-indigo-900 px-5 py-4 border-b border-gray-700 flex items-center">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-lg mr-3 transform rotate-12">
-                  <i className="fas fa-shield-alt text-white"></i>
+              <div className="bg-gradient-to-r from-blue-900 to-indigo-900 px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-lg mr-3">
+                    <i className="fas fa-shield-alt text-white"></i>
+                  </div>
+                  <div>
+                    <h3 className="text-white font-medium">URL Sandbox Analysis</h3>
+                    <p className="text-blue-300 text-xs">Powered by Gemini AI</p>
+                  </div>
                 </div>
-                <h3 className="text-white font-medium">URL Sandbox Analysis</h3>
+                
+                {geminiAnalysisResults && (
+                  <div className="flex items-center bg-green-900/30 px-3 py-1 rounded-full border border-green-800/50">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-green-400 text-xs">Analysis Complete</span>
+                  </div>
+                )}
               </div>
               
               {!selectedUrl ? (
@@ -549,6 +561,7 @@ class AdminSandboxPanel extends React.Component {
                       url={selectedUrl} 
                       autoStart={true}
                       onAnalysisComplete={this.handleAnalysisComplete}
+                      isEmbedded={true}
                     />
                   </ErrorBoundary>
                 </div>

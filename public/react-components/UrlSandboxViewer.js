@@ -28,7 +28,9 @@ class UrlSandboxViewer extends React.Component {
       networkTrafficData: null,
       dnsAnalysisData: null,
       showNetworkAnalysis: false,
-      error: null
+      error: null,
+      // Track if this is a standalone viewer or embedded in another component
+      isEmbedded: props.isEmbedded || false
     };
     
     this.sandboxRef = React.createRef();
@@ -832,7 +834,8 @@ class UrlSandboxViewer extends React.Component {
     const { 
       url, isLoading, isAnalyzing, analysisComplete, 
       currentStep, screenshot, sandboxLogs, error,
-      riskScore, securityFindings, networkTrafficData, dnsAnalysisData
+      riskScore, securityFindings, networkTrafficData, dnsAnalysisData,
+      isEmbedded
     } = this.state;
     
     // Determine risk level text and color
@@ -854,27 +857,31 @@ class UrlSandboxViewer extends React.Component {
       riskTextColor = 'text-yellow-500';
     }
     
+    // Only show the header if this is not embedded in another component
+    // This prevents duplication when used in the AdminSandboxPanel
     return (
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl border border-gray-700 shadow-2xl overflow-hidden">
-        {/* Sandbox Header */}
-        <div className="bg-gradient-to-r from-blue-900 to-indigo-900 p-5 flex justify-between items-center border-b border-gray-700">
-          <div className="flex items-center">
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-lg shadow-lg mr-4 transform rotate-12">
-              <i className="fas fa-shield-alt text-white text-xl"></i>
+        {/* Sandbox Header - Only show if not embedded */}
+        {!isEmbedded && (
+          <div className="bg-gradient-to-r from-blue-900 to-indigo-900 p-4 flex justify-between items-center border-b border-gray-700">
+            <div className="flex items-center">
+              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-lg mr-3">
+                <i className="fas fa-shield-alt text-white"></i>
+              </div>
+              <div>
+                <h3 className="text-white font-medium">URL Sandbox Analysis</h3>
+                <p className="text-blue-300 text-xs">Powered by Gemini AI</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-white font-bold text-xl">URL Sandbox Analysis</h3>
-              <p className="text-blue-200 text-sm">Powered by Gemini AI</p>
-            </div>
+            
+            {analysisComplete && (
+              <div className="flex items-center bg-green-900/30 px-3 py-1 rounded-full border border-green-800/50">
+                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                <span className="text-green-400 text-xs">Analysis Complete</span>
+              </div>
+            )}
           </div>
-          
-          <div className="flex items-center space-x-3 bg-gray-800/50 px-4 py-2 rounded-full">
-            <div className={`h-3 w-3 rounded-full ${isAnalyzing ? 'bg-yellow-500 animate-pulse' : analysisComplete ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-            <span className="text-gray-200 text-sm font-medium">
-              {isAnalyzing ? 'Analyzing URL' : analysisComplete ? 'Analysis Complete' : 'Ready to Analyze'}
-            </span>
-          </div>
-        </div>
+        )}
         
         {/* URL Input */}
         <div className="p-6 bg-gradient-to-b from-gray-800 to-gray-900 border-b border-gray-700">
