@@ -734,7 +734,7 @@ class AdminSandboxPanel extends React.Component {
                       <i className="fas fa-user-circle text-gray-500 mr-2"></i>
                       {email.from || 'Unknown Sender'}
                     </p>
-                    {email.userId && email.userId !== (selectedUser ? selectedUser.id : '') && (
+                    {email.userId && typeof email.userId === 'string' && email.userId !== (selectedUser ? selectedUser.id : '') && (
                       <div className="mt-2 flex items-center">
                         <span className="text-xs text-blue-300 bg-blue-900/30 px-2 py-1 rounded-full">
                           <i className="fas fa-user mr-1"></i>
