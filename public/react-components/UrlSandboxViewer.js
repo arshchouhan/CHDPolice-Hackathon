@@ -8,6 +8,10 @@
  * Now enhanced with real network traffic analysis capabilities.
  */
 
+// Import the NetworkTrafficAnalyzer component
+// @ts-ignore
+const NetworkTrafficAnalyzer = window.NetworkTrafficAnalyzer || null;
+
 class UrlSandboxViewer extends React.Component {
   constructor(props) {
     super(props);
@@ -955,7 +959,17 @@ class UrlSandboxViewer extends React.Component {
             {/* Network Traffic Analysis */}
             {this.state.showNetworkAnalysis && this.state.networkTrafficData && (
               <div className="mt-4">
-                <NetworkTrafficAnalyzer networkData={this.state.networkTrafficData} />
+                {NetworkTrafficAnalyzer ? (
+                  <NetworkTrafficAnalyzer networkData={this.state.networkTrafficData} />
+                ) : (
+                  <div className="bg-white rounded-lg shadow p-4 mb-4">
+                    <h3 className="text-lg font-semibold mb-2">Network Traffic Analysis</h3>
+                    <p className="text-gray-500">Network Traffic Analyzer is not defined</p>
+                    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-100 rounded">
+                      <p className="text-sm text-yellow-700">Captured {this.state.networkTrafficData.request_log?.length || 0} HTTP requests</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
