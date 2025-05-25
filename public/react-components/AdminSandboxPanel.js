@@ -10,10 +10,13 @@ class AdminSandboxPanel extends React.Component {
     super(props);
     this.state = {
       emails: [],
+      users: [],
+      selectedUser: null,
       selectedEmail: null,
       extractedUrls: [],
       selectedUrl: '',
       isLoading: false,
+      loadingUsers: false,
       analysisResults: null,
       geminiAnalysisResults: null,
       isAnalyzingWithGemini: false,
@@ -24,11 +27,75 @@ class AdminSandboxPanel extends React.Component {
   }
   
   componentDidMount() {
-    this.loadEmails();
+    this.loadUsers();
   }
   
-  // Load emails from the API
-  loadEmails = async () => {
+  // Load users from the API
+  loadUsers = async () => {
+    try {
+      this.setState({ loadingUsers: true, error: null });
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+      
+      const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+      const response = await fetch(`${baseUrl}/api/admin/users`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to load users');
+        } else {
+          throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+        }
+      }
+      
+      const data = await response.json();
+      this.setState({ 
+        users: data.users || [], 
+        loadingUsers: false 
+      });
+      
+      // If users were loaded successfully, select the first user and load their emails
+      if (data.users && data.users.length > 0) {
+        this.handleUserSelect(data.users[0]);
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+      this.setState({ 
+        loadingUsers: false, 
+        error: `Error loading users: ${error.message}` 
+      });
+    }
+  };
+  
+  // Handle user selection
+  handleUserSelect = (user) => {
+    this.setState({ 
+      selectedUser: user,
+      selectedEmail: null,
+      emails: [],
+      extractedUrls: [],
+      selectedUrl: '',
+      geminiAnalysisResults: null,
+      suspiciousUrls: []
+    }, () => {
+      // Load emails for the selected user
+      this.loadEmails(user.id);
+    });
+  };
+  
+  // Load emails from the API for a specific user
+  loadEmails = async (userId) => {
     try {
       this.setState({ isLoading: true, error: null });
       
@@ -38,7 +105,8 @@ class AdminSandboxPanel extends React.Component {
       }
       
       const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-      const response = await fetch(`${baseUrl}/api/admin/emails?limit=10&sort=createdAt:desc`, {
+      const userParam = userId ? `&userId=${userId}` : '';
+      const response = await fetch(`${baseUrl}/api/admin/emails?limit=20&sort=createdAt:desc${userParam}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -496,10 +564,13 @@ class AdminSandboxPanel extends React.Component {
   render() {
     const { 
       emails, 
+      users,
+      selectedUser,
       selectedEmail, 
       extractedUrls, 
       selectedUrl, 
       isLoading, 
+      loadingUsers,
       geminiAnalysisResults, 
       isAnalyzingWithGemini,
       suspiciousUrls, 
@@ -519,6 +590,43 @@ class AdminSandboxPanel extends React.Component {
           <div>
             <h2 className="text-2xl font-bold text-white">Email Sandbox Analysis</h2>
             <p className="text-blue-300 text-sm">Safely analyze URLs from suspicious emails with Gemini AI</p>
+          </div>
+          
+          {/* User Selection Dropdown */}
+          <div className="relative">
+            {loadingUsers ? (
+              <div className="bg-gray-800 px-4 py-2 rounded-lg flex items-center">
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+                <span className="text-gray-300">Loading users...</span>
+              </div>
+            ) : (
+              <div className="relative">
+                <select 
+                  className="bg-gray-800 text-white border border-gray-700 rounded-lg px-4 py-2 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[200px]"
+                  value={selectedUser ? selectedUser.id : ''}
+                  onChange={(e) => {
+                    const userId = e.target.value;
+                    const user = users.find(u => u.id === userId);
+                    if (user) {
+                      this.handleUserSelect(user);
+                    }
+                  }}
+                >
+                  {users.length === 0 ? (
+                    <option value="">No users available</option>
+                  ) : (
+                    users.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.name || user.email || `User ${user.id.substring(0, 8)}`}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <i className="fas fa-chevron-down text-gray-400"></i>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         
