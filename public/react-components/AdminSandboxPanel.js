@@ -204,11 +204,27 @@ class AdminSandboxPanel extends React.Component {
         throw new Error('Authentication token not found');
       }
       
-      // Prepare email data for Gemini analysis
+      // Prepare email data for Gemini analysis with detailed logging
+      const emailContent = email.html || email.textPlain || '';
+      const subject = email.subject || 'No Subject';
+      const sender = email.from || 'unknown@sender.com';
+      
+      console.log('Email data for Gemini analysis:', {
+        hasHtml: !!email.html,
+        hasTextPlain: !!email.textPlain,
+        contentLength: emailContent.length,
+        subject: subject,
+        sender: sender
+      });
+      
+      if (!emailContent) {
+        throw new Error('Email content is missing. Please select an email with valid content.');
+      }
+      
       const emailData = {
-        emailContent: email.html || email.textPlain || '',
-        subject: email.subject || 'No Subject',
-        sender: email.from || 'unknown@sender.com'
+        emailContent: emailContent,
+        subject: subject,
+        sender: sender
       };
       
       // Get base URL with debugging
