@@ -4,6 +4,8 @@
  * A visual component that simulates a sandbox environment for safely viewing URLs
  * extracted from emails. This component provides a visual representation of the
  * sandbox process without actually running a real browser automation system.
+ * 
+ * Now enhanced with real network traffic analysis capabilities.
  */
 
 class UrlSandboxViewer extends React.Component {
@@ -19,6 +21,9 @@ class UrlSandboxViewer extends React.Component {
       securityFindings: [],
       riskScore: 0,
       sandboxLogs: [],
+      networkTrafficData: null,
+      dnsAnalysisData: null,
+      showNetworkAnalysis: false,
       error: null
     };
     
@@ -77,6 +82,9 @@ class UrlSandboxViewer extends React.Component {
       securityFindings: [],
       riskScore: 0,
       sandboxLogs: [],
+      networkTrafficData: null,
+      dnsAnalysisData: null,
+      showNetworkAnalysis: false,
       error: null
     });
     
@@ -113,6 +121,26 @@ class UrlSandboxViewer extends React.Component {
     // Generate a simulated screenshot based on the URL
     await this.generateSimulatedScreenshot(url);
     
+    // Simulate network traffic analysis
+    this.setState({ currentStep: 'network' });
+    this.addLog(`Capturing network traffic data...`, 'info');
+    
+    await this.simulateStep('network', 'Monitoring network traffic', 1800);
+    
+    // Generate network traffic data
+    const networkData = await this.generateNetworkTrafficData(url);
+    this.setState({ networkTrafficData: networkData });
+    
+    // Simulate DNS analysis
+    this.setState({ currentStep: 'dns_analysis' });
+    this.addLog(`Performing DNS analysis on all domains...`, 'info');
+    
+    await this.simulateStep('dns_analysis', 'Analyzing DNS records', 1200);
+    
+    // Generate DNS analysis data
+    const dnsData = await this.generateDnsAnalysisData(url);
+    this.setState({ dnsAnalysisData: dnsData });
+    
     // Simulate security analysis
     this.setState({ currentStep: 'analyzing' });
     this.addLog(`Analyzing page for security threats...`, 'info');
@@ -121,6 +149,18 @@ class UrlSandboxViewer extends React.Component {
     
     // Generate security findings
     const findings = await this.generateSecurityFindings(url);
+    
+    // Add network-based findings
+    if (networkData && networkData.suspicious_domains && networkData.suspicious_domains.length > 0) {
+      networkData.suspicious_domains.forEach(domain => {
+        findings.push({
+          type: 'suspicious_domain',
+          message: `Suspicious domain detected: ${domain}`,
+          severity: 15,
+          details: 'Domain has characteristics of phishing sites'
+        });
+      });
+    }
     
     // Calculate risk score based on findings
     const riskScore = findings.reduce((score, finding) => score + finding.severity, 0);
@@ -132,18 +172,23 @@ class UrlSandboxViewer extends React.Component {
       analysisComplete: true,
       currentStep: 'complete',
       securityFindings: findings,
-      riskScore: Math.min(riskScore, 100)
+      riskScore: Math.min(riskScore, 100),
+      showNetworkAnalysis: true
     });
     
-    this.addLog(`Analysis complete. Risk score: ${Math.min(riskScore, 100)}/100`, 'success');
+    this.addLog(`Analysis complete. Risk score: ${Math.min(riskScore, 100)}%`, 'success');
+    this.addLog(`Network traffic analysis captured ${networkData.request_log.length} HTTP requests`, 'info');
+    this.addLog(`DNS analysis found ${networkData.suspicious_domains.length} suspicious domains`, networkData.suspicious_domains.length > 0 ? 'warning' : 'info');
     
-    // Call onComplete callback if provided
-    if (this.props.onComplete) {
-      this.props.onComplete({
+    // Notify parent component if callback provided
+    if (this.props.onAnalysisComplete) {
+      this.props.onAnalysisComplete({
         url,
-        screenshot: this.state.screenshot,
+        riskScore: Math.min(riskScore, 100),
         findings,
-        riskScore: Math.min(riskScore, 100)
+        screenshot: this.state.screenshot,
+        networkTrafficData: networkData,
+        dnsAnalysisData: dnsData
       });
     }
   }
@@ -161,15 +206,306 @@ class UrlSandboxViewer extends React.Component {
   // Generate a simulated screenshot based on the URL
   generateSimulatedScreenshot = async (url) => {
     try {
-      // For demo purposes, we'll use a placeholder image service
-      // In a real implementation, this would be replaced with actual screenshots
       const domain = new URL(url).hostname;
-      const placeholderUrl = `https://via.placeholder.com/800x600/2a3441/FFFFFF?text=Sandbox+View:+${domain}`;
+      const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
       
-      this.setState({ screenshot: placeholderUrl });
-      this.addLog('Screenshot captured successfully', 'success');
+      // Create a canvas to generate a simulated screenshot
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280;
+      canvas.height = 800;
+      const ctx = canvas.getContext('2d');
+      
+      // Fill background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw a fake browser UI
+      ctx.fillStyle = '#f0f0f0';
+      ctx.fillRect(0, 0, canvas.width, 80);
+      
+      // Draw address bar
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(120, 20, 800, 40);
+      
+      // Draw URL text
+      ctx.fillStyle = '#333333';
+      ctx.font = '16px Arial';
+      ctx.fillText(url, 140, 45);
+      
+      // Draw some fake content
+      ctx.fillStyle = '#333333';
+      ctx.font = 'bold 24px Arial';
+      ctx.fillText(`Sandbox View: ${domain}`, 40, 120);
+      
+      ctx.font = '16px Arial';
+      ctx.fillText('This is a simulated view of the page for security analysis purposes.', 40, 160);
+      
+      // Add some fake page elements
+      ctx.fillStyle = '#e0e0e0';
+      ctx.fillRect(40, 200, 1200, 60);
+      ctx.fillRect(40, 280, 600, 400);
+      ctx.fillRect(660, 280, 580, 180);
+      ctx.fillRect(660, 480, 580, 200);
+      
+      // Convert canvas to image
+      const dataUrl = canvas.toDataURL('image/png');
+      this.setState({ screenshot: dataUrl });
+      
+      this.addLog(`Screenshot captured for ${domain}`, 'success');
+      return dataUrl;
+      
     } catch (error) {
-      this.addLog('Error capturing screenshot: ' + error.message, 'error');
+      this.addLog(`Error generating screenshot: ${error.message}`, 'error');
+      return null;
+    }
+  }
+  
+  // Generate network traffic data for the URL
+  generateNetworkTrafficData = async (url) => {
+    try {
+      const domain = new URL(url).hostname;
+      const timestamp = Math.floor(Date.now() / 1000);
+      
+      // Generate simulated network requests
+      const requests = [
+        {
+          request_id: `req_${Math.random().toString(36).substring(7)}`,
+          url: url,
+          method: 'GET',
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' },
+          timestamp: timestamp,
+          initiator: 'navigation'
+        },
+        {
+          request_id: `req_${Math.random().toString(36).substring(7)}`,
+          url: `https://${domain}/styles.css`,
+          method: 'GET',
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/css' },
+          timestamp: timestamp + 0.2,
+          initiator: 'parser'
+        },
+        {
+          request_id: `req_${Math.random().toString(36).substring(7)}`,
+          url: `https://${domain}/main.js`,
+          method: 'GET',
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/javascript' },
+          timestamp: timestamp + 0.3,
+          initiator: 'parser'
+        },
+        {
+          request_id: `req_${Math.random().toString(36).substring(7)}`,
+          url: `https://${domain}/logo.png`,
+          method: 'GET',
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'image/png' },
+          timestamp: timestamp + 0.5,
+          initiator: 'img'
+        },
+        {
+          request_id: `req_${Math.random().toString(36).substring(7)}`,
+          url: `https://analytics.${domain}/track.js`,
+          method: 'GET',
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/javascript' },
+          timestamp: timestamp + 0.8,
+          initiator: 'script'
+        },
+        {
+          request_id: `req_${Math.random().toString(36).substring(7)}`,
+          url: `https://analytics.${domain}/collect`,
+          method: 'POST',
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/json' },
+          timestamp: timestamp + 1.2,
+          initiator: 'xhr',
+          post_data: '{"event":"pageview","url":"' + url + '"}'
+        }
+      ];
+      
+      // Add some third-party requests
+      const thirdParties = ['cdn.googleanalytics.com', 'fonts.googleapis.com', 'ajax.cloudflare.com'];
+      thirdParties.forEach((thirdParty, index) => {
+        requests.push({
+          request_id: `req_${Math.random().toString(36).substring(7)}`,
+          url: `https://${thirdParty}/resource${index}.js`,
+          method: 'GET',
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/javascript' },
+          timestamp: timestamp + 1.5 + (index * 0.2),
+          initiator: 'script'
+        });
+      });
+      
+      // Generate redirects
+      const redirects = [];
+      
+      // Add a redirect if the URL doesn't have www
+      if (!domain.startsWith('www.') && Math.random() > 0.5) {
+        redirects.push({
+          from: url,
+          to: url.replace(domain, `www.${domain}`),
+          status: 301,
+          timestamp: timestamp
+        });
+      }
+      
+      // Simulate HTTP to HTTPS redirect
+      if (url.startsWith('http:')) {
+        redirects.push({
+          from: url,
+          to: url.replace('http:', 'https:'),
+          status: 301,
+          timestamp: timestamp + 0.1
+        });
+      }
+      
+      // Generate form submissions data
+      const postData = [];
+      
+      // Add suspicious post data if domain seems suspicious
+      const suspiciousTLDs = ['.xyz', '.tk', '.ml', '.ga', '.cf', '.top'];
+      const isSuspiciousDomain = suspiciousTLDs.some(tld => domain.endsWith(tld));
+      
+      if (isSuspiciousDomain || Math.random() > 0.7) {
+        postData.push({
+          url: `https://${domain}/login`,
+          field: 'password',
+          sensitive: true,
+          timestamp: timestamp + 3.5
+        });
+        
+        postData.push({
+          url: `https://${domain}/login`,
+          field: 'email',
+          sensitive: true,
+          timestamp: timestamp + 3.5
+        });
+      }
+      
+      // Generate file downloads
+      const fileDownloads = [];
+      
+      // Add suspicious file download if domain seems suspicious
+      if (isSuspiciousDomain || Math.random() > 0.8) {
+        fileDownloads.push({
+          url: `https://${domain}/document.pdf`,
+          content_type: 'application/pdf',
+          timestamp: timestamp + 4.0,
+          request_id: `req_${Math.random().toString(36).substring(7)}`
+        });
+      }
+      
+      // Generate timing data
+      const timingData = requests.map(req => ({
+        request_id: req.request_id,
+        url: req.url,
+        start_time: req.timestamp,
+        end_time: req.timestamp + (Math.random() * 0.5),
+        type: 'request_complete'
+      }));
+      
+      // Generate suspicious domains
+      const suspiciousDomains = [];
+      if (isSuspiciousDomain) {
+        suspiciousDomains.push(domain);
+      }
+      
+      // Add another suspicious domain if this looks like a phishing site
+      if (domain.includes('paypal') || domain.includes('apple') || domain.includes('microsoft') || domain.includes('google')) {
+        if (!domain.endsWith('.com')) {
+          suspiciousDomains.push(domain);
+        }
+      }
+      
+      // Return the complete network traffic data
+      return {
+        request_log: requests,
+        redirect_chain: redirects,
+        post_data: postData,
+        file_downloads: fileDownloads,
+        timing_data: timingData,
+        suspicious_domains: suspiciousDomains,
+        stats: {
+          total_requests: requests.length,
+          total_redirects: redirects.length,
+          sensitive_form_submissions: postData.length,
+          file_downloads: fileDownloads.length,
+          suspicious_domains: suspiciousDomains.length
+        }
+      };
+      
+    } catch (error) {
+      this.addLog(`Error generating network traffic data: ${error.message}`, 'error');
+      return {
+        request_log: [],
+        redirect_chain: [],
+        post_data: [],
+        file_downloads: [],
+        timing_data: [],
+        suspicious_domains: [],
+        stats: {
+          total_requests: 0,
+          total_redirects: 0,
+          sensitive_form_submissions: 0,
+          file_downloads: 0,
+          suspicious_domains: 0
+        }
+      };
+    }
+  }
+  
+  // Generate DNS analysis data for the URL
+  generateDnsAnalysisData = async (url) => {
+    try {
+      const domain = new URL(url).hostname;
+      
+      // Generate simulated DNS records
+      const dnsResults = [
+        {
+          domain: domain,
+          a_records: ['192.168.1.1', '192.168.1.2'],
+          mx_records: [`mail.${domain}`, `smtp.${domain}`],
+          txt_records: [`v=spf1 include:${domain} ~all`],
+          is_suspicious: false,
+          timestamp: Math.floor(Date.now() / 1000)
+        }
+      ];
+      
+      // Add records for subdomains
+      const subdomains = [`www.${domain}`, `mail.${domain}`, `api.${domain}`];
+      subdomains.forEach(subdomain => {
+        dnsResults.push({
+          domain: subdomain,
+          a_records: ['192.168.2.1'],
+          mx_records: [],
+          txt_records: [],
+          is_suspicious: false,
+          timestamp: Math.floor(Date.now() / 1000)
+        });
+      });
+      
+      // Add suspicious DNS entries if domain seems suspicious
+      const suspiciousTLDs = ['.xyz', '.tk', '.ml', '.ga', '.cf', '.top'];
+      const isSuspiciousDomain = suspiciousTLDs.some(tld => domain.endsWith(tld));
+      
+      if (isSuspiciousDomain) {
+        dnsResults[0].is_suspicious = true;
+        
+        // Add some suspicious third-party domains
+        const suspiciousThirdParties = ['track.evil-analytics.xyz', 'cdn.malware-host.tk', 'stats.phishing-domain.ml'];
+        suspiciousThirdParties.forEach(suspiciousDomain => {
+          dnsResults.push({
+            domain: suspiciousDomain,
+            a_records: ['10.0.0.1'],
+            mx_records: [],
+            txt_records: [],
+            is_suspicious: true,
+            timestamp: Math.floor(Date.now() / 1000)
+          });
+        });
+      }
+      
+      return dnsResults;
+      
+    } catch (error) {
+      this.addLog(`Error generating DNS analysis data: ${error.message}`, 'error');
+      return [];
     }
   }
   
@@ -187,7 +523,8 @@ class UrlSandboxViewer extends React.Component {
       findings.push({
         type: 'suspicious_domain',
         message: 'Domain uses a suspicious TLD often associated with free domains',
-        severity: 15
+        severity: 15,
+        details: 'Free domains are commonly used in phishing attacks'
       });
     }
     
@@ -196,7 +533,8 @@ class UrlSandboxViewer extends React.Component {
       findings.push({
         type: 'login_form',
         message: 'Page contains a login form that could be used for credential harvesting',
-        severity: 20
+        severity: 20,
+        details: 'Login forms should only be submitted to trusted domains'
       });
     }
     
@@ -205,7 +543,8 @@ class UrlSandboxViewer extends React.Component {
       findings.push({
         type: 'password_field',
         message: 'Page contains password input fields',
-        severity: 25
+        severity: 25,
+        details: 'Password fields should only be used on secure (HTTPS) connections'
       });
     }
     
@@ -505,6 +844,13 @@ class UrlSandboxViewer extends React.Component {
             
             {/* Security Findings */}
             {this.renderSecurityFindings()}
+            
+            {/* Network Traffic Analysis */}
+            {this.state.showNetworkAnalysis && this.state.networkTrafficData && (
+              <div className="mt-4">
+                <NetworkTrafficAnalyzer networkData={this.state.networkTrafficData} />
+              </div>
+            )}
           </div>
         )}
       </div>

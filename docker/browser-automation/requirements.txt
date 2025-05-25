@@ -8,3 +8,7 @@ python-dotenv==1.0.0
 pymongo==4.4.1
 urllib3==1.26.16
 lxml==4.9.3
+dnspython==2.3.0
+pyopenssl==23.2.0
+cryptography==41.0.3
+whois==0.9.27

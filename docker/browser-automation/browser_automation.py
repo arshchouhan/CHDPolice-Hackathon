@@ -10,6 +10,12 @@ Browser Automation System for Email Phishing Detection
 - Captures page titles and meta descriptions
 - Runs in isolated Docker container
 - Timeouts after 30 seconds per URL
+- Captures all HTTP/HTTPS requests made by browser
+- Logs redirects and URL changes
+- Monitors DNS lookups to detect suspicious domains
+- Checks for data being sent via POST requests
+- Detects file downloads and their types
+- Records timing of network activities
 """
 
 import os
@@ -21,6 +27,7 @@ import traceback
 from datetime import datetime
 from urllib.parse import urlparse
 import requests
+import dns.resolver
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
@@ -31,7 +38,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from pyvirtualdisplay import Display
+
+# Import the network analyzer
+from network_analyzer import NetworkAnalyzer
 
 # Configure logging
 logging.basicConfig(
@@ -65,6 +76,9 @@ class BrowserAutomation:
         self.display = Display(visible=0, size=(1920, 1080))
         self.display.start()
         
+        # Initialize the network analyzer
+        self.network_analyzer = NetworkAnalyzer()
+        
         logger.info("Setting up Chrome options...")
         self.chrome_options = Options()
         self.chrome_options.add_argument('--headless')
@@ -78,6 +92,9 @@ class BrowserAutomation:
         self.chrome_options.add_argument('--disable-web-security')
         self.chrome_options.add_argument('--allow-running-insecure-content')
         self.chrome_options.add_argument('--disable-popup-blocking')
+        
+        # Enable performance logging for network analysis
+        self.capabilities = self.network_analyzer.get_chrome_performance_logging_capabilities()
         
         # Disable downloads
         self.chrome_options.add_experimental_option(
@@ -104,11 +121,12 @@ class BrowserAutomation:
     def start_browser(self):
         """Start a new browser instance"""
         logger.info("Starting new browser instance...")
-        self.driver = webdriver.Chrome(options=self.chrome_options)
+        self.driver = webdriver.Chrome(options=self.chrome_options, desired_capabilities=self.capabilities)
         self.driver.set_page_load_timeout(URL_TIMEOUT)
         self.driver.set_script_timeout(URL_TIMEOUT)
         
-        # Enable performance logging
+        # Reset network analyzer for new session
+        self.network_analyzer.reset()
         self.driver.execute_cdp_cmd('Network.enable', {})
         self.driver.execute_cdp_cmd('Page.enable', {})
         
@@ -128,8 +146,7 @@ class BrowserAutomation:
                 logger.error(f"Error stopping browser: {e}")
     
     def analyze_url(self, url, email_id=None, url_id=None):
-        """
-        Analyze a URL for phishing indicators
+        """Analyze a URL for phishing indicators
         
         Args:
             url (str): The URL to analyze
@@ -139,33 +156,37 @@ class BrowserAutomation:
         Returns:
             dict: Analysis results
         """
+        if not url.startswith('http'):
+            url = 'http://' + url
+            
         logger.info(f"Analyzing URL: {url}")
         
-        # Prepare result object
+        # Start a new browser for each URL
+        self.start_browser()
+        
         result = {
             'url': url,
             'email_id': email_id,
             'url_id': url_id,
             'timestamp': datetime.utcnow(),
-            'success': False,
-            'error': None,
-            'screenshot_path': None,
-            'title': None,
-            'meta_description': None,
+            'title': '',
+            'final_url': '',
+            'redirects': [],
+            'screenshot_path': '',
             'has_login_form': False,
             'has_password_field': False,
             'has_credit_card_form': False,
-            'attempted_download': False,
-            'network_requests': [],
-            'suspicious_indicators': [],
-            'domain': urlparse(url).netloc,
-            'path': urlparse(url).path,
-            'risk_score': 0
+            'form_actions': [],
+            'links': [],
+            'external_resources': [],
+            'security_indicators': {},
+            'html_content': '',
+            'network_traffic': {},
+            'dns_analysis': {},
+            'status': 'success'
         }
         
         try:
-            # Start a new browser for each URL for isolation
-            self.start_browser()
             
             # Capture network requests
             network_requests = []
@@ -187,14 +208,38 @@ class BrowserAutomation:
             # Wait for page to load
             time.sleep(2)
             
-            # Take screenshot
-            screenshot_filename = f"{url_id or int(time.time())}.png"
-            screenshot_path = os.path.join(SCREENSHOT_DIR, screenshot_filename)
+            # Take a screenshot
+            screenshot_path = os.path.join(SCREENSHOT_DIR, f"{url_id or 'test'}_{int(time.time())}.png")
             self.driver.save_screenshot(screenshot_path)
             result['screenshot_path'] = screenshot_path
             
-            # Get page title
-            result['title'] = self.driver.title
+            # Get the final URL after any redirects
+            result['final_url'] = self.driver.current_url
+            
+            # Analyze network traffic
+            logger.info("Analyzing network traffic...")
+            self.network_analyzer.analyze_network_logs(self.driver)
+            
+            # Collect all URLs from the page for DNS analysis
+            all_urls = [result['url'], result['final_url']] + result['links'] + result['external_resources']
+            
+            # Perform DNS lookups on all domains found in requests
+            logger.info("Performing DNS analysis...")
+            dns_results = self.network_analyzer.perform_dns_lookups(all_urls)
+            
+            # Add network analysis results to the overall result
+            result['network_traffic'] = self.network_analyzer.get_network_analysis_results()
+            result['dns_analysis'] = {
+                'results': dns_results,
+                'suspicious_domains': self.network_analyzer.suspicious_domains
+            }
+            
+            # Add security indicators based on network analysis
+            result['security_indicators']['suspicious_domains_count'] = len(self.network_analyzer.suspicious_domains)
+            result['security_indicators']['total_requests'] = len(result['network_traffic']['request_log'])
+            result['security_indicators']['redirects_count'] = len(result['network_traffic']['redirect_chain'])
+            result['security_indicators']['sensitive_data_submissions'] = len(result['network_traffic']['post_data'])
+            result['security_indicators']['file_downloads'] = len(result['network_traffic']['file_downloads'])
             
             # Get meta description
             try:
@@ -343,6 +388,10 @@ class BrowserAutomation:
         
         if hasattr(self, 'mongo_client') and self.mongo_client:
             self.mongo_client.close()
+            
+        # Reset network analyzer
+        if hasattr(self, 'network_analyzer'):
+            self.network_analyzer.reset()
 
 
 def process_url_queue():
