@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="/css/email-analysis.css">
     <link rel="stylesheet" href="/css/skeleton-loading.css">
     <script src="/js/skeleton-loader.js" defer></script>
+    <script src="/js/gmail-oauth-handler.js" defer></script>
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -175,7 +176,7 @@
                 <div>
                     <h3 class="text-lg font-semibold text-white mb-1">Email Account Not Connected</h3>
                     <p class="text-gray-300 mb-4">Connect your Gmail account to enable email phishing protection.</p>
-                    <button id="connectGmailBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out flex items-center">
+                    <button id="connectGmailBtn" data-action="connect-gmail" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out flex items-center">
                         <i class="fab fa-google mr-2"></i> Connect Gmail Account
                     </button>
                 </div>

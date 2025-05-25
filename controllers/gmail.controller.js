@@ -329,20 +329,50 @@ exports.handleCallback = async (req, res) => {
         throw new Error(`Failed to update user with tokens: ${dbError.message}`);
       }
       
-      // Return HTML response with success message
+      // Return HTML response with success message and improved redirection
       return res.send(`
         <html>
+          <head>
+            <title>Gmail Connected Successfully</title>
+            <style>
+              body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f5f5f5; }
+              .container { background-color: white; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+              h1 { color: #4285F4; }
+              .success-icon { font-size: 64px; color: #34A853; margin-bottom: 20px; }
+              .btn { display: inline-block; background-color: #4285F4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 20px; }
+              .btn:hover { background-color: #3367D6; }
+              .redirect-text { margin-top: 20px; color: #666; font-size: 14px; }
+            </style>
+          </head>
           <body>
-            <h1>Gmail Connected Successfully</h1>
-            <p>Your Gmail account has been successfully connected to the application.</p>
-            <p><a href="${frontendUrl}/index.html?connected=true">Return to application</a></p>
+            <div class="container">
+              <div class="success-icon">✓</div>
+              <h1>Gmail Connected Successfully</h1>
+              <p>Your Gmail account has been successfully connected to the application.</p>
+              <p>You will now be able to scan and analyze your emails for security threats.</p>
+              <a href="${frontendUrl}/index.html?connected=true" class="btn">Return to Dashboard</a>
+              <p class="redirect-text">Redirecting automatically in <span id="countdown">3</span> seconds...</p>
+            </div>
+            
             <script>
               // Store success status in localStorage
               localStorage.setItem('gmailConnected', 'true');
+              localStorage.setItem('gmailConnectTime', Date.now());
+              
+              // Countdown timer
+              let seconds = 3;
+              const countdownElement = document.getElementById('countdown');
+              const countdownInterval = setInterval(() => {
+                seconds--;
+                countdownElement.textContent = seconds;
+                if (seconds <= 0) {
+                  clearInterval(countdownInterval);
+                }
+              }, 1000);
               
               // Auto-redirect after 3 seconds
               setTimeout(function() {
-                window.location.href = '${frontendUrl}/index.html?connected=true';
+                window.location.href = '${frontendUrl}/index.html?connected=true&redirect=dashboard';
               }, 3000);
             </script>
           </body>
