@@ -206,7 +206,21 @@ class AdminSandboxPanel extends React.Component {
         sender: email.from || 'unknown@sender.com'
       };
       
+      // Get base URL with debugging
       const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+      console.log('Using base URL for Gemini analysis:', baseUrl);
+      
+      // Log the request details for debugging
+      console.log('Sending Gemini analysis request:', {
+        url: `${baseUrl}/api/gemini/analyze-email`,
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer [TOKEN HIDDEN]',
+          'Content-Type': 'application/json'
+        },
+        bodyLength: JSON.stringify(emailData).length
+      });
+      
       const response = await fetch(`${baseUrl}/api/gemini/analyze-email`, {
         method: 'POST',
         headers: {
@@ -216,21 +230,41 @@ class AdminSandboxPanel extends React.Component {
         body: JSON.stringify(emailData)
       });
       
+      // Log response details for debugging
+      console.log('Gemini analysis response:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type'),
+        headers: Object.fromEntries([...response.headers.entries()])
+      });
+      
       if (!response.ok) {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const errorData = await response.json();
           throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
         } else {
-          throw new Error(`Error ${response.status}: ${response.statusText}`);
+          // Try to get the response text for better error reporting
+          const responseText = await response.text();
+          console.error('Non-JSON error response:', responseText.substring(0, 500) + '...');
+          throw new Error(`Error ${response.status}: ${response.statusText}. Server returned HTML instead of JSON.`);
         }
       }
       
       let data;
       try {
-        data = await response.json();
+        const responseText = await response.text();
+        console.log('Response text preview:', responseText.substring(0, 100) + '...');
+        
+        try {
+          data = JSON.parse(responseText);
+        } catch (jsonError) {
+          console.error('JSON parse error:', jsonError);
+          console.error('Invalid JSON response:', responseText.substring(0, 500) + '...');
+          throw new Error('Invalid JSON response from server. Please check server logs.');
+        }
       } catch (parseError) {
-        console.error('Error parsing JSON response:', parseError);
+        console.error('Error parsing response:', parseError);
         throw new Error('Invalid response format from server. Please try again later.');
       }
       
