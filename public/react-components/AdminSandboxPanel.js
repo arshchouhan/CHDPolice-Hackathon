@@ -598,18 +598,10 @@ class AdminSandboxPanel extends React.Component {
                     <p className="text-white text-sm break-all">{selectedUrl}</p>
                   </div>
                   
-                  <button 
-                    onClick={() => this.handleSandboxAnalysis(selectedUrl)}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-md text-sm transition-colors"
-                  >
-                    <i className="fas fa-microscope mr-2"></i>
-                    Analyze in Sandbox
-                  </button>
-                  
-                  {/* Placeholder for sandbox viewer component */}
-                  <div className="mt-4">
-                    <p className="text-gray-400 text-sm">Sandbox analysis will appear here</p>
-                  </div>
+                  <UrlSandboxViewer 
+                    url={selectedUrl}
+                    onComplete={this.handleAnalysisComplete}
+                  />
                 </div>
               )}
             </div>
