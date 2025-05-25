@@ -440,16 +440,16 @@ class AdminSandboxPanel extends React.Component {
     } = this.state;
     
     return (
-      <div className="container mx-auto p-4">
+      <div className="container mx-auto p-6">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h2 className="text-xl font-bold text-white">Email Sandbox Analysis</h2>
-            <p className="text-gray-400 text-sm">Safely analyze URLs from suspicious emails with Gemini AI</p>
+            <h2 className="text-2xl font-bold text-white">Email Sandbox Analysis</h2>
+            <p className="text-blue-300 text-sm">Safely analyze URLs from suspicious emails with Gemini AI</p>
           </div>
         </div>
         
         {error && (
-          <div className="bg-red-900/30 border border-red-800/50 text-red-300 p-3 rounded-md mb-4">
+          <div className="bg-red-900/30 border border-red-800/50 text-red-300 p-3 rounded-xl mb-4 shadow-lg">
             <p className="flex items-center">
               <i className="fas fa-exclamation-circle mr-2"></i>
               {error}
@@ -457,74 +457,159 @@ class AdminSandboxPanel extends React.Component {
           </div>
         )}
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Email List */}
-          <div className="bg-gray-800/30 rounded-lg p-4 max-h-[600px] overflow-y-auto">
-            <h3 className="text-white font-medium mb-3">Recent Emails</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Email List - Takes 3/12 of the space */}
+          <div className="lg:col-span-3 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-5 max-h-[600px] overflow-y-auto border border-gray-700 shadow-lg">
+            <div className="flex items-center mb-4">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-2 rounded-lg mr-3">
+                <i className="fas fa-envelope text-white"></i>
+              </div>
+              <h3 className="text-white font-medium">Recent Emails</h3>
+            </div>
             
             {isLoading && !selectedEmail ? (
-              <div className="flex justify-center py-4">
-                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="flex justify-center py-8">
+                <div className="w-10 h-10 relative">
+                  <div className="absolute inset-0 rounded-full border-4 border-blue-500/30"></div>
+                  <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+                </div>
               </div>
             ) : emails.length === 0 ? (
-              <p className="text-gray-400 text-center py-4">No emails found</p>
+              <div className="bg-gray-800/50 rounded-lg p-6 text-center">
+                <i className="fas fa-inbox text-gray-600 text-3xl mb-3"></i>
+                <p className="text-gray-400">No emails found</p>
+              </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {emails.map(email => (
                   <div 
                     key={email._id} 
                     onClick={() => this.handleEmailSelect(email._id)}
-                    className={`p-3 rounded-md cursor-pointer transition-colors ${selectedEmail && selectedEmail._id === email._id ? 'bg-blue-600/30 border border-blue-500/50' : 'bg-gray-700/30 hover:bg-gray-700/50'}`}
+                    className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${selectedEmail && selectedEmail._id === email._id ? 'bg-gradient-to-r from-blue-600/30 to-indigo-600/30 border border-blue-500/50 shadow-md' : 'bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 hover:border-gray-600'}`}
                   >
-                    <div className="flex justify-between items-center mb-1">
+                    <div className="flex justify-between items-center mb-2">
                       <p className="text-white font-medium truncate">{email.subject || 'No Subject'}</p>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-400 bg-gray-800/70 px-2 py-1 rounded-full">
                         {new Date(email.receivedAt).toLocaleDateString()}
                       </span>
                     </div>
-                    <p className="text-gray-300 text-sm truncate">{email.from || 'Unknown Sender'}</p>
+                    <p className="text-gray-300 text-sm truncate flex items-center">
+                      <i className="fas fa-user-circle text-gray-500 mr-2"></i>
+                      {email.from || 'Unknown Sender'}
+                    </p>
                   </div>
                 ))}
               </div>
             )}
           </div>
           
-          {/* URL List */}
-          <div className="lg:col-span-1 bg-gray-800/30 rounded-lg p-4 max-h-[400px] overflow-y-auto">
-            <div className="flex justify-between items-center mb-3">
+          {/* URL Sandbox - Takes 6/12 of the space (central position) */}
+          <div className="lg:col-span-6 lg:order-2">
+            <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700 shadow-lg overflow-hidden h-full">
+              <div className="bg-gradient-to-r from-blue-900 to-indigo-900 px-5 py-4 border-b border-gray-700 flex items-center">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-lg mr-3 transform rotate-12">
+                  <i className="fas fa-shield-alt text-white"></i>
+                </div>
+                <h3 className="text-white font-medium">URL Sandbox Analysis</h3>
+              </div>
+              
+              {!selectedUrl ? (
+                <div className="flex flex-col items-center justify-center py-12 px-6 text-center h-[500px]">
+                  <div className="bg-blue-600/10 p-6 rounded-full inline-block mb-4">
+                    <i className="fas fa-search text-blue-500 text-4xl"></i>
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">Select a URL to Analyze</h3>
+                  <p className="text-gray-400 max-w-md">
+                    Choose a URL from the list to analyze it in the secure sandbox environment with Gemini AI protection.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-0">
+                  <div className="bg-gray-900/50 backdrop-blur-sm p-3 border-b border-gray-700 flex items-center">
+                    <i className="fas fa-link text-blue-400 mr-2"></i>
+                    <p className="text-white text-sm font-mono break-all overflow-hidden overflow-ellipsis">{selectedUrl}</p>
+                  </div>
+                  
+                  <ErrorBoundary fallback={
+                    <div className="p-8 flex flex-col items-center justify-center h-[400px]">
+                      <div className="bg-yellow-600/20 p-4 rounded-lg text-center max-w-md">
+                        <i className="fas fa-exclamation-triangle text-yellow-500 text-3xl mb-3"></i>
+                        <p className="text-yellow-400 text-lg font-medium mb-2">Sandbox viewer encountered an error</p>
+                        <p className="text-gray-300 text-sm mb-4">The URL analysis is still processing in the background.</p>
+                        <button 
+                          onClick={() => window.location.reload()}
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors"
+                        >
+                          Reload Page
+                        </button>
+                      </div>
+                    </div>
+                  }>
+                    <UrlSandboxViewer 
+                      url={selectedUrl} 
+                      autoStart={true}
+                      onAnalysisComplete={this.handleAnalysisComplete}
+                    />
+                  </ErrorBoundary>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* URL List - Takes 3/12 of the space */}
+          <div className="lg:col-span-3 lg:order-1 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-5 max-h-[600px] overflow-y-auto border border-gray-700 shadow-lg">
+            <div className="flex items-center mb-4">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-2 rounded-lg mr-3">
+                <i className="fas fa-link text-white"></i>
+              </div>
               <h3 className="text-white font-medium">URLs</h3>
               {isAnalyzingWithGemini && (
-                <div className="flex items-center">
-                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
-                  <span className="text-blue-400 text-xs">Analyzing with Gemini...</span>
+                <div className="flex items-center ml-3 bg-blue-900/30 px-3 py-1 rounded-full">
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+                  <span className="text-blue-300 text-xs">Analyzing with Gemini AI...</span>
                 </div>
               )}
             </div>
             
             {/* Gemini Analysis Results */}
             {geminiAnalysisResults && suspiciousUrls.length > 0 && (
-              <div className="mb-4 p-3 bg-red-900/20 border border-red-800/30 rounded-md">
-                <h4 className="text-red-400 text-sm font-medium mb-2">
-                  <i className="fas fa-exclamation-triangle mr-1"></i>
-                  {suspiciousUrls.length} Suspicious URL{suspiciousUrls.length !== 1 ? 's' : ''} Detected
-                </h4>
-                <p className="text-gray-300 text-xs mb-2">Overall Risk: 
-                  <span className="font-bold text-red-400">{geminiAnalysisResults.overallRiskScore}/100</span>
-                </p>
-                <div className="space-y-2 mt-3">
+              <div className="mb-5 p-4 bg-gradient-to-r from-red-900/20 to-red-800/20 border border-red-800/30 rounded-lg shadow-md">
+                <div className="flex items-center mb-3">
+                  <div className="bg-red-900/50 p-2 rounded-full mr-2">
+                    <i className="fas fa-exclamation-triangle text-red-400"></i>
+                  </div>
+                  <h4 className="text-red-300 font-medium">
+                    {suspiciousUrls.length} Suspicious URL{suspiciousUrls.length !== 1 ? 's' : ''} Detected
+                  </h4>
+                </div>
+                <div className="bg-red-900/30 rounded-lg p-3 mb-3">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-300 text-sm">Overall Risk Assessment:</span>
+                    <span className="font-bold text-red-300 bg-red-900/50 px-3 py-1 rounded-full text-sm">
+                      {geminiAnalysisResults.overallRiskScore}/100
+                    </span>
+                  </div>
+                  <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-yellow-500 to-red-500 transition-all duration-1000 ease-out"
+                      style={{ width: `${geminiAnalysisResults.overallRiskScore}%` }}
+                    ></div>
+                  </div>
+                </div>
+                <div className="space-y-2">
                   {suspiciousUrls.map((urlData, index) => (
                     <div 
                       key={`suspicious-${index}`}
                       onClick={() => this.handleUrlSelect(urlData.url)}
-                      className={`p-2 rounded-md cursor-pointer transition-colors bg-red-800/20 hover:bg-red-800/30 border border-red-800/30 ${
-                        urlData.url === selectedUrl ? 'border-red-500' : ''
-                      }`}
+                      className={`p-3 rounded-lg cursor-pointer transition-all duration-200 bg-gradient-to-r from-red-900/30 to-red-800/20 hover:from-red-900/40 hover:to-red-800/30 border ${urlData.url === selectedUrl ? 'border-red-500 shadow-md' : 'border-red-800/30'}`}
                     >
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-red-300 text-xs font-medium">Risk: {urlData.riskScore}/100</span>
-                        <span className="text-xs text-gray-400">#{index + 1}</span>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-red-300 text-xs font-medium bg-red-900/50 px-2 py-1 rounded-full">
+                          Risk Score: {urlData.riskScore}/100
+                        </span>
+                        <span className="text-xs text-gray-400 bg-gray-800/70 px-2 py-1 rounded-full">URL #{index + 1}</span>
                       </div>
-                      <p className="text-white text-xs break-all">{urlData.url}</p>
+                      <p className="text-white text-sm break-all font-mono">{urlData.url}</p>
                     </div>
                   ))}
                 </div>
@@ -534,19 +619,31 @@ class AdminSandboxPanel extends React.Component {
             {/* All Extracted URLs */}
             <div>
               {geminiAnalysisResults && suspiciousUrls.length > 0 && (
-                <h4 className="text-gray-400 text-sm font-medium mb-2">All Extracted URLs</h4>
+                <div className="flex items-center mb-3 border-t border-gray-700 pt-4">
+                  <i className="fas fa-globe text-blue-400 mr-2"></i>
+                  <h4 className="text-gray-300 font-medium">All Extracted URLs</h4>
+                </div>
               )}
               
               {!selectedEmail ? (
-                <p className="text-gray-400 text-center py-4">Select an email to view URLs</p>
+                <div className="bg-gray-800/50 rounded-lg p-6 text-center">
+                  <i className="fas fa-mouse-pointer text-gray-600 text-3xl mb-3"></i>
+                  <p className="text-gray-400">Select an email to view extracted URLs</p>
+                </div>
               ) : isLoading ? (
-                <div className="flex justify-center py-4">
-                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <div className="flex justify-center py-8">
+                  <div className="w-10 h-10 relative">
+                    <div className="absolute inset-0 rounded-full border-4 border-blue-500/30"></div>
+                    <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+                  </div>
                 </div>
               ) : extractedUrls.length === 0 ? (
-                <p className="text-gray-400 text-center py-4">No URLs found in this email</p>
+                <div className="bg-gray-800/50 rounded-lg p-6 text-center">
+                  <i className="fas fa-search text-gray-600 text-3xl mb-3"></i>
+                  <p className="text-gray-400">No URLs found in this email</p>
+                </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {extractedUrls.map((url, index) => {
                     // Check if this URL is in the suspicious list
                     const isSuspicious = suspiciousUrls.some(suspiciousUrl => suspiciousUrl.url === url);
@@ -555,23 +652,27 @@ class AdminSandboxPanel extends React.Component {
                       <div 
                         key={index}
                         onClick={() => this.handleUrlSelect(url)}
-                        className={`p-3 rounded-md cursor-pointer transition-colors ${
+                        className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${
                           url === selectedUrl
-                            ? 'bg-blue-600/30 border border-blue-500/50' 
+                            ? 'bg-gradient-to-r from-blue-600/30 to-indigo-600/30 border border-blue-500/50 shadow-md' 
                             : isSuspicious
-                              ? 'bg-red-900/20 border border-red-800/30 hover:bg-red-900/30'
-                              : 'bg-gray-700/30 hover:bg-gray-700/50'
+                              ? 'bg-gradient-to-r from-red-900/20 to-red-800/20 border border-red-800/30 hover:from-red-900/30 hover:to-red-800/40'
+                              : 'bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 hover:border-gray-600'
                         }`}
                       >
-                        <div className="flex justify-between items-center">
-                          <p className="text-white text-sm break-all">{url}</p>
+                        <div className="flex justify-between items-center mb-1">
+                          <div className="flex items-center">
+                            <i className={`fas ${isSuspicious ? 'fa-exclamation-circle text-red-400' : 'fa-link text-blue-400'} mr-2`}></i>
+                            <span className="text-xs text-gray-400">URL #{index + 1}</span>
+                          </div>
                           {isSuspicious && (
-                            <span className="ml-2 bg-red-900/50 text-red-300 text-xs px-1 py-0.5 rounded">
+                            <span className="bg-red-900/50 text-red-300 text-xs px-2 py-1 rounded-full">
                               <i className="fas fa-exclamation-triangle mr-1"></i>
-                              Risk
+                              High Risk
                             </span>
                           )}
                         </div>
+                        <p className="text-white text-sm break-all font-mono mt-2">{url}</p>
                       </div>
                     );
                   })}
