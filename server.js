@@ -96,15 +96,38 @@ const authenticateUser = (req, res, next) => {
         return next();
     }
     
-    // Check for authentication using token from headers
-    const token = req.headers.authorization?.split(' ')[1];
+    // Try to get token from multiple sources
+    let token = null;
+    
+    // Check Authorization header first
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+        token = req.headers.authorization.split(' ')[1];
+    } 
+    // Then check cookies
+    else if (req.cookies && req.cookies.token) {
+        token = req.cookies.token;
+    }
+    
     if (!token) {
+        console.log('No token found in request');
         if (req.xhr || req.headers.accept?.includes('application/json')) {
             return res.status(401).json({ message: 'Authentication required' });
         }
         return res.redirect('/login.html');
     }
-    next();
+
+    try {
+        // Verify the token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        console.error('Token verification error:', err);
+        if (req.xhr || req.headers.accept?.includes('application/json')) {
+            return res.status(401).json({ message: 'Invalid or expired token' });
+        }
+        return res.redirect('/login.html');
+    }
 };
 
 // Register authentication routes (no auth required)
