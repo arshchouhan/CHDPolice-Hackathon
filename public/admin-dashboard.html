@@ -1696,22 +1696,81 @@
             
             if (sandboxPanelRoot) {
                 try {
-                    // Make sure the components are loaded
-                    if (typeof AdminSandboxPanel === 'undefined') {
-                        console.error('AdminSandboxPanel component is not defined!');
-                        // Show error message
-                        sandboxPanelRoot.innerHTML = `
-                            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                                <strong class="font-bold">Error!</strong>
-                                <span class="block sm:inline"> Could not load the AdminSandboxPanel component. Please check the console for errors.</span>
-                            </div>
-                        `;
-                        return;
-                    }
+                    // First, make sure we've loaded the required scripts
+                    const requiredScripts = [
+                        '/react-components/AdminSandboxPanel.js',
+                        '/react-components/UrlSandboxViewer.js'
+                    ];
                     
-                    // Render the component
-                    ReactDOM.render(<AdminSandboxPanel />, sandboxPanelRoot);
-                    console.log('AdminSandboxPanel rendered successfully');
+                    // Check if all scripts are loaded
+                    const loadScript = (src) => {
+                        return new Promise((resolve, reject) => {
+                            // Check if script is already loaded
+                            const existingScript = document.querySelector(`script[src="${src}"]`);
+                            if (existingScript) {
+                                console.log(`Script ${src} already loaded`);
+                                resolve();
+                                return;
+                            }
+                            
+                            // Create and load the script
+                            const script = document.createElement('script');
+                            script.src = src;
+                            script.onload = () => {
+                                console.log(`Script ${src} loaded successfully`);
+                                resolve();
+                            };
+                            script.onerror = (error) => {
+                                console.error(`Error loading script ${src}:`, error);
+                                reject(new Error(`Failed to load ${src}`));
+                            };
+                            document.body.appendChild(script);
+                        });
+                    };
+                    
+                    // Show loading state
+                    sandboxPanelRoot.innerHTML = `
+                        <div class="flex justify-center items-center p-8">
+                            <div class="loader"></div>
+                            <p class="ml-3">Loading sandbox components...</p>
+                        </div>
+                    `;
+                    
+                    // Load all required scripts then initialize the component
+                    Promise.all(requiredScripts.map(loadScript))
+                        .then(() => {
+                            // Small delay to ensure components are fully initialized
+                            setTimeout(() => {
+                                if (typeof AdminSandboxPanel === 'undefined') {
+                                    throw new Error('AdminSandboxPanel component is not defined!');
+                                }
+                                
+                                // Create a new instance of AdminSandboxPanel
+                                const adminSandboxPanel = new AdminSandboxPanel();
+                                
+                                // Clear the container
+                                sandboxPanelRoot.innerHTML = '';
+                                
+                                // Create a container for the component
+                                const container = document.createElement('div');
+                                container.id = 'adminSandboxPanelContainer';
+                                sandboxPanelRoot.appendChild(container);
+                                
+                                // Render the component
+                                ReactDOM.render(React.createElement(AdminSandboxPanel), container);
+                                console.log('AdminSandboxPanel rendered successfully');
+                            }, 500);
+                        })
+                        .catch(error => {
+                            console.error('Error loading sandbox components:', error);
+                            sandboxPanelRoot.innerHTML = `
+                                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                                    <strong class="font-bold">Error!</strong>
+                                    <span class="block sm:inline"> ${error.message}</span>
+                                    <p class="mt-2 text-sm">Please check that all required component files are available.</p>
+                                </div>
+                            `;
+                        });
                 } catch (error) {
                     console.error('Error rendering AdminSandboxPanel:', error);
                     sandboxPanelRoot.innerHTML = `
