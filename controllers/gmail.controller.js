@@ -355,11 +355,11 @@ exports.handleCallback = async (req, res) => {
         throw new Error(`Failed to update user with tokens: ${dbError.message}`);
       }
       
-      // Determine the frontend URL for redirection
-      const frontendUrl = getFrontendUrl(req);
-      console.log('Using frontend URL for redirection:', frontendUrl);
+      // Use a hardcoded Vercel URL for simplicity and reliability
+      const frontendUrl = 'https://chd-police-hackathon.vercel.app';
+      console.log('Using hardcoded frontend URL for redirection:', frontendUrl);
       
-      // Return HTML response with success message and improved redirection
+      // Return a simple HTML response with success message and redirection
       return res.send(`
         <html>
           <head>
@@ -373,6 +373,7 @@ exports.handleCallback = async (req, res) => {
               .btn:hover { background-color: #3367D6; }
               .redirect-text { margin-top: 20px; color: #666; font-size: 14px; }
             </style>
+            <meta http-equiv="refresh" content="3;url=${frontendUrl}/index.html?connected=true&redirect=dashboard">
           </head>
           <body>
             <div class="container">
@@ -380,60 +381,21 @@ exports.handleCallback = async (req, res) => {
               <h1>Gmail Connected Successfully</h1>
               <p>Your Gmail account has been successfully connected to the application.</p>
               <p>You will now be able to scan and analyze your emails for security threats.</p>
-              <a href="${frontendUrl}/index.html?connected=true&redirect=dashboard" class="btn" onclick="event.preventDefault(); window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard');">Return to Dashboard</a>
+              <a href="${frontendUrl}/index.html?connected=true&redirect=dashboard" class="btn">Return to Dashboard</a>
               <p class="redirect-text">Redirecting automatically in <span id="countdown">3</span> seconds...</p>
             </div>
             
             <script>
-              // Ensure we're running in a browser context
-              try {
-                // Store success status in localStorage
-                localStorage.setItem('gmailConnected', 'true');
-                localStorage.setItem('gmailConnectTime', Date.now());
-                
-                // Countdown timer
-                let seconds = 3;
-                const countdownElement = document.getElementById('countdown');
-                const countdownInterval = setInterval(() => {
-                  seconds--;
-                  countdownElement.textContent = seconds;
-                  if (seconds <= 0) {
-                    clearInterval(countdownInterval);
-                  }
-                }, 1000);
-              } catch (e) {
-                console.error('Error setting localStorage:', e);
-              }
-              
-              // Auto-redirect after 3 seconds - using a more reliable approach
-              setTimeout(function() {
-                try {
-                  console.log('Redirecting to dashboard...');
-                  // Force the redirect with replace() instead of href assignment
-                  window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard');
-                  
-                  // If the above doesn't work, try these fallbacks after a short delay
-                  setTimeout(function() {
-                    try {
-                      // Try alternate methods if the first redirect didn't work
-                      console.log('Trying alternate redirect methods...');
-                      // Fallback 1: Use assign instead of replace
-                      window.location.assign('${frontendUrl}/index.html?connected=true&redirect=dashboard');
-                      
-                      // Fallback 2: Direct property assignment
-                      setTimeout(function() {
-                        window.location.href = '${frontendUrl}/index.html?connected=true&redirect=dashboard';
-                      }, 500);
-                    } catch (innerError) {
-                      console.error('Fallback redirect error:', innerError);
-                    }
-                  }, 1000);
-                } catch (e) {
-                  console.error('Redirect error:', e);
-                  // Fallback redirect method
-                  document.location.href = '${frontendUrl}/index.html?connected=true&redirect=dashboard';
+              // Simple countdown timer
+              let seconds = 3;
+              const countdownElement = document.getElementById('countdown');
+              const countdownInterval = setInterval(() => {
+                seconds--;
+                countdownElement.textContent = seconds;
+                if (seconds <= 0) {
+                  clearInterval(countdownInterval);
                 }
-              }, 3000);
+              }, 1000);
             </script>
           </body>
         </html>
