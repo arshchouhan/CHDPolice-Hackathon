@@ -435,6 +435,64 @@ class AdminSandboxPanel extends React.Component {
     }
   };
   
+  // Render the full-screen sandbox component
+  renderFullScreenSandbox = () => {
+    const { selectedUrl } = this.state;
+    
+    return (
+      <div className="fixed inset-0 z-50 bg-gray-900 overflow-auto">
+        {/* Header with back button */}
+        <div className="bg-gradient-to-r from-blue-900 to-indigo-900 px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-lg">
+          <div className="flex items-center">
+            <button 
+              onClick={this.closeFullScreenSandbox}
+              className="bg-gray-800/50 hover:bg-gray-700/50 text-white p-2 rounded-lg transition-colors mr-4 flex items-center"
+            >
+              <i className="fas fa-arrow-left mr-2"></i>
+              Back to Dashboard
+            </button>
+            <div>
+              <h3 className="text-white font-medium">URL Sandbox Analysis</h3>
+              <p className="text-blue-300 text-xs">Powered by Gemini AI</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* URL Display */}
+        <div className="bg-gray-800 p-4 border-b border-gray-700 flex items-center sticky top-16 z-10">
+          <i className="fas fa-link text-blue-400 mr-2"></i>
+          <p className="text-white text-sm font-mono break-all overflow-hidden overflow-ellipsis">{selectedUrl}</p>
+        </div>
+        
+        {/* Sandbox Content */}
+        <div className="p-4">
+          <ErrorBoundary fallback={
+            <div className="p-8 flex flex-col items-center justify-center h-[80vh]">
+              <div className="bg-yellow-600/20 p-6 rounded-lg text-center max-w-md">
+                <i className="fas fa-exclamation-triangle text-yellow-500 text-4xl mb-4"></i>
+                <p className="text-yellow-400 text-lg font-medium mb-2">Sandbox viewer encountered an error</p>
+                <p className="text-gray-300 text-sm mb-4">The URL analysis is still processing in the background.</p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors"
+                >
+                  Reload Page
+                </button>
+              </div>
+            </div>
+          }>
+            <UrlSandboxViewer 
+              url={selectedUrl} 
+              autoStart={true}
+              onAnalysisComplete={this.handleAnalysisComplete}
+              isEmbedded={false}
+            />
+          </ErrorBoundary>
+        </div>
+      </div>
+    );
+  };
+  
   render() {
     const { 
       emails, 
@@ -449,6 +507,12 @@ class AdminSandboxPanel extends React.Component {
       showFullScreenSandbox 
     } = this.state;
     
+    // If full-screen sandbox is active, only render that component
+    if (showFullScreenSandbox && selectedUrl) {
+      return this.renderFullScreenSandbox();
+    }
+    
+    // Otherwise render the normal dashboard
     return (
       <div className="container mx-auto p-6">
         <div className="flex justify-between items-center mb-6">
@@ -535,47 +599,44 @@ class AdminSandboxPanel extends React.Component {
                 )}
               </div>
               
-              {!selectedUrl ? (
-                <div className="flex flex-col items-center justify-center py-12 px-6 text-center h-[500px]">
-                  <div className="bg-blue-600/10 p-6 rounded-full inline-block mb-4">
-                    <i className="fas fa-search text-blue-500 text-4xl"></i>
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-2">Select a URL to Analyze</h3>
-                  <p className="text-gray-400 max-w-md">
-                    Choose a URL from the list to analyze it in the secure sandbox environment with Gemini AI protection.
-                  </p>
+              {/* Central area with instructions */}
+              <div className="flex flex-col items-center justify-center py-12 px-6 text-center h-[500px]">
+                <div className="bg-blue-600/10 p-6 rounded-full inline-block mb-4">
+                  <i className="fas fa-search text-blue-500 text-4xl"></i>
                 </div>
-              ) : (
-                <div className="p-0">
-                  <div className="bg-gray-900/50 backdrop-blur-sm p-3 border-b border-gray-700 flex items-center">
-                    <i className="fas fa-link text-blue-400 mr-2"></i>
-                    <p className="text-white text-sm font-mono break-all overflow-hidden overflow-ellipsis">{selectedUrl}</p>
-                  </div>
-                  
-                  <ErrorBoundary fallback={
-                    <div className="p-8 flex flex-col items-center justify-center h-[400px]">
-                      <div className="bg-yellow-600/20 p-4 rounded-lg text-center max-w-md">
-                        <i className="fas fa-exclamation-triangle text-yellow-500 text-3xl mb-3"></i>
-                        <p className="text-yellow-400 text-lg font-medium mb-2">Sandbox viewer encountered an error</p>
-                        <p className="text-gray-300 text-sm mb-4">The URL analysis is still processing in the background.</p>
-                        <button 
-                          onClick={() => window.location.reload()}
-                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors"
-                        >
-                          Reload Page
-                        </button>
-                      </div>
+                <h3 className="text-xl font-bold text-white mb-2">URL Sandbox Analysis</h3>
+                <p className="text-gray-400 max-w-md mb-6">
+                  Select a URL from the list to analyze it in our secure full-screen sandbox environment powered by Gemini AI.
+                </p>
+                
+                {selectedUrl && (
+                  <div className="bg-gray-800/50 p-4 rounded-lg max-w-md mb-6">
+                    <p className="text-white text-sm font-medium mb-2">Selected URL:</p>
+                    <div className="bg-gray-900/50 p-3 rounded-md flex items-center">
+                      <i className="fas fa-link text-blue-400 mr-2"></i>
+                      <p className="text-white text-sm font-mono break-all overflow-hidden overflow-ellipsis">{selectedUrl}</p>
                     </div>
-                  }>
-                    <UrlSandboxViewer 
-                      url={selectedUrl} 
-                      autoStart={true}
-                      onAnalysisComplete={this.handleAnalysisComplete}
-                      isEmbedded={true}
-                    />
-                  </ErrorBoundary>
-                </div>
-              )}
+                    
+                    <button 
+                      onClick={() => this.setState({ showFullScreenSandbox: true })}
+                      className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                    >
+                      <i className="fas fa-external-link-alt mr-2"></i>
+                      Open in Full-Screen Sandbox
+                    </button>
+                  </div>
+                )}
+                
+                {!selectedUrl && (
+                  <div className="flex flex-col items-center">
+                    <div className="flex space-x-2 mb-2">
+                      <i className="fas fa-arrow-left text-blue-400 animate-pulse"></i>
+                      <i className="fas fa-arrow-right text-blue-400 animate-pulse"></i>
+                    </div>
+                    <p className="text-blue-300 text-sm">Select a URL from either panel</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           
