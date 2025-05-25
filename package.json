@@ -17,8 +17,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.6.2",
+    "axios": "^1.9.0",
     "bcrypt": "^5.1.1",
+    "cheerio": "^1.0.0-rc.12",
     "connect-mongo": "^5.1.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -30,9 +31,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.16.0",
     "mongoose": "^8.1.1",
+    "node-html-parser": "^6.1.12",
     "socket.io": "^4.8.1",
-    "whois-json": "^2.0.4",
-    "cheerio": "^1.0.0-rc.12",
-    "node-html-parser": "^6.1.12"
+    "whois-json": "^2.0.4"
   }
 }
