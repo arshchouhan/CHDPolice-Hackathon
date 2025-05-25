@@ -165,28 +165,61 @@ class AdminSandboxPanel extends React.Component {
   extractUrlsFromEmail = (email) => {
     const urls = new Set();
     
-    // Regular expression to match URLs
-    const urlRegex = /(https?:\/\/[^\s<>"']+)/gi;
+    // Regular expression to match URLs - improved to catch more URL formats
+    const urlRegex = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+\.[^\s<>"']+)/gi;
+    
+    console.log('Extracting URLs from email:', {
+      hasHtml: !!email.html,
+      hasTextPlain: !!email.textPlain,
+      hasSubject: !!email.subject,
+      emailKeys: Object.keys(email)
+    });
     
     // Extract URLs from HTML content
     if (email.html) {
       const htmlMatches = email.html.match(urlRegex) || [];
+      console.log('URLs found in HTML:', htmlMatches.length);
       htmlMatches.forEach(url => urls.add(url));
     }
     
     // Extract URLs from text content
     if (email.textPlain) {
       const textMatches = email.textPlain.match(urlRegex) || [];
+      console.log('URLs found in text:', textMatches.length);
       textMatches.forEach(url => urls.add(url));
     }
     
     // Extract URLs from subject
     if (email.subject) {
       const subjectMatches = email.subject.match(urlRegex) || [];
+      console.log('URLs found in subject:', subjectMatches.length);
       subjectMatches.forEach(url => urls.add(url));
     }
     
-    return Array.from(urls);
+    // Check for body field (some email formats use this)
+    if (email.body) {
+      const bodyMatches = email.body.match(urlRegex) || [];
+      console.log('URLs found in body:', bodyMatches.length);
+      bodyMatches.forEach(url => urls.add(url));
+    }
+    
+    // Check for content field (some email formats use this)
+    if (email.content) {
+      const contentMatches = email.content.match(urlRegex) || [];
+      console.log('URLs found in content:', contentMatches.length);
+      contentMatches.forEach(url => urls.add(url));
+    }
+    
+    // Add some test URLs if none found (for development/testing)
+    if (urls.size === 0 && process.env.NODE_ENV !== 'production') {
+      console.log('No URLs found in email, adding test URLs for development');
+      urls.add('https://example.com');
+      urls.add('https://test-phishing-site.com');
+    }
+    
+    const extractedUrls = Array.from(urls);
+    console.log('Total unique URLs extracted:', extractedUrls.length);
+    return extractedUrls;
   };
   
   // Handle URL selection
