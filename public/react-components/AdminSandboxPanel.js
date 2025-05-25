@@ -90,8 +90,21 @@ class AdminSandboxPanel extends React.Component {
       suspiciousUrls: []
     }, () => {
       // Load emails for the selected user
-      this.loadEmails(user.id);
+      if (user && user.id) {
+        this.loadEmails(user.id);
+      }
     });
+  };
+  
+  // Refresh emails for the current user
+  refreshEmails = () => {
+    const { selectedUser } = this.state;
+    if (selectedUser && selectedUser.id) {
+      this.loadEmails(selectedUser.id);
+    } else {
+      // If no user is selected, load all emails
+      this.loadEmails();
+    }
   };
   
   // Load emails from the API for a specific user
@@ -105,8 +118,15 @@ class AdminSandboxPanel extends React.Component {
       }
       
       const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-      const userParam = userId ? `&userId=${userId}` : '';
-      const response = await fetch(`${baseUrl}/api/admin/emails?limit=20&sort=createdAt:desc${userParam}`, {
+      // Use the correct endpoint format based on your API
+      // If your API expects userId as a path parameter
+      const endpoint = userId 
+        ? `${baseUrl}/api/emails/user/${userId}?limit=50&sort=createdAt:desc` 
+        : `${baseUrl}/api/admin/emails?limit=50&sort=createdAt:desc`;
+        
+      console.log(`Fetching emails from: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -592,41 +612,56 @@ class AdminSandboxPanel extends React.Component {
             <p className="text-blue-300 text-sm">Safely analyze URLs from suspicious emails with Gemini AI</p>
           </div>
           
-          {/* User Selection Dropdown */}
-          <div className="relative">
-            {loadingUsers ? (
-              <div className="bg-gray-800 px-4 py-2 rounded-lg flex items-center">
-                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></div>
-                <span className="text-gray-300">Loading users...</span>
-              </div>
-            ) : (
-              <div className="relative">
-                <select 
-                  className="bg-gray-800 text-white border border-gray-700 rounded-lg px-4 py-2 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[200px]"
-                  value={selectedUser ? selectedUser.id : ''}
-                  onChange={(e) => {
-                    const userId = e.target.value;
-                    const user = users.find(u => u.id === userId);
-                    if (user) {
-                      this.handleUserSelect(user);
-                    }
-                  }}
-                >
-                  {users.length === 0 ? (
-                    <option value="">No users available</option>
-                  ) : (
-                    users.map(user => (
-                      <option key={user.id} value={user.id}>
-                        {user.name || user.email || `User ${user.id.substring(0, 8)}`}
-                      </option>
-                    ))
-                  )}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <i className="fas fa-chevron-down text-gray-400"></i>
+          {/* User Selection and Refresh Controls */}
+          <div className="flex items-center space-x-3">
+            {/* Refresh Button */}
+            <button 
+              onClick={this.refreshEmails}
+              disabled={isLoading}
+              className={`bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-colors flex items-center ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              title="Refresh emails"
+            >
+              <i className={`fas fa-sync-alt mr-2 ${isLoading ? 'animate-spin' : ''}`}></i>
+              Refresh
+            </button>
+            
+            {/* User Selection Dropdown */}
+            <div className="relative">
+              {loadingUsers ? (
+                <div className="bg-gray-800 px-4 py-2 rounded-lg flex items-center">
+                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+                  <span className="text-gray-300">Loading users...</span>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="relative">
+                  <select 
+                    className="bg-gray-800 text-white border border-gray-700 rounded-lg px-4 py-2 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[200px]"
+                    value={selectedUser ? selectedUser.id : ''}
+                    onChange={(e) => {
+                      const userId = e.target.value;
+                      const user = users.find(u => u.id === userId);
+                      if (user) {
+                        this.handleUserSelect(user);
+                      }
+                    }}
+                  >
+                    <option value="">All Users</option>
+                    {users.length === 0 ? (
+                      <option value="" disabled>No users available</option>
+                    ) : (
+                      users.map(user => (
+                        <option key={user.id} value={user.id}>
+                          {user.name || user.email || `User ${user.id.substring(0, 8)}`}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <i className="fas fa-chevron-down text-gray-400"></i>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         
@@ -642,24 +677,44 @@ class AdminSandboxPanel extends React.Component {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Email List - Takes 3/12 of the space */}
           <div className="lg:col-span-3 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-5 max-h-[600px] overflow-y-auto border border-gray-700 shadow-lg">
-            <div className="flex items-center mb-4">
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-2 rounded-lg mr-3">
-                <i className="fas fa-envelope text-white"></i>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-2 rounded-lg mr-3">
+                  <i className="fas fa-envelope text-white"></i>
+                </div>
+                <div>
+                  <h3 className="text-white font-medium">Recent Emails</h3>
+                  {selectedUser && (
+                    <p className="text-blue-300 text-xs">
+                      {selectedUser.name || selectedUser.email || `User ${selectedUser.id.substring(0, 8)}`}
+                    </p>
+                  )}
+                </div>
               </div>
-              <h3 className="text-white font-medium">Recent Emails</h3>
+              <span className="text-xs text-gray-400 bg-gray-800/70 px-2 py-1 rounded-full">
+                {emails.length} emails
+              </span>
             </div>
             
-            {isLoading && !selectedEmail ? (
-              <div className="flex justify-center py-8">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-8 space-y-4">
                 <div className="w-10 h-10 relative">
                   <div className="absolute inset-0 rounded-full border-4 border-blue-500/30"></div>
                   <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
                 </div>
+                <p className="text-blue-300 text-sm">Loading emails...</p>
               </div>
             ) : emails.length === 0 ? (
               <div className="bg-gray-800/50 rounded-lg p-6 text-center">
                 <i className="fas fa-inbox text-gray-600 text-3xl mb-3"></i>
-                <p className="text-gray-400">No emails found</p>
+                <p className="text-gray-400 mb-3">No emails found</p>
+                <button 
+                  onClick={this.refreshEmails}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-sm transition-colors inline-flex items-center"
+                >
+                  <i className="fas fa-sync-alt mr-2"></i>
+                  Refresh
+                </button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -672,13 +727,21 @@ class AdminSandboxPanel extends React.Component {
                     <div className="flex justify-between items-center mb-2">
                       <p className="text-white font-medium truncate">{email.subject || 'No Subject'}</p>
                       <span className="text-xs text-gray-400 bg-gray-800/70 px-2 py-1 rounded-full">
-                        {new Date(email.receivedAt).toLocaleDateString()}
+                        {new Date(email.receivedAt || email.date || email.createdAt).toLocaleDateString()}
                       </span>
                     </div>
                     <p className="text-gray-300 text-sm truncate flex items-center">
                       <i className="fas fa-user-circle text-gray-500 mr-2"></i>
                       {email.from || 'Unknown Sender'}
                     </p>
+                    {email.userId && email.userId !== (selectedUser ? selectedUser.id : '') && (
+                      <div className="mt-2 flex items-center">
+                        <span className="text-xs text-blue-300 bg-blue-900/30 px-2 py-1 rounded-full">
+                          <i className="fas fa-user mr-1"></i>
+                          User: {email.userId.substring(0, 8)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
