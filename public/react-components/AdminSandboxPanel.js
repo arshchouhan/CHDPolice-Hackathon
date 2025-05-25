@@ -404,11 +404,25 @@ class AdminSandboxPanel extends React.Component {
   
   // Handle analysis completion
   handleAnalysisComplete = (results) => {
-    if (results && window.showSuccessNotification) {
-      window.showSuccessNotification(
-        'URL Analysis Complete', 
-        `Risk Score: ${results.riskScore}/100`
-      );
+    try {
+      console.log('Sandbox analysis complete:', results);
+      
+      // Store the analysis results in state
+      this.setState({
+        analysisResults: results,
+        error: null
+      });
+      
+      // Show success notification
+      if (results && window.showSuccessNotification) {
+        window.showSuccessNotification(
+          'URL Analysis Complete', 
+          `Risk Score: ${results.riskScore}/100`
+        );
+      }
+    } catch (error) {
+      console.error('Error handling analysis completion:', error);
+      this.setState({ error: `Error handling analysis completion: ${error.message}` });
     }
   };
   

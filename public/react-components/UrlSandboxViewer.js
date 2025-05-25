@@ -181,15 +181,31 @@ class UrlSandboxViewer extends React.Component {
     this.addLog(`DNS analysis found ${networkData.suspicious_domains.length} suspicious domains`, networkData.suspicious_domains.length > 0 ? 'warning' : 'info');
     
     // Notify parent component if callback provided
-    if (this.props.onAnalysisComplete) {
-      this.props.onAnalysisComplete({
-        url,
-        riskScore: Math.min(riskScore, 100),
-        findings,
-        screenshot: this.state.screenshot,
-        networkTrafficData: networkData,
-        dnsAnalysisData: dnsData
-      });
+    try {
+      if (this.props.onAnalysisComplete) {
+        // Create a safe copy of the data to prevent reference issues
+        const analysisData = {
+          url,
+          riskScore: Math.min(riskScore, 100),
+          findings: [...findings],
+          screenshot: this.state.screenshot,
+          networkTrafficData: networkData ? { ...networkData } : null,
+          dnsAnalysisData: dnsData ? { ...dnsData } : null
+        };
+        
+        // Use setTimeout to prevent blocking the UI thread
+        setTimeout(() => {
+          try {
+            this.props.onAnalysisComplete(analysisData);
+          } catch (callbackError) {
+            console.error('Error in onAnalysisComplete callback:', callbackError);
+            this.addLog(`Error in callback: ${callbackError.message}`, 'error');
+          }
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error preparing analysis data for callback:', error);
+      this.addLog(`Error preparing callback data: ${error.message}`, 'error');
     }
   }
   
@@ -209,7 +225,13 @@ class UrlSandboxViewer extends React.Component {
         this.addLog(`Safety timeout triggered for: ${message}`, 'warning');
         clearTimeout(timeoutId);
         resolve();
-      }, delay + 2000); // 2 seconds longer than expected delay
+      }, delay + 5000); // 5 seconds longer than expected delay for better reliability
+      
+      // Make sure we clear both timeouts when one resolves
+      return () => {
+        clearTimeout(timeoutId);
+        clearTimeout(safetyTimeout);
+      };
     });
   }
   
