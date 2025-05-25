@@ -329,6 +329,36 @@ exports.handleCallback = async (req, res) => {
         throw new Error(`Failed to update user with tokens: ${dbError.message}`);
       }
       
+      // Get user data to pass back to frontend
+      let userData = null;
+      try {
+        const user = await User.findById(userId).select('username email _id');
+        if (user) {
+          userData = {
+            id: user._id,
+            email: user.email,
+            username: user.username
+          };
+        }
+      } catch (userError) {
+        console.error('Error fetching user data:', userError);
+      }
+
+      // Generate a new JWT token for the user to maintain session
+      let newToken = '';
+      try {
+        if (userData) {
+          newToken = jwt.sign(
+            { id: userData.id },
+            process.env.JWT_SECRET || 'default_jwt_secret',
+            { expiresIn: '24h' }
+          );
+          console.log('Generated new JWT token for user');
+        }
+      } catch (tokenError) {
+        console.error('Error generating JWT token:', tokenError);
+      }
+
       // Return HTML response with success message and improved redirection
       return res.send(`
         <html>
@@ -350,16 +380,20 @@ exports.handleCallback = async (req, res) => {
               <h1>Gmail Connected Successfully</h1>
               <p>Your Gmail account has been successfully connected to the application.</p>
               <p>You will now be able to scan and analyze your emails for security threats.</p>
-              <a href="${frontendUrl}/index.html?connected=true&redirect=dashboard" class="btn" onclick="event.preventDefault(); window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard');">Return to Dashboard</a>
+              <a href="${frontendUrl}/index.html?connected=true&redirect=dashboard" class="btn" id="dashboardBtn">Return to Dashboard</a>
               <p class="redirect-text">Redirecting automatically in <span id="countdown">3</span> seconds...</p>
             </div>
             
             <script>
               // Ensure we're running in a browser context
               try {
-                // Store success status in localStorage
+                // Store success status and authentication data in localStorage
                 localStorage.setItem('gmailConnected', 'true');
                 localStorage.setItem('gmailConnectTime', Date.now());
+                
+                // Store user data and token if available
+                ${userData ? `localStorage.setItem('userData', '${JSON.stringify(userData)}');` : ''}
+                ${newToken ? `localStorage.setItem('token', '${newToken}');` : ''}
                 
                 // Countdown timer
                 let seconds = 3;
@@ -371,22 +405,31 @@ exports.handleCallback = async (req, res) => {
                     clearInterval(countdownInterval);
                   }
                 }, 1000);
+                
+                // Set up dashboard button click handler
+                document.getElementById('dashboardBtn').addEventListener('click', function(e) {
+                  e.preventDefault();
+                  redirectToDashboard();
+                });
               } catch (e) {
                 console.error('Error setting localStorage:', e);
               }
               
-              // Auto-redirect after 3 seconds - using a more reliable approach
-              setTimeout(function() {
+              // Function to handle redirection
+              function redirectToDashboard() {
                 try {
                   console.log('Redirecting to dashboard...');
                   // Force the redirect with replace() instead of href assignment
-                  window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard');
+                  window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard&token=${encodeURIComponent(newToken)}');
                 } catch (e) {
                   console.error('Redirect error:', e);
                   // Fallback redirect method
-                  document.location.href = '${frontendUrl}/index.html?connected=true&redirect=dashboard';
+                  document.location.href = '${frontendUrl}/index.html?connected=true&redirect=dashboard&token=${encodeURIComponent(newToken)}';
                 }
-              }, 3000);
+              }
+              
+              // Auto-redirect after 3 seconds
+              setTimeout(redirectToDashboard, 3000);
             </script>
           </body>
         </html>

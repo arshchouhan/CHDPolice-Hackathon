@@ -181,9 +181,20 @@ function checkOAuthRedirect() {
         const urlParams = new URLSearchParams(window.location.search);
         const justConnected = urlParams.get('connected') === 'true';
         const redirectTarget = urlParams.get('redirect');
+        const token = urlParams.get('token');
         
         if (justConnected) {
             console.log('Detected successful OAuth completion from URL parameter');
+            
+            // If we have a token in the URL, store it in localStorage
+            if (token) {
+                console.log('Found token in URL, storing in localStorage');
+                localStorage.setItem('token', token);
+                
+                // Verify the token by making a request to the server
+                verifyAndLoadUserData(token);
+            }
+            
             // Remove the query parameters to avoid confusion on page refresh
             const newUrl = window.location.pathname + window.location.hash;
             window.history.replaceState({}, document.title, newUrl);
@@ -230,6 +241,45 @@ function checkOAuthRedirect() {
     } catch (error) {
         console.error('Error checking OAuth redirect:', error);
         return false;
+    }
+}
+
+// Function to verify token and load user data
+async function verifyAndLoadUserData(token) {
+    try {
+        console.log('Verifying token and loading user data...');
+        const response = await fetch(`${getBaseUrl()}/api/users/me`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to verify token: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        if (data.success && data.user) {
+            console.log('User data loaded successfully');
+            // Store user data in localStorage
+            localStorage.setItem('userData', JSON.stringify(data.user));
+            
+            // Update UI with user data if needed
+            if (typeof updateUserInfo === 'function') {
+                updateUserInfo(data.user);
+            }
+            
+            // Check Gmail connection status
+            if (typeof checkGmailStatus === 'function') {
+                checkGmailStatus();
+            }
+        } else {
+            console.error('Failed to load user data:', data.message || 'Unknown error');
+        }
+    } catch (error) {
+        console.error('Error verifying token:', error);
     }
 }
 
