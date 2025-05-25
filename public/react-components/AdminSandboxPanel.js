@@ -118,31 +118,61 @@ class AdminSandboxPanel extends React.Component {
       }
       
       const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-      // Use the correct endpoint format based on your API
-      // If your API expects userId as a path parameter
-      const endpoint = userId 
-        ? `${baseUrl}/api/emails/user/${userId}?limit=50&sort=createdAt:desc` 
-        : `${baseUrl}/api/admin/emails?limit=50&sort=createdAt:desc`;
-        
-      console.log(`Fetching emails from: ${endpoint}`);
       
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      // Define possible API endpoint formats
+      const possibleEndpoints = [];
       
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
-        } else {
-          throw new Error(`Error ${response.status}: ${response.statusText}`);
+      if (userId) {
+        // Endpoints for specific user emails
+        possibleEndpoints.push(
+          `${baseUrl}/api/emails/user/${userId}?limit=50&sort=createdAt:desc`,
+          `${baseUrl}/api/admin/emails/${userId}?limit=50&sort=createdAt:desc`,
+          `${baseUrl}/api/admin/emails?userId=${userId}&limit=50&sort=createdAt:desc`,
+          `${baseUrl}/api/emails?userId=${userId}&limit=50&sort=createdAt:desc`
+        );
+      } else {
+        // Endpoints for all emails
+        possibleEndpoints.push(
+          `${baseUrl}/api/admin/emails?limit=50&sort=createdAt:desc`,
+          `${baseUrl}/api/emails?limit=50&sort=createdAt:desc`
+        );
+      }
+      
+      // Try each endpoint until one works
+      let response = null;
+      let lastError = null;
+      let successEndpoint = null;
+      
+      for (const endpoint of possibleEndpoints) {
+        try {
+          console.log(`Trying to fetch emails from: ${endpoint}`);
+          
+          response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            successEndpoint = endpoint;
+            break; // We found a working endpoint, stop trying others
+          }
+        } catch (fetchError) {
+          console.error(`Error fetching from ${endpoint}:`, fetchError);
+          lastError = fetchError;
+          // Continue to the next endpoint
         }
       }
+      
+      // If we couldn't get a successful response from any endpoint
+      if (!response || !response.ok) {
+        throw new Error(lastError ? `Failed to fetch emails: ${lastError.message}` : 'Failed to fetch emails from any endpoint');
+      }
+      
+      console.log(`Successfully fetched emails from: ${successEndpoint}`);
+      
       
       let data;
       try {
@@ -639,9 +669,25 @@ class AdminSandboxPanel extends React.Component {
                     value={selectedUser ? selectedUser.id : ''}
                     onChange={(e) => {
                       const userId = e.target.value;
-                      const user = users.find(u => u.id === userId);
-                      if (user) {
-                        this.handleUserSelect(user);
+                      if (userId === '') {
+                        // Handle "All Users" option
+                        this.setState({ 
+                          selectedUser: null,
+                          selectedEmail: null,
+                          emails: [],
+                          extractedUrls: [],
+                          selectedUrl: '',
+                          geminiAnalysisResults: null,
+                          suspiciousUrls: []
+                        }, () => {
+                          this.loadEmails(); // Load all emails
+                        });
+                      } else {
+                        // Handle specific user selection
+                        const user = users.find(u => u.id === userId);
+                        if (user) {
+                          this.handleUserSelect(user);
+                        }
                       }
                     }}
                   >
