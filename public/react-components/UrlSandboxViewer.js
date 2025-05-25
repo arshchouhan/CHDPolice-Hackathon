@@ -32,8 +32,21 @@ class UrlSandboxViewer extends React.Component {
   }
   
   componentDidMount() {
+    // Set a flag to track if component is mounted
+    this._isMounted = true;
+    
     if (this.props.autoStart && this.state.url) {
       this.startSandbox();
+    }
+  }
+  
+  componentWillUnmount() {
+    // Set the flag to false when component unmounts
+    this._isMounted = false;
+    
+    // Clear any pending timeouts
+    if (this._timeouts) {
+      this._timeouts.forEach(timeoutId => clearTimeout(timeoutId));
     }
   }
   
@@ -49,6 +62,12 @@ class UrlSandboxViewer extends React.Component {
   
   // Add a log entry to the sandbox terminal
   addLog = (message, type = 'info') => {
+    // Only update state if component is still mounted
+    if (!this._isMounted) {
+      console.log('Attempted to add log after component unmounted:', message);
+      return;
+    }
+    
     const timestamp = new Date().toLocaleTimeString();
     this.setState(prevState => ({
       sandboxLogs: [
@@ -165,7 +184,12 @@ class UrlSandboxViewer extends React.Component {
     // Calculate risk score based on findings
     const riskScore = findings.reduce((score, finding) => score + finding.severity, 0);
     
-    // Complete the analysis
+    // Complete the analysis - only if component is still mounted
+    if (!this._isMounted) {
+      console.log('Component unmounted before analysis completion');
+      return; // Exit early if component unmounted
+    }
+    
     this.setState({
       isLoading: false,
       isAnalyzing: false,
@@ -180,58 +204,105 @@ class UrlSandboxViewer extends React.Component {
     this.addLog(`Network traffic analysis captured ${networkData.request_log.length} HTTP requests`, 'info');
     this.addLog(`DNS analysis found ${networkData.suspicious_domains.length} suspicious domains`, networkData.suspicious_domains.length > 0 ? 'warning' : 'info');
     
-    // Notify parent component if callback provided
+    // Notify parent component if callback provided and component is still mounted
     try {
+      // Store analysis data for callback even if component unmounts
+      const analysisData = {
+        url,
+        riskScore: Math.min(riskScore, 100),
+        findings: [...findings],
+        screenshot: this.state.screenshot,
+        networkTrafficData: networkData ? { ...networkData } : null,
+        dnsAnalysisData: dnsData ? { ...dnsData } : null
+      };
+      
+      // Store the callback data in a class property so it can be accessed even if component unmounts
+      this._analysisData = analysisData;
+      
       if (this.props.onAnalysisComplete) {
-        // Create a safe copy of the data to prevent reference issues
-        const analysisData = {
-          url,
-          riskScore: Math.min(riskScore, 100),
-          findings: [...findings],
-          screenshot: this.state.screenshot,
-          networkTrafficData: networkData ? { ...networkData } : null,
-          dnsAnalysisData: dnsData ? { ...dnsData } : null
-        };
-        
         // Use setTimeout to prevent blocking the UI thread
         setTimeout(() => {
           try {
-            this.props.onAnalysisComplete(analysisData);
+            // Check if component is still mounted before calling the callback
+            // But still call the callback even if unmounted to ensure parent component gets the data
+            this.props.onAnalysisComplete(this._analysisData);
+            console.log('Analysis callback completed successfully');
           } catch (callbackError) {
             console.error('Error in onAnalysisComplete callback:', callbackError);
-            this.addLog(`Error in callback: ${callbackError.message}`, 'error');
+            if (this._isMounted) {
+              this.addLog(`Error in callback: ${callbackError.message}`, 'error');
+            }
           }
         }, 100);
       }
     } catch (error) {
       console.error('Error preparing analysis data for callback:', error);
-      this.addLog(`Error preparing callback data: ${error.message}`, 'error');
+      if (this._isMounted) {
+        this.addLog(`Error preparing callback data: ${error.message}`, 'error');
+      }
     }
   }
   
   // Simulate a step with a progress message and delay
   simulateStep = async (step, message, delay) => {
+    // Initialize timeouts array if it doesn't exist
+    if (!this._timeouts) {
+      this._timeouts = [];
+    }
+    
     this.addLog(message, 'info');
     
     // Add error handling and timeout protection
     return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        this.addLog(`Completed ${message}`, 'success');
+      // Only proceed if component is mounted
+      if (!this._isMounted) {
+        console.log('Component unmounted during step:', step);
         resolve();
+        return;
+      }
+      
+      const timeoutId = setTimeout(() => {
+        // Check if component is still mounted before updating state
+        if (this._isMounted) {
+          this.addLog(`Completed ${message}`, 'success');
+        }
+        resolve();
+        
+        // Remove this timeout from tracking array
+        if (this._timeouts) {
+          const index = this._timeouts.indexOf(timeoutId);
+          if (index > -1) {
+            this._timeouts.splice(index, 1);
+          }
+        }
       }, delay);
       
       // Add a safety timeout to prevent getting stuck
       const safetyTimeout = setTimeout(() => {
-        this.addLog(`Safety timeout triggered for: ${message}`, 'warning');
+        // Check if component is still mounted before updating state
+        if (this._isMounted) {
+          this.addLog(`Safety timeout triggered for: ${message}`, 'warning');
+        }
         clearTimeout(timeoutId);
         resolve();
+        
+        // Remove both timeouts from tracking array
+        if (this._timeouts) {
+          const index1 = this._timeouts.indexOf(timeoutId);
+          if (index1 > -1) {
+            this._timeouts.splice(index1, 1);
+          }
+          
+          const index2 = this._timeouts.indexOf(safetyTimeout);
+          if (index2 > -1) {
+            this._timeouts.splice(index2, 1);
+          }
+        }
       }, delay + 5000); // 5 seconds longer than expected delay for better reliability
       
-      // Make sure we clear both timeouts when one resolves
-      return () => {
-        clearTimeout(timeoutId);
-        clearTimeout(safetyTimeout);
-      };
+      // Track these timeouts
+      this._timeouts.push(timeoutId);
+      this._timeouts.push(safetyTimeout);
     });
   }
   
