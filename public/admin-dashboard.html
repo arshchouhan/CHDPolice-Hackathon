@@ -375,6 +375,12 @@
                 : window.location.hostname.includes('onrender.com')
                     ? 'https://email-detection-api.onrender.com'
                     : window.location.origin; // Fallback to current origin
+                    
+        // Make getBaseUrl available globally for components
+        window.getBaseUrl = function() {
+            console.log('getBaseUrl called, returning:', BASE_URL);
+            return BASE_URL;
+        };
         
         // Email analysis variables
         let currentEmailPage = 1;
