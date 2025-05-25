@@ -46,10 +46,22 @@ class AdminSandboxPanel extends React.Component {
       });
       
       if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+        } else {
+          throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
       }
       
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        throw new Error('Invalid response format from server. Please try again later.');
+      }
       
       if (data.success && data.emails) {
         this.setState({ 
@@ -97,10 +109,22 @@ class AdminSandboxPanel extends React.Component {
       });
       
       if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+        } else {
+          throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
       }
       
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        throw new Error('Invalid response format from server. Please try again later.');
+      }
       
       if (data.success && data.email) {
         // Extract URLs from email content
@@ -193,11 +217,22 @@ class AdminSandboxPanel extends React.Component {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+        } else {
+          throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
       }
       
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        throw new Error('Invalid response format from server. Please try again later.');
+      }
       
       if (data.success && data.data) {
         // Extract suspicious URLs (risk score > 50)
@@ -258,7 +293,7 @@ class AdminSandboxPanel extends React.Component {
     } = this.state;
     
     return (
-      <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 mb-8">
+      <div className="container mx-auto p-4">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-xl font-bold text-white">Email Sandbox Analysis</h2>
@@ -286,14 +321,17 @@ class AdminSandboxPanel extends React.Component {
         </div>
         
         {error && (
-          <div className="bg-red-500/20 text-red-200 p-4 rounded-md mb-4">
-            <p className="font-medium">Error: {error}</p>
+          <div className="bg-red-900/30 border border-red-800/50 text-red-300 p-3 rounded-md mb-4">
+            <p className="flex items-center">
+              <i className="fas fa-exclamation-circle mr-2"></i>
+              {error}
+            </p>
           </div>
         )}
         
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Email List */}
-          <div className="lg:col-span-1 bg-gray-800/30 rounded-lg p-4 max-h-[400px] overflow-y-auto">
+          <div className="bg-gray-800/30 rounded-lg p-4 max-h-[600px] overflow-y-auto">
             <h3 className="text-white font-medium mb-3">Recent Emails</h3>
             
             {isLoading && emails.length === 0 ? (
@@ -304,7 +342,7 @@ class AdminSandboxPanel extends React.Component {
               <p className="text-gray-400 text-center py-4">No emails found</p>
             ) : (
               <div className="space-y-2">
-                {emails.map((email) => (
+                {emails.map(email => (
                   <div 
                     key={email._id}
                     onClick={() => this.handleEmailSelect(email._id)}
@@ -314,11 +352,13 @@ class AdminSandboxPanel extends React.Component {
                         : 'bg-gray-700/30 hover:bg-gray-700/50'
                     }`}
                   >
-                    <p className="text-white text-sm font-medium truncate">{email.subject || 'No Subject'}</p>
-                    <p className="text-gray-400 text-xs truncate">From: {email.from || 'Unknown'}</p>
-                    <p className="text-gray-500 text-xs mt-1">
-                      {new Date(email.receivedDate || email.createdAt).toLocaleString()}
-                    </p>
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-white font-medium truncate">{email.subject || 'No Subject'}</p>
+                      <span className="text-xs text-gray-400">
+                        {new Date(email.receivedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-gray-300 text-sm truncate">{email.from || 'Unknown Sender'}</p>
                   </div>
                 ))}
               </div>
