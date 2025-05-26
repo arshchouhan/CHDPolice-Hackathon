@@ -81,6 +81,7 @@ class AdminSandboxPanel extends React.Component {
   
   // Handle user selection
   handleUserSelect = (user) => {
+    console.log('User selected:', user);
     this.setState({ 
       selectedUser: user,
       selectedEmail: null,
@@ -92,7 +93,10 @@ class AdminSandboxPanel extends React.Component {
     }, () => {
       // Load emails for the selected user
       if (user && user.id) {
+        console.log('Loading emails for user ID:', user.id);
         this.loadEmails(user.id);
+      } else {
+        console.log('No valid user ID found, not loading emails');
       }
     });
   };
@@ -112,6 +116,7 @@ class AdminSandboxPanel extends React.Component {
   // Load emails from the API for a specific user
   loadEmails = async (userId) => {
     try {
+      console.log('loadEmails called with userId:', userId);
       this.setState({ isLoading: true, error: null });
       
       const token = localStorage.getItem('token');
@@ -120,6 +125,7 @@ class AdminSandboxPanel extends React.Component {
       }
       
       const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+      console.log('Using base URL:', baseUrl);
       
       // Define possible API endpoint formats
       const possibleEndpoints = [];
@@ -174,6 +180,7 @@ class AdminSandboxPanel extends React.Component {
       }
       
       console.log(`Successfully fetched emails from: ${successEndpoint}`);
+      console.log('Response status:', response.status);
       
       
       let data;
@@ -185,11 +192,20 @@ class AdminSandboxPanel extends React.Component {
       }
       
       if (data.success && data.emails) {
+        console.log(`Loaded ${data.emails.length} emails successfully`);
+        this.setState({ 
+          emails: data.emails,
+          isLoading: false
+        });
+      } else if (data.emails) {
+        // Some APIs might not include a success field
+        console.log(`Loaded ${data.emails.length} emails (no success field)`);
         this.setState({ 
           emails: data.emails,
           isLoading: false
         });
       } else {
+        console.log('No emails found in response');
         this.setState({ 
           emails: [],
           isLoading: false
@@ -208,6 +224,32 @@ class AdminSandboxPanel extends React.Component {
   handleEmailSelect = async (emailId) => {
     try {
       console.log('Email selected with ID:', emailId);
+      
+      // First check if this email is already in our emails array
+      const selectedEmailFromList = this.state.emails.find(email => email._id === emailId);
+      console.log('Found email in list:', selectedEmailFromList ? 'Yes' : 'No');
+      
+      // If we already have the email details in our state, use that instead of making another API call
+      if (selectedEmailFromList) {
+        console.log('Using email from list instead of making API call');
+        // Extract URLs from email content
+        const urls = this.extractUrlsFromEmail(selectedEmailFromList);
+        
+        this.setState({ 
+          selectedEmail: selectedEmailFromList,
+          extractedUrls: urls,
+          isLoading: false,
+          selectedUrl: '',
+          geminiAnalysisResults: null,
+          suspiciousUrls: [],
+          isAnalyzingWithGemini: false,
+          error: null
+        });
+        
+        console.log('Email loaded from list with', urls.length, 'URLs extracted');
+        return;
+      }
+      
       this.setState({ 
         isLoading: true, 
         error: null, 
@@ -302,6 +344,12 @@ class AdminSandboxPanel extends React.Component {
   
   // Extract URLs from email content
   extractUrlsFromEmail = (email) => {
+    console.log('Extracting URLs from email:', email ? email._id : 'null');
+    if (!email) {
+      console.warn('No email provided to extractUrlsFromEmail');
+      return [];
+    }
+    
     const urls = new Set();
     
     // Regular expression to match URLs - improved to catch more URL formats
@@ -350,10 +398,17 @@ class AdminSandboxPanel extends React.Component {
     }
     
     // Add some test URLs if none found (for development/testing)
-    if (urls.size === 0 && process.env.NODE_ENV !== 'production') {
-      console.log('No URLs found in email, adding test URLs for development');
-      urls.add('https://example.com');
-      urls.add('https://test-phishing-site.com');
+    if (urls.size === 0) {
+      console.log('No URLs found in email content');
+      
+      // Only in development mode, add test URLs
+      if (window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')) {
+        console.log('Adding test URLs for development environment');
+        urls.add('https://example.com');
+        urls.add('https://test-phishing-site.com');
+      }
+    } else {
+      console.log('Found', urls.size, 'unique URLs in email');
     }
     
     const extractedUrls = Array.from(urls);
@@ -671,8 +726,10 @@ class AdminSandboxPanel extends React.Component {
                     value={selectedUser ? selectedUser.id : ''}
                     onChange={(e) => {
                       const userId = e.target.value;
+                      console.log('User dropdown selection changed to:', userId);
                       if (userId === '') {
                         // Handle "All Users" option
+                        console.log('All Users selected, loading all emails');
                         this.setState({ 
                           selectedUser: null,
                           selectedEmail: null,
@@ -686,9 +743,13 @@ class AdminSandboxPanel extends React.Component {
                         });
                       } else {
                         // Handle specific user selection
+                        console.log('Finding user with ID:', userId);
                         const user = users.find(u => u.id === userId);
+                        console.log('Found user:', user ? user.email : 'Not found');
                         if (user) {
                           this.handleUserSelect(user);
+                        } else {
+                          console.error('User not found in users array:', userId);
                         }
                       }
                     }}
@@ -769,8 +830,12 @@ class AdminSandboxPanel extends React.Component {
                 {emails.map(email => (
                   <div 
                     key={email._id} 
-                    onClick={() => this.handleEmailSelect(email._id)}
+                    onClick={() => {
+                      console.log('Email clicked:', email._id);
+                      this.handleEmailSelect(email._id);
+                    }}
                     className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${selectedEmail && selectedEmail._id === email._id ? 'bg-gradient-to-r from-blue-600/30 to-indigo-600/30 border border-blue-500/50 shadow-md' : 'bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 hover:border-gray-600'}`}
+                    data-email-id={email._id}
                   >
                     <div className="flex justify-between items-center mb-2">
                       <p className="text-white font-medium truncate">{email.subject || 'No Subject'}</p>
