@@ -158,9 +158,43 @@ class AdminSandboxPanel extends React.Component {
       console.log('loadEmails called with userId:', userId);
       this.setState({ isLoading: true, error: null });
       
+      // Always prepare test emails as a fallback
+      const testEmails = [
+        {
+          _id: '1',
+          subject: 'Important Update: Your Course Has Been Migrated to a Hybrid Program',
+          from: 'Cipher Schools <support@cipherschools.com>',
+          receivedAt: new Date().toISOString(),
+          html: '<p>Dear Student, Your course has been migrated to our new hybrid learning program. Please log in to your account to access the updated materials.</p><p>Visit <a href="https://example.com/login">https://example.com/login</a> to get started.</p>',
+          userId: userId || 'testuser1'
+        },
+        {
+          _id: '2',
+          subject: 'Your Amazon.in order has been cancelled',
+          from: 'Amazon.in <order-update@amazon.in>',
+          receivedAt: new Date(Date.now() - 86400000).toISOString(),
+          html: '<p>Hello, We regret to inform you that your recent order #123456 has been cancelled. Please visit <a href="https://amazon.in/orders">https://amazon.in/orders</a> for more details.</p>',
+          userId: userId || 'testuser1'
+        },
+        {
+          _id: '3',
+          subject: 'Cisco Virtual Internship 2025 | Start Preparing Now!',
+          from: 'Unstop Practice <noreply@unstop.com>',
+          receivedAt: new Date(Date.now() - 172800000).toISOString(),
+          html: '<p>Hello Candidate, Registration for Cisco Virtual Internship 2025 is now open! Visit <a href="https://unstop.com/cisco-internship">https://unstop.com/cisco-internship</a> to register and start preparing.</p>',
+          userId: userId || 'testuser1'
+        }
+      ];
+      
       const token = localStorage.getItem('token');
       if (!token) {
-        throw new Error('Authentication token not found');
+        console.warn('Authentication token not found, using test emails');
+        this.setState({ 
+          emails: testEmails,
+          isLoading: false,
+          error: 'Using test emails. No authentication token found.'
+        });
+        return;
       }
       
       const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
@@ -249,7 +283,19 @@ class AdminSandboxPanel extends React.Component {
       
       // If we couldn't get a successful response with valid JSON from any endpoint
       if (!successEndpoint) {
-        throw new Error(lastError ? `Failed to fetch emails: ${lastError.message}` : 'Failed to fetch emails from any endpoint');
+        console.error('Failed to fetch emails from any endpoint, using test emails');
+        
+        // Filter test emails if userId is provided
+        const filteredTestEmails = userId 
+          ? testEmails.filter(email => email.userId === userId)
+          : testEmails;
+        
+        this.setState({ 
+          emails: filteredTestEmails,
+          isLoading: false,
+          error: `Using test emails. ${lastError ? lastError.message : 'API connection failed.'}`
+        });
+        return;
       }
       
       console.log(`Successfully fetched emails from: ${successEndpoint}`);
@@ -364,8 +410,18 @@ class AdminSandboxPanel extends React.Component {
       }
     } catch (error) {
       console.error('Error loading emails:', error);
+      
+      // Use test emails as fallback when any error occurs
+      console.log('Using test emails as fallback due to error');
+      
+      // Filter test emails if userId is provided
+      const filteredTestEmails = userId 
+        ? testEmails.filter(email => email.userId === userId)
+        : testEmails;
+      
       this.setState({ 
-        error: error.message,
+        emails: filteredTestEmails,
+        error: `Using test emails. Error: ${error.message}`,
         isLoading: false
       });
     }
