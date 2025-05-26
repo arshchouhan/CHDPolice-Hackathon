@@ -15,9 +15,6 @@
     <!-- React and ReactDOM for sandbox components -->
     <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
-    
-    <!-- Include our custom components -->
-    <script src="/react-components/PhishingModelTrainer.js"></script>
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -140,9 +137,6 @@
                 </button>
                 <button class="tab-button px-4 py-3 text-gray-600 hover:text-blue-600 font-medium" data-tab="settings">
                     <i class="fas fa-cog mr-2"></i>System Settings
-                </button>
-                <button class="tab-button px-4 py-3 hover:bg-gray-100" data-tab="modelTraining">
-                    <i class="fas fa-brain mr-2"></i>Model Training
                 </button>
             </div>
 
@@ -332,12 +326,8 @@
                 <div id="sandboxPanelRoot"></div>
             </div>
 
-            <!-- Model Training Tab -->
-            <div id="modelTrainingTab" class="tab-content p-4 hidden">
-                <div id="modelTrainingPanelRoot"></div>
-            </div>
-
             <!-- Settings Tab -->
+            <!-- Settings Tab (Hidden by Default) -->
             <div id="settingsTab" class="tab-content p-4 hidden">
                 <h2 class="text-xl font-bold mb-4">System Settings</h2>
                 
@@ -442,11 +432,6 @@
                     // If analytics tab is selected, load analytics
                     if (tabName === 'analytics') {
                         loadAnalyticsData();
-                    }
-                    
-                    // If model training tab is selected, render model training panel
-                    if (tabName === 'modelTraining') {
-                        renderPhishingModelTrainer();
                     }
                 });
             });
@@ -1914,50 +1899,6 @@
         
         // Make renderSandboxPanel available globally
         window.renderSandboxPanel = renderSandboxPanel;
-        
-        // Render the PhishingModelTrainer component
-        function renderPhishingModelTrainer() {
-            const modelTrainerRoot = document.getElementById('phishingModelTrainerRoot');
-            if (modelTrainerRoot) {
-                try {
-                    // Check if component is loaded
-                    if (typeof PhishingModelTrainer === 'undefined') {
-                        console.error('PhishingModelTrainer component is not defined!');
-                        modelTrainerRoot.innerHTML = `
-                            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                                <strong class="font-bold">Error!</strong>
-                                <span class="block sm:inline"> PhishingModelTrainer component not found.</span>
-                                <p class="mt-2 text-sm">Please check that all required component files are available.</p>
-                            </div>
-                        `;
-                        return;
-                    }
-                    
-                    // Create a container for the component
-                    modelTrainerRoot.innerHTML = '';
-                    const container = document.createElement('div');
-                    container.id = 'phishingModelTrainerContainer';
-                    modelTrainerRoot.appendChild(container);
-                    
-                    // Render the component
-                    ReactDOM.render(React.createElement(PhishingModelTrainer), container);
-                    console.log('PhishingModelTrainer rendered successfully');
-                } catch (error) {
-                    console.error('Error rendering PhishingModelTrainer:', error);
-                    modelTrainerRoot.innerHTML = `
-                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                            <strong class="font-bold">Error!</strong>
-                            <span class="block sm:inline"> ${error.message}</span>
-                        </div>
-                    `;
-                }
-            } else {
-                console.error('Model trainer root element not found!');
-            }
-        }
-        
-        // Make renderPhishingModelTrainer available globally
-        window.renderPhishingModelTrainer = renderPhishingModelTrainer;
     </script>
 </body>
 </html>
