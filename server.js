@@ -37,6 +37,7 @@ const authRoutes = require('./routes/auth.route');
 const gmailRoutes = require('./routes/gmail.route');
 const emailAnalysisRoutes = require('./routes/emailAnalysis.route');
 const geminiAnalysisRoutes = require('./routes/geminiAnalysis.route');
+const phishingModelRoutes = require('./routes/phishing-model-api');
 
 // Essential middleware
 app.use(express.json());
@@ -167,6 +168,9 @@ app.use('/api/gmail', authenticateUser, gmailRoutes);
 
 // Register email analysis routes with authentication
 app.use('/api/email-analysis', authenticateUser, emailAnalysisRoutes);
+
+// Register custom phishing model routes with authentication
+app.use('/api/phishing-model', authenticateUser, phishingModelRoutes);
 
 // Then serve static files (after API routes)
 app.use(express.static(path.join(__dirname, 'public'), {
