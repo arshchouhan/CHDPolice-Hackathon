@@ -35,6 +35,7 @@ class AdminSandboxPanel extends React.Component {
   // Load users from the API
   loadUsers = async () => {
     try {
+      console.log('Loading users...');
       this.setState({ loadingUsers: true, error: null });
       
       const token = localStorage.getItem('token');
@@ -43,27 +44,65 @@ class AdminSandboxPanel extends React.Component {
       }
       
       const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-      const response = await fetch(`${baseUrl}/api/admin/users`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      console.log('Fetching users from:', `${baseUrl}/api/admin/users`);
       
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to load users');
-        } else {
-          throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+      // Try multiple endpoints for users
+      const possibleEndpoints = [
+        `${baseUrl}/api/admin/users`,
+        `${baseUrl}/api/users`,
+        `${baseUrl}/api/auth/users`
+      ];
+      
+      let response = null;
+      let lastError = null;
+      let successEndpoint = null;
+      
+      for (const endpoint of possibleEndpoints) {
+        try {
+          console.log(`Trying to fetch users from: ${endpoint}`);
+          
+          response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            successEndpoint = endpoint;
+            console.log(`Successfully fetched users from: ${endpoint}`);
+            break; // We found a working endpoint, stop trying others
+          }
+        } catch (fetchError) {
+          console.error(`Error fetching from ${endpoint}:`, fetchError);
+          lastError = fetchError;
+          // Continue to the next endpoint
         }
       }
       
+      // If we couldn't get a successful response from any endpoint
+      if (!response || !response.ok) {
+        throw new Error(lastError ? `Failed to fetch users: ${lastError.message}` : 'Failed to fetch users from any endpoint');
+      }
+      
       const data = await response.json();
+      console.log('Users data:', data);
+      
+      // Handle different API response formats
+      let users = [];
+      if (data.users) {
+        users = data.users;
+      } else if (Array.isArray(data)) {
+        users = data;
+      } else if (data.data && Array.isArray(data.data)) {
+        users = data.data;
+      }
+      
+      console.log(`Loaded ${users.length} users`);
+      
       this.setState({ 
-        users: data.users || [], 
+        users: users, 
         loadingUsers: false 
       });
       
@@ -136,13 +175,19 @@ class AdminSandboxPanel extends React.Component {
           `${baseUrl}/api/emails/user/${userId}?limit=50&sort=createdAt:desc`,
           `${baseUrl}/api/admin/emails/${userId}?limit=50&sort=createdAt:desc`,
           `${baseUrl}/api/admin/emails?userId=${userId}&limit=50&sort=createdAt:desc`,
-          `${baseUrl}/api/emails?userId=${userId}&limit=50&sort=createdAt:desc`
+          `${baseUrl}/api/emails?userId=${userId}&limit=50&sort=createdAt:desc`,
+          // Additional endpoints with different formats
+          `${baseUrl}/api/emails/user/${userId}`,
+          `${baseUrl}/api/admin/emails/user/${userId}`,
+          `${baseUrl}/api/user/${userId}/emails`
         );
       } else {
         // Endpoints for all emails
         possibleEndpoints.push(
           `${baseUrl}/api/admin/emails?limit=50&sort=createdAt:desc`,
-          `${baseUrl}/api/emails?limit=50&sort=createdAt:desc`
+          `${baseUrl}/api/emails?limit=50&sort=createdAt:desc`,
+          `${baseUrl}/api/emails`,
+          `${baseUrl}/api/admin/emails`
         );
       }
       
@@ -191,24 +236,57 @@ class AdminSandboxPanel extends React.Component {
         throw new Error('Invalid response format from server. Please try again later.');
       }
       
+      // Handle different API response formats
+      let emails = [];
+      
       if (data.success && data.emails) {
-        console.log(`Loaded ${data.emails.length} emails successfully`);
-        this.setState({ 
-          emails: data.emails,
-          isLoading: false
-        });
+        // Standard format
+        emails = data.emails;
+        console.log(`Loaded ${emails.length} emails successfully (standard format)`);
       } else if (data.emails) {
-        // Some APIs might not include a success field
-        console.log(`Loaded ${data.emails.length} emails (no success field)`);
-        this.setState({ 
-          emails: data.emails,
-          isLoading: false
-        });
+        // Format without success field
+        emails = data.emails;
+        console.log(`Loaded ${emails.length} emails (no success field)`);
+      } else if (Array.isArray(data)) {
+        // Direct array format
+        emails = data;
+        console.log(`Loaded ${emails.length} emails (direct array)`);
+      } else if (data.data && Array.isArray(data.data)) {
+        // Nested data format
+        emails = data.data;
+        console.log(`Loaded ${emails.length} emails (nested data format)`);
+      } else if (data.results && Array.isArray(data.results)) {
+        // Results format
+        emails = data.results;
+        console.log(`Loaded ${emails.length} emails (results format)`);
       } else {
-        console.log('No emails found in response');
-        this.setState({ 
-          emails: [],
-          isLoading: false
+        console.log('No emails found in response, data format:', data);
+      }
+      
+      // Normalize email objects to ensure consistent structure
+      emails = emails.map(email => {
+        // Ensure email has an _id property
+        if (!email._id && email.id) {
+          email._id = email.id;
+        } else if (!email._id && email.emailId) {
+          email._id = email.emailId;
+        } else if (!email._id) {
+          email._id = Math.random().toString(36).substring(2, 15);
+        }
+        
+        return email;
+      });
+      
+      this.setState({ 
+        emails: emails,
+        isLoading: false
+      });
+      
+      console.log(`Final email count: ${emails.length}`);
+      
+      if (emails.length === 0) {
+        this.setState({
+          error: userId ? `No emails found for this user. Try selecting 'All Users' instead.` : 'No emails found.'
         });
       }
     } catch (error) {
@@ -226,12 +304,24 @@ class AdminSandboxPanel extends React.Component {
       console.log('Email selected with ID:', emailId);
       
       // First check if this email is already in our emails array
-      const selectedEmailFromList = this.state.emails.find(email => email._id === emailId);
+      let selectedEmailFromList = this.state.emails.find(email => email._id === emailId);
+      
+      // Try alternative ID fields if not found
+      if (!selectedEmailFromList) {
+        selectedEmailFromList = this.state.emails.find(email => email.id === emailId);
+      }
+      
+      if (!selectedEmailFromList) {
+        selectedEmailFromList = this.state.emails.find(email => email.emailId === emailId);
+      }
+      
       console.log('Found email in list:', selectedEmailFromList ? 'Yes' : 'No');
       
       // If we already have the email details in our state, use that instead of making another API call
       if (selectedEmailFromList) {
         console.log('Using email from list instead of making API call');
+        console.log('Email data:', selectedEmailFromList);
+        
         // Extract URLs from email content
         const urls = this.extractUrlsFromEmail(selectedEmailFromList);
         
@@ -258,6 +348,8 @@ class AdminSandboxPanel extends React.Component {
         suspiciousUrls: [],
         isAnalyzingWithGemini: false
       });
+      
+      console.log('Email not found in list, making API call to fetch details');
       
       const token = localStorage.getItem('token');
       if (!token) {
@@ -744,12 +836,35 @@ class AdminSandboxPanel extends React.Component {
                       } else {
                         // Handle specific user selection
                         console.log('Finding user with ID:', userId);
-                        const user = users.find(u => u.id === userId);
-                        console.log('Found user:', user ? user.email : 'Not found');
+                        
+                        // Try different user ID fields since API responses may vary
+                        let user = users.find(u => u.id === userId);
+                        
+                        if (!user) {
+                          user = users.find(u => u._id === userId);
+                        }
+                        
+                        if (!user) {
+                          user = users.find(u => u.userId === userId);
+                        }
+                        
+                        console.log('Found user:', user ? (user.email || user.username) : 'Not found');
+                        
                         if (user) {
+                          // Ensure user has an id property for consistency
+                          if (!user.id && user._id) {
+                            user.id = user._id;
+                          } else if (!user.id && user.userId) {
+                            user.id = user.userId;
+                          }
+                          
                           this.handleUserSelect(user);
                         } else {
                           console.error('User not found in users array:', userId);
+                          // Try to create a temporary user object with the ID
+                          const tempUser = { id: userId, username: `User ${userId.substring(0, 8)}` };
+                          console.log('Created temporary user:', tempUser);
+                          this.handleUserSelect(tempUser);
                         }
                       }
                     }}
@@ -758,11 +873,18 @@ class AdminSandboxPanel extends React.Component {
                     {users.length === 0 ? (
                       <option value="" disabled>No users available</option>
                     ) : (
-                      users.map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.name || user.email || `User ${user.id.substring(0, 8)}`}
-                        </option>
-                      ))
+                      users.map(user => {
+                        // Use different ID fields based on what's available
+                        const userId = user.id || user._id || user.userId || '';
+                        // Use different name fields based on what's available
+                        const displayName = user.username || user.email || user.name || `User ${userId.substring(0, 8)}`;
+                        
+                        return (
+                          <option key={userId} value={userId}>
+                            {displayName}
+                          </option>
+                        );
+                      })
                     )}
                   </select>
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -827,16 +949,20 @@ class AdminSandboxPanel extends React.Component {
               </div>
             ) : (
               <div className="space-y-3">
-                {emails.map(email => (
-                  <div 
-                    key={email._id} 
-                    onClick={() => {
-                      console.log('Email clicked:', email._id);
-                      this.handleEmailSelect(email._id);
-                    }}
-                    className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${selectedEmail && selectedEmail._id === email._id ? 'bg-gradient-to-r from-blue-600/30 to-indigo-600/30 border border-blue-500/50 shadow-md' : 'bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 hover:border-gray-600'}`}
-                    data-email-id={email._id}
-                  >
+                {emails.map(email => {
+                  // Ensure email has an _id property for display
+                  const emailId = email._id || email.id || email.emailId || '';
+                  
+                  return (
+                    <div 
+                      key={emailId} 
+                      onClick={() => {
+                        console.log('Email clicked:', emailId);
+                        this.handleEmailSelect(emailId);
+                      }}
+                      className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${selectedEmail && (selectedEmail._id === emailId || selectedEmail.id === emailId || selectedEmail.emailId === emailId) ? 'bg-gradient-to-r from-blue-600/30 to-indigo-600/30 border border-blue-500/50 shadow-md' : 'bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 hover:border-gray-600'}`}
+                      data-email-id={emailId}
+                    >
                     <div className="flex justify-between items-center mb-2">
                       <p className="text-white font-medium truncate">{email.subject || 'No Subject'}</p>
                       <span className="text-xs text-gray-400 bg-gray-800/70 px-2 py-1 rounded-full">
@@ -856,7 +982,8 @@ class AdminSandboxPanel extends React.Component {
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
