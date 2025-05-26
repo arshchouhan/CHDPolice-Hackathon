@@ -7,11 +7,60 @@
 
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
+let multer;
+
+// Handle missing dependencies gracefully for deployment
+try {
+  multer = require('multer');
+} catch (error) {
+  console.warn('Multer not available. File upload functionality will be disabled.');
+  // Create a mock multer implementation
+  multer = {
+    diskStorage: () => ({}),
+    single: () => (req, res, next) => next()
+  };
+}
+
 const path = require('path');
 const fs = require('fs');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
-const phishingModel = require('../utils/phishing-model');
+
+// Try to load the phishing model, but provide fallback if it fails
+let phishingModel;
+try {
+  phishingModel = require('../utils/phishing-model');
+} catch (error) {
+  console.warn('Phishing model module not available. Using fallback implementation.');
+  // Create a fallback implementation
+  phishingModel = {
+    initModel: async () => false,
+    trainModel: async () => false,
+    analyzeEmailWithModel: async (emailData) => {
+      // Return a response that indicates the model is not available
+      return {
+        overallRiskScore: 50,
+        phishingIndicators: ['Custom model not available - please train a model or use Gemini API'],
+        urlAnalysis: emailData.urls.map(url => ({
+          url,
+          riskScore: 50,
+          reasons: ['URL analysis requires trained model']
+        })),
+        summary: 'Custom phishing detection model is not available. Please train a model or use Gemini API for analysis.',
+        originalEmail: {
+          subject: emailData.subject,
+          sender: emailData.sender,
+          urlCount: emailData.urls.length
+        }
+      };
+    },
+    extractUrlsFromEmail: (emailContent) => {
+      // Simple URL extraction fallback
+      const urlPattern = /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)/gi;
+      const urls = emailContent.match(urlPattern) || [];
+      return [...new Set(urls)];
+    }
+  };
+}
 
 // Configure multer for dataset upload
 const storage = multer.diskStorage({

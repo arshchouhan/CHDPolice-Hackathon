@@ -9,7 +9,25 @@ const natural = require('natural');
 const { TfIdf } = natural;
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { EventEmitter } = require('events');
+// Try to load child_process for Python script execution, but handle gracefully if not available
+let spawn;
+try {
+  const childProcess = require('child_process');
+  spawn = childProcess.spawn;
+} catch (error) {
+  console.warn('child_process module not available. Python script execution will be disabled.');
+  // Create a mock spawn function
+  spawn = () => {
+    const mockProcess = new EventEmitter();
+    setTimeout(() => {
+      mockProcess.emit('close', 1);
+    }, 100);
+    mockProcess.stdout = new EventEmitter();
+    mockProcess.stderr = new EventEmitter();
+    return mockProcess;
+  };
+}
 
 // Path to the trained model files
 const MODEL_DIR = path.join(__dirname, '../models');
