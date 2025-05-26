@@ -28,6 +28,8 @@ class AdminSandboxPanel extends React.Component {
   
   componentDidMount() {
     this.loadUsers();
+    // Load all emails by default
+    this.loadEmails();
   }
   
   // Load users from the API
@@ -65,10 +67,9 @@ class AdminSandboxPanel extends React.Component {
         loadingUsers: false 
       });
       
-      // If users were loaded successfully, select the first user and load their emails
-      if (data.users && data.users.length > 0) {
-        this.handleUserSelect(data.users[0]);
-      }
+      // If users were loaded successfully, we don't automatically select any user
+      // This allows viewing emails from all users by default
+      // Users can still select a specific user from the dropdown if needed
     } catch (error) {
       console.error('Error loading users:', error);
       this.setState({ 
@@ -96,10 +97,11 @@ class AdminSandboxPanel extends React.Component {
     });
   };
   
-  // Refresh emails for the current user
+  // Refresh emails - either for selected user or all emails
   refreshEmails = () => {
     const { selectedUser } = this.state;
     if (selectedUser && selectedUser.id) {
+      // If a user is selected, load only their emails
       this.loadEmails(selectedUser.id);
     } else {
       // If no user is selected, load all emails
