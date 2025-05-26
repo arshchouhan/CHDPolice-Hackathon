@@ -195,6 +195,7 @@ class AdminSandboxPanel extends React.Component {
       let response = null;
       let lastError = null;
       let successEndpoint = null;
+      let responseText = '';
       
       for (const endpoint of possibleEndpoints) {
         try {
@@ -208,9 +209,36 @@ class AdminSandboxPanel extends React.Component {
             }
           });
           
+          // Check if response is OK
           if (response.ok) {
-            successEndpoint = endpoint;
-            break; // We found a working endpoint, stop trying others
+            // Check the content type to ensure we're getting JSON
+            const contentType = response.headers.get('content-type');
+            console.log(`Response content type: ${contentType}`);
+            
+            if (contentType && contentType.includes('application/json')) {
+              // Get the response text for debugging
+              responseText = await response.text();
+              console.log('Response text preview:', responseText.substring(0, 100));
+              
+              // Check if the response text is valid JSON
+              try {
+                // Try to parse the JSON to verify it's valid
+                JSON.parse(responseText);
+                successEndpoint = endpoint;
+                console.log('Valid JSON response received');
+                break; // We found a working endpoint with valid JSON, stop trying others
+              } catch (jsonError) {
+                console.error('Invalid JSON response:', jsonError);
+                lastError = new Error('Invalid JSON response from server');
+                // Continue to the next endpoint
+              }
+            } else {
+              console.warn(`Response is not JSON: ${contentType}`);
+              lastError = new Error(`Server returned non-JSON content: ${contentType}`);
+              // Continue to the next endpoint
+            }
+          } else {
+            console.warn(`Response not OK: ${response.status} ${response.statusText}`);
           }
         } catch (fetchError) {
           console.error(`Error fetching from ${endpoint}:`, fetchError);
@@ -219,18 +247,19 @@ class AdminSandboxPanel extends React.Component {
         }
       }
       
-      // If we couldn't get a successful response from any endpoint
-      if (!response || !response.ok) {
+      // If we couldn't get a successful response with valid JSON from any endpoint
+      if (!successEndpoint) {
         throw new Error(lastError ? `Failed to fetch emails: ${lastError.message}` : 'Failed to fetch emails from any endpoint');
       }
       
       console.log(`Successfully fetched emails from: ${successEndpoint}`);
-      console.log('Response status:', response.status);
       
-      
+      // Parse the response text we already retrieved
       let data;
       try {
-        data = await response.json();
+        // We already have the response text from our validation step
+        data = JSON.parse(responseText);
+        console.log('Successfully parsed JSON data');
       } catch (parseError) {
         console.error('Error parsing JSON response:', parseError);
         throw new Error('Invalid response format from server. Please try again later.');
@@ -285,6 +314,50 @@ class AdminSandboxPanel extends React.Component {
       console.log(`Final email count: ${emails.length}`);
       
       if (emails.length === 0) {
+        console.log('No emails found, checking if we should add test data');
+        
+        // Add some test emails when in development or if we're having trouble loading real emails
+        if (window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')) {
+          console.log('Adding test emails for development environment');
+          
+          // Create test emails
+          const testEmails = [
+            {
+              _id: '1',
+              subject: 'Important Update: Your Course Has Been Migrated to a Hybrid Program',
+              from: 'Cipher Schools <support@cipherschools.com>',
+              receivedAt: new Date().toISOString(),
+              html: '<p>Dear Student, Your course has been migrated to our new hybrid learning program. Please log in to your account to access the updated materials.</p><p>Visit <a href="https://example.com/login">https://example.com/login</a> to get started.</p>',
+              userId: userId || 'testuser1'
+            },
+            {
+              _id: '2',
+              subject: 'Your Amazon.in order has been cancelled',
+              from: 'Amazon.in <order-update@amazon.in>',
+              receivedAt: new Date(Date.now() - 86400000).toISOString(),
+              html: '<p>Hello, We regret to inform you that your recent order #123456 has been cancelled. Please visit <a href="https://amazon.in/orders">https://amazon.in/orders</a> for more details.</p>',
+              userId: userId || 'testuser1'
+            },
+            {
+              _id: '3',
+              subject: 'Cisco Virtual Internship 2025 | Start Preparing Now!',
+              from: 'Unstop Practice <noreply@unstop.com>',
+              receivedAt: new Date(Date.now() - 172800000).toISOString(),
+              html: '<p>Hello Candidate, Registration for Cisco Virtual Internship 2025 is now open! Visit <a href="https://unstop.com/cisco-internship">https://unstop.com/cisco-internship</a> to register and start preparing.</p>',
+              userId: userId || 'testuser1'
+            }
+          ];
+          
+          // Update state with test emails
+          this.setState({ 
+            emails: testEmails,
+            error: 'Using test emails. API connection failed.'
+          });
+          
+          console.log('Added test emails:', testEmails.length);
+          return;
+        }
+        
         this.setState({
           error: userId ? `No emails found for this user. Try selecting 'All Users' instead.` : 'No emails found.'
         });
