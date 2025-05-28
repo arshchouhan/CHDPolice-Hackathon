@@ -282,12 +282,17 @@
             e.preventDefault();
             showLoading();
             
-            const emailOrUsername = document.getElementById('emailOrUsername').value.trim();
-            const password = document.getElementById('password').value;
+            const emailOrUsername = document.getElementById('emailOrUsername')?.value.trim();
+            const password = document.getElementById('password')?.value;
             const errorElement = document.getElementById('error-message');
             const loginBtn = document.querySelector('button[type="submit"]');
             
             try {
+                // Basic validation
+                if (!emailOrUsername || !password) {
+                    throw new Error('Please enter both email/username and password');
+                }
+
                 // Disable login button
                 if (loginBtn) loginBtn.disabled = true;
                 
@@ -295,13 +300,20 @@
                 const response = await fetch(`${getBaseUrl()}/api/auth/login`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
-                    credentials: 'include', // Important for cookies
+                    credentials: 'include',
                     body: JSON.stringify({ emailOrUsername, password })
                 });
-                
-                const data = await response.json();
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    console.error('JSON parse error:', jsonError);
+                    throw new Error('Invalid response from server');
+                }
                 
                 if (!response.ok) {
                     throw new Error(data.message || 'Login failed');
@@ -310,18 +322,24 @@
                 // Store user data in localStorage (excluding sensitive info)
                 if (data.user) {
                     localStorage.setItem('user', JSON.stringify(data.user));
+                    // Redirect to dashboard on successful login
+                    window.location.href = '/dashboard.html';
+                } else {
+                    throw new Error('Invalid response format from server');
                 }
-                
-                // Redirect to dashboard
-                window.location.href = '/dashboard.html';
                 
             } catch (error) {
                 console.error('Login error:', error);
-                showError(error.message || 'Login failed. Please try again.');
+                // Safely show error
+                if (errorElement) {
+                    errorElement.textContent = error.message || 'Login failed. Please try again.';
+                    errorElement.classList.remove('hidden');
+                }
             } finally {
                 hideLoading();
                 if (loginBtn) loginBtn.disabled = false;
-                document.getElementById('password').value = '';
+                const passwordField = document.getElementById('password');
+                if (passwordField) passwordField.value = '';
             }
         });
 

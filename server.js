@@ -28,25 +28,48 @@ const allowedOrigins = [
     'https://chd-police-hackathon.vercel.app',
     'http://localhost:3000',
     'http://localhost:5000',
-    'https://email-detection-api.onrender.com'
+    'https://email-detection-api.onrender.com',
+    'http://localhost:8000'
 ];
 
-app.use(cors({
+const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
         
-        if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-            return callback(new Error(msg), false);
+        // Allow all subdomains of your main domain
+        const allowed = allowedOrigins.some(allowedOrigin => 
+            origin === allowedOrigin || 
+            origin.endsWith(new URL(allowedOrigin).hostname)
+        );
+        
+        if (allowed || process.env.NODE_ENV === 'development') {
+            return callback(null, true);
         }
-        return callback(null, true);
+        
+        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+        return callback(new Error(msg), false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Content-Range', 'X-Content-Range']
-}));
+    allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'X-Requested-With',
+        'Accept',
+        'X-Access-Token',
+        'X-Refresh-Token'
+    ],
+    exposedHeaders: [
+        'Content-Range', 
+        'X-Content-Range',
+        'X-Access-Token',
+        'X-Refresh-Token'
+    ],
+    maxAge: 86400 // 24 hours
+};
+
+app.use(cors(corsOptions));
 
 // Trust first proxy (important for secure cookies in production)
 app.set('trust proxy', 1);
@@ -137,6 +160,26 @@ app.get('/signup', (req, res) => {
 
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+    
+    // If headers already sent, delegate to default error handler
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    // Always return JSON
+    res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        ...(process.env.NODE_ENV === 'development' && {
+            error: err.message,
+            stack: err.stack
+        })
+    });
 });
 
 // Catch all - serve index.html for SPA routing

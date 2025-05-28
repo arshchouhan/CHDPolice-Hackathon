@@ -74,9 +74,11 @@ exports.login = async (req, res) => {
 
     } catch (error) {
         console.error('Login error:', error);
+        // Ensure we always return JSON
         res.status(500).json({
             success: false,
-            message: 'Server error during login'
+            message: 'Server error during login',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 };
