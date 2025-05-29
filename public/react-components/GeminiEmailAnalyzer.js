@@ -49,16 +49,11 @@ class GeminiEmailAnalyzer extends React.Component {
     this.setState({ isAnalyzing: true, error: null, analysisResult: null });
     
     try {
-      // Check if GeminiClient is available
-      if (!window.GeminiClient) {
-        throw new Error('GeminiClient not found. Make sure gemini-client.js is loaded.');
-      }
-      
       // First try with Gemini API
       console.log('Attempting analysis with Gemini API...');
       
-      // Use the GeminiClient to analyze the email
-      const data = await window.GeminiClient.analyzeEmail(emailContent, emailSubject, emailSender);
+      // Use the simplified function to analyze the email
+      const data = await window.analyzeEmailWithGemini(emailContent, emailSubject, emailSender);
       
       console.log('Gemini API analysis successful');
       
@@ -81,8 +76,8 @@ class GeminiEmailAnalyzer extends React.Component {
         console.log('Falling back to local analysis...');
         this.setState({ error: 'Gemini API error: ' + error.message + '. Using local analysis instead.' });
         
-        // Use the GeminiClient to perform local analysis
-        const localData = await window.GeminiClient.analyzeEmailLocal(emailContent, emailSubject, emailSender);
+        // Use the simplified function to perform local analysis
+        const localData = await window.analyzeEmailLocally(emailContent, emailSubject, emailSender);
         
         console.log('Local analysis successful');
         

@@ -175,15 +175,10 @@ class UrlSandboxViewer extends React.Component {
     // Use Gemini AI for security analysis
     let findings = [];
     try {
-      // Check if GeminiClient is available
-      if (!window.GeminiClient) {
-        throw new Error('GeminiClient not found. Make sure gemini-client.js is loaded.');
-      }
-      
       this.addLog(`Sending data to Gemini AI for advanced threat analysis...`, 'info');
       
-      // Use the GeminiClient to analyze the URL
-      const data = await window.GeminiClient.analyzeUrl(
+      // Use the simplified function to analyze the URL
+      const data = await window.analyzeUrlWithGemini(
         url,
         this.state.networkTrafficData,
         this.state.dnsAnalysisData
