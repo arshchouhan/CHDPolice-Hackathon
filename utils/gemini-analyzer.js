@@ -5,12 +5,17 @@
  * to identify suspicious URLs and potential phishing attempts.
  */
 
-const axios = require('axios');
 require('dotenv').config();
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Get Gemini API key from environment variables
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent';
+
+// Initialize the Google Generative AI client
+let genAI;
+if (GEMINI_API_KEY) {
+  genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+}
 
 /**
  * Analyzes an email using Gemini API to identify suspicious URLs and phishing indicators
@@ -23,8 +28,8 @@ const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemi
  * @returns {Promise<Object>} Analysis results
  */
 async function analyzeEmailWithGemini(emailData) {
-  if (!GEMINI_API_KEY) {
-    console.error('Gemini API key not found. Using local analysis instead.');
+  if (!GEMINI_API_KEY || !genAI) {
+    console.error('Gemini API key not found or client not initialized. Using local analysis instead.');
     return performLocalAnalysis(emailData);
   }
 
@@ -32,48 +37,36 @@ async function analyzeEmailWithGemini(emailData) {
     // Prepare the prompt for Gemini
     const prompt = createAnalysisPrompt(emailData);
     
+    console.log('Initializing Gemini model...');
+    // Get the gemini-pro model
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    
     console.log('Sending request to Gemini API...');
-    console.log(`API URL: ${GEMINI_API_URL}`);
-    console.log('API Key exists:', !!GEMINI_API_KEY);
-    
-    // Call Gemini API with timeout and better error handling
-    const response = await axios.post(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      {
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 2048
-        }
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000 // 30 second timeout
+    // Generate content using the official client library
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 2048
       }
-    );
-
-    console.log('Gemini API response received');
+    });
     
-    // Parse the response
-    const analysisResult = parseGeminiResponse(response.data, emailData);
+    console.log('Gemini API response received');
+    const response = result.response;
+    
+    // Get the text from the response
+    const responseText = response.text();
+    console.log('Response text length:', responseText.length);
+    
+    // Parse the response text to extract JSON
+    const analysisResult = parseGeminiResponseText(responseText, emailData);
     return analysisResult;
 
   } catch (error) {
     console.error('Error analyzing email with Gemini:', error);
-    console.error('Error details:', error.response ? error.response.data : 'No response data');
-    console.error('Status code:', error.response ? error.response.status : 'No status code');
+    console.error('Error message:', error.message);
     
     // Fall back to local analysis
     console.log('Falling back to local analysis...');
@@ -135,25 +128,29 @@ Provide ONLY the JSON response with no additional text.
 }
 
 /**
- * Parses the Gemini API response and extracts the analysis results
+ * Parses the Gemini API response text and extracts the analysis results
  * 
- * @param {Object} response - The Gemini API response
+ * @param {string} responseText - The text response from Gemini API
  * @param {Object} emailData - The original email data
  * @returns {Object} Parsed analysis results
  */
-function parseGeminiResponse(response, emailData) {
+function parseGeminiResponseText(responseText, emailData) {
   try {
-    // Extract the text from the response
-    const responseText = response.candidates[0].content.parts[0].text;
+    console.log('Parsing Gemini response text...');
     
     // Find the JSON part in the response (Gemini might include additional text)
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      console.error('Could not extract JSON from Gemini response');
+      console.log('Response text sample:', responseText.substring(0, 200));
       throw new Error('Could not extract JSON from Gemini response');
     }
     
     // Parse the JSON
-    const analysisResult = JSON.parse(jsonMatch[0]);
+    const jsonText = jsonMatch[0];
+    console.log('Extracted JSON text length:', jsonText.length);
+    
+    const analysisResult = JSON.parse(jsonText);
     
     // Add original email data for reference
     analysisResult.originalEmail = {
@@ -162,9 +159,27 @@ function parseGeminiResponse(response, emailData) {
       urlCount: emailData.urls.length
     };
     
+    // Add analysis method
+    analysisResult.analysisMethod = 'gemini';
+    
     return analysisResult;
   } catch (error) {
     console.error('Error parsing Gemini response:', error);
+    throw new Error('Failed to parse Gemini analysis results: ' + error.message);
+  }
+}
+
+/**
+ * Legacy function for backward compatibility
+ * @deprecated Use parseGeminiResponseText instead
+ */
+function parseGeminiResponse(response, emailData) {
+  try {
+    // Extract the text from the response
+    const responseText = response.candidates[0].content.parts[0].text;
+    return parseGeminiResponseText(responseText, emailData);
+  } catch (error) {
+    console.error('Error in legacy parseGeminiResponse:', error);
     throw new Error('Failed to parse Gemini analysis results');
   }
 }
