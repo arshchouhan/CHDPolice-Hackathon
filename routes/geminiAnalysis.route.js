@@ -11,6 +11,9 @@ const geminiController = require('../controllers/geminiAnalysis.controller');
 // Analyze an email using Gemini API
 router.post('/analyze-email', geminiController.analyzeEmail);
 
+// Analyze an email using local analysis only (no Gemini API)
+router.post('/analyze-email-local', geminiController.analyzeEmailLocal);
+
 // Analyze a URL using Gemini API
 router.post('/analyze-url', geminiController.analyzeUrl);
 

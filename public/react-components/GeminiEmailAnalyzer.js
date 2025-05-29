@@ -17,7 +17,8 @@ class GeminiEmailAnalyzer extends React.Component {
       error: null,
       suspiciousUrls: [],
       selectedUrls: [],
-      sandboxSubmitted: false
+      sandboxSubmitted: false,
+      analysisMethod: null // 'gemini' or 'local'
     };
   }
   
@@ -36,7 +37,7 @@ class GeminiEmailAnalyzer extends React.Component {
     this.setState({ emailSender: e.target.value });
   }
   
-  // Analyze email using Gemini API
+  // Analyze email using Gemini API with fallback to local analysis
   analyzeEmail = async () => {
     const { emailContent, emailSubject, emailSender } = this.state;
     
@@ -48,6 +49,8 @@ class GeminiEmailAnalyzer extends React.Component {
     this.setState({ isAnalyzing: true, error: null, analysisResult: null });
     
     try {
+      // First try with Gemini API
+      console.log('Attempting analysis with Gemini API...');
       const response = await fetch(`${window.getBaseUrl()}/api/gemini/analyze-email`, {
         method: 'POST',
         headers: {
@@ -64,8 +67,11 @@ class GeminiEmailAnalyzer extends React.Component {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to analyze email');
+        console.warn('Gemini API analysis failed, falling back to local analysis...');
+        throw new Error(data.message || 'Gemini API analysis failed');
       }
+      
+      console.log('Gemini API analysis successful');
       
       // Extract suspicious URLs (risk score > 50)
       const suspiciousUrls = data.data.urlAnalysis.filter(url => url.riskScore > 50);
@@ -74,15 +80,58 @@ class GeminiEmailAnalyzer extends React.Component {
         isAnalyzing: false,
         analysisResult: data.data,
         suspiciousUrls,
-        selectedUrls: suspiciousUrls.map(url => url.url) // Select all suspicious URLs by default
+        selectedUrls: suspiciousUrls.map(url => url.url), // Select all suspicious URLs by default
+        analysisMethod: 'gemini'
       });
       
     } catch (error) {
-      console.error('Error analyzing email:', error);
-      this.setState({
-        isAnalyzing: false,
-        error: error.message || 'An error occurred during analysis'
-      });
+      console.error('Error analyzing email with Gemini:', error);
+      
+      // Fall back to local analysis
+      try {
+        console.log('Falling back to local analysis...');
+        this.setState({ error: 'Gemini API error: ' + error.message + '. Using local analysis instead.' });
+        
+        // Call the local analysis endpoint
+        const localResponse = await fetch(`${window.getBaseUrl()}/api/gemini/analyze-email-local`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            emailContent,
+            subject: emailSubject,
+            sender: emailSender
+          })
+        });
+        
+        const localData = await localResponse.json();
+        
+        if (!localResponse.ok) {
+          throw new Error(localData.message || 'Local analysis failed');
+        }
+        
+        console.log('Local analysis successful');
+        
+        // Extract suspicious URLs (risk score > 50)
+        const suspiciousUrls = localData.data.urlAnalysis.filter(url => url.riskScore > 50);
+        
+        this.setState({
+          isAnalyzing: false,
+          analysisResult: localData.data,
+          suspiciousUrls,
+          selectedUrls: suspiciousUrls.map(url => url.url), // Select all suspicious URLs by default
+          analysisMethod: 'local'
+        });
+        
+      } catch (localError) {
+        console.error('Both Gemini and local analysis failed:', localError);
+        this.setState({
+          isAnalyzing: false,
+          error: 'Both Gemini API and local analysis failed: ' + localError.message
+        });
+      }
     }
   }
   
@@ -243,23 +292,82 @@ class GeminiEmailAnalyzer extends React.Component {
             placeholder="Paste email content here (text or HTML)"
           />
           
-          <button
-            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
-            onClick={this.analyzeEmail}
-            disabled={isAnalyzing || !emailContent}
-          >
-            {isAnalyzing ? (
-              <>
-                <i className="fas fa-spinner fa-spin mr-2"></i>
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <i className="fas fa-robot mr-2"></i>
-                Analyze with Gemini AI
-              </>
-            )}
-          </button>
+          <div className="mt-4 flex space-x-2">
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
+              onClick={this.analyzeEmail}
+              disabled={isAnalyzing || !emailContent}
+            >
+              {isAnalyzing ? (
+                <>
+                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-robot mr-2"></i>
+                  Analyze with Gemini AI
+                </>
+              )}
+            </button>
+            
+            {/* Direct Local Analysis Button */}
+            <button
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
+              onClick={() => {
+                // Call the local analysis endpoint directly
+                const { emailContent, emailSubject, emailSender } = this.state;
+                
+                if (!emailContent) {
+                  this.setState({ error: 'Please enter email content to analyze' });
+                  return;
+                }
+                
+                this.setState({ isAnalyzing: true, error: null, analysisResult: null });
+                
+                fetch(`${window.getBaseUrl()}/api/gemini/analyze-email-local`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                  },
+                  body: JSON.stringify({
+                    emailContent,
+                    subject: emailSubject,
+                    sender: emailSender
+                  })
+                })
+                .then(response => response.json())
+                .then(data => {
+                  if (!data.success) {
+                    throw new Error(data.message || 'Local analysis failed');
+                  }
+                  
+                  // Extract suspicious URLs (risk score > 50)
+                  const suspiciousUrls = data.data.urlAnalysis.filter(url => url.riskScore > 50);
+                  
+                  this.setState({
+                    isAnalyzing: false,
+                    analysisResult: data.data,
+                    suspiciousUrls,
+                    selectedUrls: suspiciousUrls.map(url => url.url),
+                    analysisMethod: 'local'
+                  });
+                })
+                .catch(error => {
+                  console.error('Error in local analysis:', error);
+                  this.setState({
+                    isAnalyzing: false,
+                    error: 'Local analysis failed: ' + error.message
+                  });
+                });
+              }}
+              disabled={isAnalyzing || !emailContent}
+            >
+              <i className="fas fa-laptop mr-2"></i>
+              Use Local Analysis
+            </button>
+          </div>
         </div>
         
         {/* Error Message */}
@@ -272,7 +380,14 @@ class GeminiEmailAnalyzer extends React.Component {
         {/* Analysis Results */}
         {analysisResult && (
           <div className="border border-gray-200 rounded-lg p-4 mb-4">
-            <h4 className="text-md font-semibold mb-2">Analysis Results</h4>
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-md font-semibold">Analysis Results</h4>
+              {this.state.analysisMethod && (
+                <span className={`text-xs px-2 py-1 rounded ${this.state.analysisMethod === 'gemini' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                  {this.state.analysisMethod === 'gemini' ? 'Gemini AI' : 'Local Analysis'}
+                </span>
+              )}
+            </div>
             
             {/* Overall Risk Score */}
             <div className="mb-4">

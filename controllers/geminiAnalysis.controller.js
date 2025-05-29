@@ -4,9 +4,96 @@
  * Handles API endpoints related to email analysis using Google's Gemini API
  */
 
-const { analyzeEmailWithGemini, extractUrlsFromEmail } = require('../utils/gemini-analyzer');
+const { analyzeEmailWithGemini, extractUrlsFromEmail, performLocalAnalysis } = require('../utils/gemini-analyzer');
 const Email = require('../models/Email');
 const UrlAnalysis = require('../models/UrlAnalysis');
+
+/**
+ * Analyze an email using Gemini API
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+/**
+ * Analyze an email using local analysis only (no Gemini API)
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+exports.analyzeEmailLocal = async (req, res) => {
+  try {
+    const { emailId, emailContent, subject, sender } = req.body;
+
+    if (!emailContent) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email content is required'
+      });
+    }
+
+    // Extract URLs from email content
+    const urls = extractUrlsFromEmail(emailContent);
+
+    // Prepare email data for local analysis
+    const emailData = {
+      subject: subject || 'No Subject',
+      body: emailContent,
+      sender: sender || 'unknown@sender.com',
+      urls: urls
+    };
+
+    console.log(`Analyzing email locally with ${urls.length} URLs`);
+    
+    // Perform local analysis directly (bypass Gemini API completely)
+    const analysisResult = performLocalAnalysis(emailData);
+    console.log('Local analysis completed successfully');
+
+    // If emailId is provided, update the email record
+    if (emailId) {
+      await Email.findByIdAndUpdate(emailId, {
+        geminiAnalysis: analysisResult,
+        analysisComplete: true,
+        riskScore: analysisResult.overallRiskScore,
+        analysisMethod: 'local'
+      });
+    }
+
+    // For each suspicious URL, create a URL analysis record
+    if (analysisResult.urlAnalysis && analysisResult.urlAnalysis.length > 0) {
+      const suspiciousUrls = analysisResult.urlAnalysis.filter(url => url.riskScore > 50);
+      console.log(`Found ${suspiciousUrls.length} suspicious URLs`);
+      
+      for (const urlData of suspiciousUrls) {
+        // Check if URL already exists in database
+        const existingUrl = await UrlAnalysis.findOne({ url: urlData.url });
+        
+        if (!existingUrl) {
+          // Create new URL analysis record
+          await UrlAnalysis.create({
+            url: urlData.url,
+            email_id: emailId,
+            status: 'pending',
+            riskScore: urlData.riskScore,
+            reasons: urlData.reasons || ['Suspicious URL']
+          });
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: analysisResult,
+      analysisMethod: 'local'
+    });
+
+  } catch (error) {
+    console.error('Error in local email analysis:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'An error occurred during local email analysis'
+    });
+  }
+};
 
 /**
  * Analyze an email using Gemini API

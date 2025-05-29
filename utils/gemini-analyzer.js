@@ -293,5 +293,6 @@ function performLocalAnalysis(emailData) {
 
 module.exports = {
   analyzeEmailWithGemini,
-  extractUrlsFromEmail
+  extractUrlsFromEmail,
+  performLocalAnalysis
 };
