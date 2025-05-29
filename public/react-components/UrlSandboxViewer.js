@@ -175,52 +175,28 @@ class UrlSandboxViewer extends React.Component {
     // Use Gemini AI for security analysis
     let findings = [];
     try {
-      // Get authentication token
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found');
+      // Check if GeminiClient is available
+      if (!window.GeminiClient) {
+        throw new Error('GeminiClient not found. Make sure gemini-client.js is loaded.');
       }
-      
-      // Get base URL
-      const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-      
-      // Prepare data for Gemini analysis
-      const analysisData = {
-        url: url,
-        networkData: this.state.networkTrafficData,
-        dnsData: this.state.dnsAnalysisData
-      };
       
       this.addLog(`Sending data to Gemini AI for advanced threat analysis...`, 'info');
       
-      // Call the Gemini API
-      const response = await fetch(`${baseUrl}/api/gemini/analyze-url`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(analysisData)
-      });
+      // Use the GeminiClient to analyze the URL
+      const data = await window.GeminiClient.analyzeUrl(
+        url,
+        this.state.networkTrafficData,
+        this.state.dnsAnalysisData
+      );
       
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
-      }
+      this.addLog(`Gemini AI analysis complete`, 'success');
       
-      const data = await response.json();
-      
-      if (data.success) {
-        this.addLog(`Gemini AI analysis complete`, 'success');
-        
-        // Use findings from Gemini
-        if (data.findings && Array.isArray(data.findings)) {
-          findings = data.findings;
-        } else {
-          // Fallback to local findings if Gemini doesn't return expected format
-          findings = await this.generateSecurityFindings(url);
-        }
+      // Use findings from Gemini
+      if (data.findings && Array.isArray(data.findings)) {
+        findings = data.findings;
       } else {
-        throw new Error(data.message || 'Unknown error from Gemini API');
+        // Fallback to local findings if Gemini doesn't return expected format
+        findings = await this.generateSecurityFindings(url);
       }
     } catch (error) {
       this.addLog(`Error with Gemini analysis: ${error.message}. Using local analysis instead.`, 'error');
