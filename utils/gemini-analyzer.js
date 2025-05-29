@@ -15,6 +15,9 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 let genAI;
 if (GEMINI_API_KEY) {
   genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  console.log('Gemini API client initialized with key');
+} else {
+  console.error('GEMINI_API_KEY not found in environment variables');
 }
 
 /**

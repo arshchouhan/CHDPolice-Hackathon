@@ -262,9 +262,25 @@ exports.analyzeUrl = async (req, res) => {
       });
     }
 
+    // Verify API key is available
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('GEMINI_API_KEY not found in environment variables');
+      return res.status(500).json({
+        success: false,
+        message: 'Gemini API key not configured'
+      });
+    }
+
+    console.log('Starting URL analysis with Gemini API...');
+    console.log('API Key exists:', !!process.env.GEMINI_API_KEY);
+    console.log('URL to analyze:', url);
+
     // Initialize the Gemini API
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    
+    // Get the model
+    console.log('Initializing Gemini model...');
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
     // Prepare the prompt for URL analysis
@@ -287,17 +303,30 @@ exports.analyzeUrl = async (req, res) => {
 4. Return the analysis in JSON format with the following structure:\n{
   "isMalicious": boolean,\n  "riskLevel": "low"|"medium"|"high",\n  "findings": [\n    {\n      "type": string,\n      "message": string,\n      "severity": number (0-100),\n      "details": string\n    }\n  ]\n}`;
 
+    console.log('Sending request to Gemini API...');
+    
     // Generate content with Gemini
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 2048
+      }
+    });
+    
+    console.log('Received response from Gemini API');
+    const response = result.response;
     const text = response.text();
+    console.log('Response text length:', text.length);
     
     // Try to parse the JSON response
     try {
       // Extract JSON from the response (it might be wrapped in markdown code blocks)
       const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || 
-                       text.match(/```\n([\s\S]*?)\n```/) || 
-                       text.match(/{[\s\S]*}/);
+                      text.match(/```\n([\s\S]*?)\n```/) || 
+                      text.match(/{[\s\S]*}/);
       
       let jsonResponse;
       if (jsonMatch) {
