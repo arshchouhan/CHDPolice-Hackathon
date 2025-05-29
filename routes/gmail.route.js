@@ -19,7 +19,7 @@ router.get('/profile', authenticateToken, gmailController.getProfile);
 router.get('/fetch-emails', authenticateToken, gmailController.fetchEmails);
 
 // Scan emails for phishing threats
-router.post('/scan', authenticateToken, gmailController.fetchEmails);
+router.post('/scan', authenticateToken, gmailController.scanEmails);
 
 // Disconnect Gmail
 router.post('/disconnect', authenticateToken, gmailController.disconnectGmail);

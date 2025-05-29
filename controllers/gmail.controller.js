@@ -551,10 +551,10 @@ exports.fetchEmails = async (req, res) => {
     
     try {
       console.log('Fetching message list from Gmail...');
-      // Get list of messages (limit to 10 for testing)
+      // Get list of messages (increased limit for better coverage)
       const response = await gmail.users.messages.list({
         userId: 'me',
-        maxResults: 10
+        maxResults: 50 // Increased from 10 to get more emails
       });
       
       const messages = response.data.messages || [];
@@ -567,7 +567,7 @@ exports.fetchEmails = async (req, res) => {
         try {
           console.log(`Processing message ID: ${message.id}`);
           // Check if email already exists in our database
-          const existingEmail = await Email.findOne({ messageId: message.id });
+          const existingEmail = await Email.findOne({ message_id: message.id, user: userId });
           if (existingEmail) {
             console.log(`Message ${message.id} already exists in database`);
             processedEmails.push(existingEmail);
@@ -592,8 +592,8 @@ exports.fetchEmails = async (req, res) => {
           
           // Create new email record
           const newEmail = new Email({
-            userId: userId,
-            messageId: message.id,
+            user: userId,
+            message_id: message.id,
             from: emailData.from,
             to: emailData.to,
             subject: emailData.subject,
@@ -960,11 +960,11 @@ exports.scanEmails = async (req, res) => {
     // Create Gmail API client
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     
-    // Get list of messages (limit to 10 most recent for performance)
+    // Get list of messages (increased limit for better coverage)
     const response = await gmail.users.messages.list({
       userId: 'me',
-      maxResults: 10,
-      q: 'newer_than:1d' // Only get emails from the last day
+      maxResults: 50 // Increased from 10 to get more emails
+      // Removed date restriction to get all emails
     });
     
     const messages = response.data.messages || [];
