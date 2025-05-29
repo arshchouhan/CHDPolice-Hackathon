@@ -36,21 +36,37 @@ exports.analyzeEmail = async (req, res) => {
       urls: urls
     };
 
-    // Analyze email with Gemini API
-    const analysisResult = await analyzeEmailWithGemini(emailData);
+    console.log(`Analyzing email with ${urls.length} URLs`);
+    
+    // Analyze email with Gemini API (with fallback to local analysis)
+    let analysisResult;
+    try {
+      analysisResult = await analyzeEmailWithGemini(emailData);
+      console.log('Analysis completed successfully');
+    } catch (analysisError) {
+      console.error('Error with Gemini analysis:', analysisError);
+      // If we get here, the fallback in analyzeEmailWithGemini failed
+      return res.status(500).json({
+        success: false,
+        message: 'Both Gemini API and local analysis failed',
+        error: analysisError.message
+      });
+    }
 
     // If emailId is provided, update the email record
     if (emailId) {
       await Email.findByIdAndUpdate(emailId, {
         geminiAnalysis: analysisResult,
         analysisComplete: true,
-        riskScore: analysisResult.overallRiskScore
+        riskScore: analysisResult.overallRiskScore,
+        analysisMethod: analysisResult.analysisMethod || 'gemini'
       });
     }
 
     // For each suspicious URL, create a URL analysis record
     if (analysisResult.urlAnalysis && analysisResult.urlAnalysis.length > 0) {
       const suspiciousUrls = analysisResult.urlAnalysis.filter(url => url.riskScore > 50);
+      console.log(`Found ${suspiciousUrls.length} suspicious URLs`);
       
       for (const urlData of suspiciousUrls) {
         // Check if URL already exists in database
@@ -63,7 +79,7 @@ exports.analyzeEmail = async (req, res) => {
             email_id: emailId,
             status: 'pending',
             riskScore: urlData.riskScore,
-            reasons: urlData.reasons
+            reasons: urlData.reasons || ['Suspicious URL']
           });
         }
       }
@@ -71,11 +87,12 @@ exports.analyzeEmail = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: analysisResult
+      data: analysisResult,
+      analysisMethod: analysisResult.analysisMethod || 'gemini'
     });
 
   } catch (error) {
-    console.error('Error in Gemini analysis:', error);
+    console.error('Error in email analysis process:', error);
     return res.status(500).json({
       success: false,
       message: error.message || 'An error occurred during email analysis'

@@ -24,14 +24,19 @@ const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemi
  */
 async function analyzeEmailWithGemini(emailData) {
   if (!GEMINI_API_KEY) {
-    throw new Error('Gemini API key not found. Please add GEMINI_API_KEY to your .env file');
+    console.error('Gemini API key not found. Using local analysis instead.');
+    return performLocalAnalysis(emailData);
   }
 
   try {
     // Prepare the prompt for Gemini
     const prompt = createAnalysisPrompt(emailData);
     
-    // Call Gemini API
+    console.log('Sending request to Gemini API...');
+    console.log(`API URL: ${GEMINI_API_URL}`);
+    console.log('API Key exists:', !!GEMINI_API_KEY);
+    
+    // Call Gemini API with timeout and better error handling
     const response = await axios.post(
       `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
       {
@@ -54,17 +59,25 @@ async function analyzeEmailWithGemini(emailData) {
       {
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 30000 // 30 second timeout
       }
     );
 
+    console.log('Gemini API response received');
+    
     // Parse the response
     const analysisResult = parseGeminiResponse(response.data, emailData);
     return analysisResult;
 
   } catch (error) {
     console.error('Error analyzing email with Gemini:', error);
-    throw error;
+    console.error('Error details:', error.response ? error.response.data : 'No response data');
+    console.error('Status code:', error.response ? error.response.status : 'No status code');
+    
+    // Fall back to local analysis
+    console.log('Falling back to local analysis...');
+    return performLocalAnalysis(emailData);
   }
 }
 
@@ -171,6 +184,96 @@ function extractUrlsFromEmail(emailContent) {
   
   // Return unique URLs
   return [...new Set(urls)];
+}
+
+/**
+ * Performs a local analysis of the email when Gemini API is unavailable
+ * 
+ * @param {Object} emailData - The email data to analyze
+ * @returns {Object} Analysis results
+ */
+function performLocalAnalysis(emailData) {
+  console.log('Performing local email analysis...');
+  
+  // Basic risk indicators
+  const suspiciousTerms = [
+    'urgent', 'password', 'account', 'verify', 'bank', 'click', 'confirm',
+    'update', 'security', 'suspicious', 'unusual', 'login', 'access',
+    'important', 'attention', 'immediately', 'required', 'action needed'
+  ];
+  
+  // Count suspicious terms in subject and body
+  const lowerSubject = emailData.subject.toLowerCase();
+  const lowerBody = emailData.body.toLowerCase();
+  
+  let termCount = 0;
+  const foundTerms = [];
+  
+  suspiciousTerms.forEach(term => {
+    if (lowerSubject.includes(term) || lowerBody.includes(term)) {
+      termCount++;
+      foundTerms.push(term);
+    }
+  });
+  
+  // Calculate basic risk score based on suspicious terms
+  const termScore = Math.min(100, (termCount / suspiciousTerms.length) * 100);
+  
+  // Analyze URLs
+  const urlAnalysis = emailData.urls.map(url => {
+    // Basic URL risk assessment
+    let urlRisk = 0;
+    const reasons = [];
+    
+    // Check for suspicious TLDs
+    const suspiciousTlds = ['.xyz', '.tk', '.top', '.club', '.online', '.site'];
+    if (suspiciousTlds.some(tld => url.endsWith(tld))) {
+      urlRisk += 20;
+      reasons.push('Suspicious top-level domain');
+    }
+    
+    // Check for numeric domains
+    if (/https?:\/\/\d+\.\d+\.\d+\.\d+/.test(url)) {
+      urlRisk += 15;
+      reasons.push('IP address used in URL instead of domain name');
+    }
+    
+    // Check for long URLs (potential obfuscation)
+    if (url.length > 100) {
+      urlRisk += 10;
+      reasons.push('Unusually long URL');
+    }
+    
+    // Check for URL shorteners
+    const shorteners = ['bit.ly', 'tinyurl', 'goo.gl', 't.co', 'is.gd', 'cli.gs', 'ow.ly'];
+    if (shorteners.some(shortener => url.includes(shortener))) {
+      urlRisk += 25;
+      reasons.push('URL shortener detected');
+    }
+    
+    return {
+      url,
+      riskScore: Math.min(100, urlRisk),
+      reasons: reasons.length > 0 ? reasons : ['No obvious risk indicators']
+    };
+  });
+  
+  // Calculate overall risk (weighted average: 40% terms, 60% URLs)
+  const urlRiskAvg = urlAnalysis.length > 0 
+    ? urlAnalysis.reduce((sum, url) => sum + url.riskScore, 0) / urlAnalysis.length 
+    : 0;
+  
+  const overallRiskScore = Math.round((termScore * 0.4) + (urlRiskAvg * 0.6));
+  
+  return {
+    overallRiskScore,
+    phishingIndicators: foundTerms.length > 0 
+      ? foundTerms.map(term => `Contains suspicious term: ${term}`) 
+      : ['No obvious phishing indicators'],
+    urlAnalysis,
+    summary: `Local analysis detected ${urlAnalysis.length} URLs and ${foundTerms.length} suspicious terms.`,
+    analysisMethod: 'local' // Indicate this was analyzed locally, not with Gemini
+  };
 }
 
 module.exports = {
