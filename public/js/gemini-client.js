@@ -145,6 +145,62 @@ window.GeminiClient = {
         throw new Error('Both Gemini API and local analysis failed: ' + localError.message);
       }
     }
+  },
+  /**
+   * Analyze an email using local analysis only (no Gemini API)
+   * 
+   * @param {string} emailContent - The email content to analyze
+   * @param {string} subject - Optional email subject
+   * @param {string} sender - Optional email sender
+   * @param {string} emailId - Optional email ID for database reference
+   * @returns {Promise<Object>} Analysis results
+   */
+  analyzeEmailLocal: async function(emailContent, subject = '', sender = '', emailId = null) {
+    try {
+      // Get authentication token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+      
+      // Get base URL
+      const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+      
+      // Prepare data for local analysis
+      const analysisData = {
+        emailContent,
+        subject,
+        sender,
+        emailId
+      };
+      
+      console.log('Sending data for local email analysis...');
+      
+      // Call the local analysis endpoint
+      const response = await fetch(`${baseUrl}/api/gemini/analyze-email-local`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(analysisData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Local analysis error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || 'Unknown error from local analysis');
+      }
+      
+      return data.data;
+    } catch (error) {
+      console.error('Error with local email analysis:', error);
+      throw error;
+    }
   }
 };
 

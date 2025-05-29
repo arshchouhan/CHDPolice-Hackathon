@@ -49,36 +49,25 @@ class GeminiEmailAnalyzer extends React.Component {
     this.setState({ isAnalyzing: true, error: null, analysisResult: null });
     
     try {
+      // Check if GeminiClient is available
+      if (!window.GeminiClient) {
+        throw new Error('GeminiClient not found. Make sure gemini-client.js is loaded.');
+      }
+      
       // First try with Gemini API
       console.log('Attempting analysis with Gemini API...');
-      const response = await fetch(`${window.getBaseUrl()}/api/gemini/analyze-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          emailContent,
-          subject: emailSubject,
-          sender: emailSender
-        })
-      });
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        console.warn('Gemini API analysis failed, falling back to local analysis...');
-        throw new Error(data.message || 'Gemini API analysis failed');
-      }
+      // Use the GeminiClient to analyze the email
+      const data = await window.GeminiClient.analyzeEmail(emailContent, emailSubject, emailSender);
       
       console.log('Gemini API analysis successful');
       
       // Extract suspicious URLs (risk score > 50)
-      const suspiciousUrls = data.data.urlAnalysis.filter(url => url.riskScore > 50);
+      const suspiciousUrls = data.urlAnalysis.filter(url => url.riskScore > 50);
       
       this.setState({
         isAnalyzing: false,
-        analysisResult: data.data,
+        analysisResult: data,
         suspiciousUrls,
         selectedUrls: suspiciousUrls.map(url => url.url), // Select all suspicious URLs by default
         analysisMethod: 'gemini'
@@ -92,34 +81,17 @@ class GeminiEmailAnalyzer extends React.Component {
         console.log('Falling back to local analysis...');
         this.setState({ error: 'Gemini API error: ' + error.message + '. Using local analysis instead.' });
         
-        // Call the local analysis endpoint
-        const localResponse = await fetch(`${window.getBaseUrl()}/api/gemini/analyze-email-local`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify({
-            emailContent,
-            subject: emailSubject,
-            sender: emailSender
-          })
-        });
-        
-        const localData = await localResponse.json();
-        
-        if (!localResponse.ok) {
-          throw new Error(localData.message || 'Local analysis failed');
-        }
+        // Use the GeminiClient to perform local analysis
+        const localData = await window.GeminiClient.analyzeEmailLocal(emailContent, emailSubject, emailSender);
         
         console.log('Local analysis successful');
         
         // Extract suspicious URLs (risk score > 50)
-        const suspiciousUrls = localData.data.urlAnalysis.filter(url => url.riskScore > 50);
+        const suspiciousUrls = localData.urlAnalysis.filter(url => url.riskScore > 50);
         
         this.setState({
           isAnalyzing: false,
-          analysisResult: localData.data,
+          analysisResult: localData,
           suspiciousUrls,
           selectedUrls: suspiciousUrls.map(url => url.url), // Select all suspicious URLs by default
           analysisMethod: 'local'
