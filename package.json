@@ -33,6 +33,8 @@
     "mongodb": "^6.16.0",
     "mongoose": "^8.1.1",
     "node-html-parser": "^6.1.12",
+    "serve-static": "^1.15.0",
+    "compression": "^1.7.4",
     "socket.io": "^4.8.1",
     "whois-json": "^2.0.4"
   }

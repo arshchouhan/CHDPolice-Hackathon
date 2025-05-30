@@ -8,7 +8,11 @@ require('dotenv').config();
 const app = express();
 
 // Serve static files first
-app.use(express.static(path.join(__dirname, 'public'), {
+const serveStatic = require('serve-static');
+const compression = require('compression');
+
+// Static file serving with better configuration
+const staticMiddleware = serveStatic(path.join(__dirname, 'public'), {
   maxAge: '1h',
   etag: true,
   lastModified: true,
@@ -39,7 +43,26 @@ app.use(express.static(path.join(__dirname, 'public'), {
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
   }
-}));
+});
+
+// Add compression middleware
+app.use(compression());
+
+// Add static file serving
+app.use(staticMiddleware);
+
+// Add error handling for static files
+app.use((err, req, res, next) => {
+  if (err) {
+    console.error('Static file error:', err);
+    res.status(404).json({
+      error: 'File not found',
+      message: 'The requested resource could not be found'
+    });
+  } else {
+    next();
+  }
+});
 
 // CORS configuration
 // Allowed origins with wildcard support
