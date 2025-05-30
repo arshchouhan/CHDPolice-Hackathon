@@ -14,10 +14,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Import routes
 const userRoutes = require('./routes/user.route');
 const adminRoutes = require('./routes/admin.route');
+const authRoutes = require('./routes/auth.route');
 
 // API Routes
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/auth', authRoutes);
 
 // Serve index.html for all other routes
 app.get('*', (req, res) => {
