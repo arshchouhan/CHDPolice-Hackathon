@@ -198,218 +198,46 @@
     </div>
 
     <script>
-        // Enhanced BASE_URL determination with better logging and error handling
-        const getBaseUrl = () => {
-            const hostname = window.location.hostname;
-            let baseUrl;
-            
-            if (hostname.includes('vercel.app')) {
-                baseUrl = 'https://chd-police-hackathon.onrender.com/api';
-                console.log('Using Render backend URL');
-            } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                baseUrl = 'http://localhost:3000/api';
-                console.log('Using local development URL');
-            } else if (hostname.includes('onrender.com')) {
-                baseUrl = '/api';
-                console.log('Using Render relative URL');
-            } else {
-                baseUrl = '/api';
-                console.log('Using default relative URL');
-            }
-            
-            console.log('BASE_URL:', baseUrl);
-            return baseUrl;
-        };
-
-        // Show loading overlay
-        function showLoading() {
-            document.getElementById('loadingOverlay').classList.remove('hidden');
-        }
-
-        // Hide loading overlay
-        function hideLoading() {
-            document.getElementById('loadingOverlay').classList.add('hidden');
-        }
-
-        // Check URL parameters for messages or errors
-        function checkUrlParams() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const error = urlParams.get('error');
-            const message = urlParams.get('message');
-            
-            if (error) {
-                console.log('Error parameter found:', error);
-                const errorMessage = document.getElementById('errorMessage');
-                if (error === 'unsupported_flow') {
-                    errorMessage.textContent = 'Google sign-in failed. Please try using the Google button below.';
-                } else {
-                    errorMessage.textContent = 'Authentication error: ' + error;
-                }
-                errorMessage.classList.remove('hidden');
-            }
-            
-            if (message) {
-                console.log('Message parameter found:', message);
-                const errorMessage = document.getElementById('errorMessage');
-                if (message === 'please_use_google_button') {
-                    errorMessage.textContent = 'Please use the Google sign-in button below.';
-                } else {
-                    errorMessage.textContent = message;
-                }
-                errorMessage.classList.remove('hidden');
-            }
-        }
-        
-        // Check if user is already logged in
-        function checkAuthStatus() {
-            // Add a flag to prevent multiple redirects
-            if (window.isRedirecting) return;
-            
-            const token = localStorage.getItem('token');
-            if (token) {
-                // Set flag to prevent flickering from multiple redirects
-                window.isRedirecting = true;
-                
-                // Show loading before redirect
-                showLoading();
-                
-                // Already logged in, redirect to proper dashboard based on role
-                const userRole = localStorage.getItem('userRole');
-                console.log('User already logged in, redirecting to dashboard');
-                
-                // Use setTimeout to ensure the loading overlay is visible before redirect
-                setTimeout(() => {
-                    if (userRole === 'admin') {
-                        window.location.href = '/admin-dashboard.html';
-                    } else {
-                        window.location.href = '/index.html';
-                    }
-                }, 100);
-            } else {
-                // Not logged in, check for URL parameters
-                checkUrlParams();
-            }
-        }
-
-        // Handle Google Sign In
-        async function handleGoogleSignIn(response) {
-            showLoading();
-            try {
-                if (response.credential) {
-                    const apiUrl = getBaseUrl();
-                    const googleEndpoint = `${apiUrl}/auth/google`;
-                    
-                    console.log('Google sign-in endpoint:', googleEndpoint);
-                    const res = await fetch(googleEndpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        credentials: 'include',
-                        body: JSON.stringify({
-                            credential: response.credential
-                        })
-                    });
-
-                    const data = await res.json();
-                    console.log('Google sign-in response:', data);
-
-                    if (res.ok) {
-                        window.isRedirecting = true;
-                        window.location.href = '/index.html';
-                    } else {
-                        hideLoading();
-                        const errorMessage = document.getElementById('errorMessage');
-                        errorMessage.textContent = data.message || 'Google sign in failed';
-                        errorMessage.classList.remove('hidden');
-                    }
-                }
-            } catch (error) {
-                console.error('Google sign-in error:', error);
-                hideLoading();
-                const errorMessage = document.getElementById('errorMessage');
-                errorMessage.textContent = 'Error connecting to server. Please try again.';
-                errorMessage.classList.remove('hidden');
-            }
-        }
-
-        // Handle form submission
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            showLoading();
-            
+        // Get base URL based on environment
+        const BASE_URL = window.location.hostname === 'localhost'
+        ? '' // Use relative URLs for local development
+        : window.location.hostname.includes('vercel.app')
+        ? 'https://chd-police-hackathon.onrender.com' // Render backend URL
+        : ''; // Fallback to relative URLs
+    
+        // Update all fetch requests to use BASE_URL
+        async function handleLogin(event) {
+            event.preventDefault();
             const emailOrUsername = document.getElementById('emailOrUsername').value;
             const password = document.getElementById('password').value;
-            const errorMessage = document.getElementById('errorMessage');
-
-            if (!emailOrUsername || !password) {
-                hideLoading();
-                errorMessage.textContent = 'Username/Email and password are required';
-                errorMessage.classList.remove('hidden');
-                return;
-            }
-
+    
             try {
-                const apiUrl = getBaseUrl();
-                const loginEndpoint = `${apiUrl}/auth/login`;
-                
-                console.log('Login endpoint:', loginEndpoint);
-                const response = await fetch(loginEndpoint, {
+                const response = await fetch(`${BASE_URL}/api/auth/login`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Content-Type': 'application/json'
                     },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                        emailOrUsername,
-                        password
-                    })
+                    body: JSON.stringify({ emailOrUsername, password })
                 });
-
-                console.log('Response status:', response.status);
+    
                 const data = await response.json();
-                console.log('Login response:', data);
-
+    
                 if (response.ok) {
-                    window.isRedirecting = true;
-                    if (data.user && data.user.role === 'admin') {
-                        window.location.href = '/admin-dashboard.html';
-                    } else {
-                        window.location.href = '/index.html';
-                    }
+                    // Show loading overlay
+                    document.getElementById('loadingOverlay').classList.remove('hidden');
+                    // Redirect to dashboard
+                    window.location.href = `${BASE_URL}/dashboard`;
                 } else {
-                    hideLoading();
-                    errorMessage.textContent = data.message || 'Invalid credentials';
-                    errorMessage.classList.remove('hidden');
+                    throw new Error(data.message || 'Login failed');
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                hideLoading();
-                errorMessage.textContent = 'Error connecting to server. Please try again.';
-                errorMessage.classList.remove('hidden');
+                alert(error.message || 'An error occurred during login');
             }
-        });
-
-        // Password visibility toggle
-        document.getElementById('togglePassword').addEventListener('click', function() {
-            const password = document.getElementById('password');
-            const icon = this.querySelector('i');
-            
-            if (password.type === 'password') {
-                password.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                password.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
-            }
-        });
-
-        // Check auth status on page load
-        checkAuthStatus();
+        }
+    
+        // Attach form submit handler
+        document.getElementById('loginForm').addEventListener('submit', handleLogin);
     </script>
 </body>
 </html>
