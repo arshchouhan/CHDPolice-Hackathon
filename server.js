@@ -96,56 +96,56 @@ app.use((req, res, next) => {
   next();
 });
 
+// Allowed origins with wildcard support
+const allowedOrigins = [
+  // Development
+  `http://localhost:${process.env.PORT || 3000}`,
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5000',
+  'http://localhost:5173', // Vite dev server
+  
+  // Authentication providers
+  'https://accounts.google.com',
+  'https://*.google.com',
+  'https://*.googleusercontent.com',
+  
+  // Vercel frontend
+  'https://chd-police-hackathon.vercel.app',
+  'https://*.vercel.app',
+  
+  // Render deployment
+  'https://*.render.com',
+  
+  // Production URLs
+  'https://email-detection-api.onrender.com'
+];
+
+// Function to check if origin is allowed
+const isOriginAllowed = (origin) => {
+  if (!origin) return true; // Allow requests with no origin (like mobile apps)
+  
+  const normalizedOrigin = origin.toLowerCase().trim();
+  
+  // Check exact matches first
+  if (allowedOrigins.includes(normalizedOrigin)) {
+    return true;
+  }
+  
+  // Check wildcard matches
+  return allowedOrigins.some(allowedOrigin => {
+    if (allowedOrigin.startsWith('*')) {
+      const domain = allowedOrigin.replace('*.', '.').toLowerCase();
+      return normalizedOrigin.endsWith(domain);
+    }
+    return false;
+  });
+};
+
 // CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      // Development
-      `http://localhost:${process.env.PORT || 3000}`,
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:5000',
-      'http://localhost:5173', // Vite dev server
-      
-      // Authentication providers
-      'https://accounts.google.com',
-      'https://*.google.com',
-      'https://*.googleusercontent.com',
-      
-      // Vercel frontend
-      'https://chd-police-hackathon.vercel.app',
-      'https://*.vercel.app',
-      
-      // Render deployment
-      'https://*.render.com',
-      
-      // Production URLs
-      'https://email-detection-api.onrender.com'
-    ];
-
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-
-    const normalizedOrigin = origin.toLowerCase().trim();
-    
-    // Check exact matches first
-    if (allowedOrigins.includes(normalizedOrigin)) {
-      callback(null, true);
-      return;
-    }
-
-    // Check wildcard matches
-    const isAllowed = allowedOrigins.some(allowedOrigin => {
-      if (allowedOrigin.startsWith('*')) {
-        const domain = allowedOrigin.replace('*.', '.').toLowerCase();
-        return normalizedOrigin.endsWith(domain);
-      }
-      return false;
-    });
-
-    if (isAllowed) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       console.error('CORS Error: Origin not allowed -', origin);
