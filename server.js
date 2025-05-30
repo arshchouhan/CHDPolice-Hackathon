@@ -7,16 +7,33 @@ require('dotenv').config();
 
 const app = express();
 
+// First middleware: Check if public directory exists
+const publicDir = path.join(__dirname, 'public');
+console.log('Public directory:', publicDir);
+
+// Verify public directory exists
+try {
+  if (!fs.existsSync(publicDir)) {
+    console.error('Public directory does not exist!');
+    process.exit(1);
+  }
+} catch (error) {
+  console.error('Error checking public directory:', error);
+  process.exit(1);
+}
+
 // Serve static files first
 const serveStatic = require('serve-static');
 const compression = require('compression');
 
 // Static file serving with better configuration
-const staticMiddleware = serveStatic(path.join(__dirname, 'public'), {
+const staticMiddleware = serveStatic(publicDir, {
   maxAge: '1h',
   etag: true,
   lastModified: true,
   setHeaders: (res, path) => {
+    console.log('Serving file:', path);
+    
     // Handle HTML files - no caching
     if (path.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -42,26 +59,41 @@ const staticMiddleware = serveStatic(path.join(__dirname, 'public'), {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  }
+  },
+  index: false // Don't automatically serve index.html
 });
 
 // Add compression middleware
 app.use(compression());
 
-// Add static file serving
+// Add static file serving as first middleware
 app.use(staticMiddleware);
 
 // Add error handling for static files
 app.use((err, req, res, next) => {
-  if (err) {
-    console.error('Static file error:', err);
+  console.error('Static file error:', err);
+  console.error('Request URL:', req.url);
+  console.error('Error stack:', err.stack);
+  
+  if (err.code === 'ENOENT') {
     res.status(404).json({
       error: 'File not found',
-      message: 'The requested resource could not be found'
+      message: 'The requested resource could not be found',
+      path: req.url
     });
   } else {
-    next();
+    res.status(500).json({
+      error: 'Server error',
+      message: 'There was an error serving the file',
+      path: req.url
+    });
   }
+});
+
+// Add logging middleware to see all requests
+app.use((req, res, next) => {
+  console.log(`Request: ${req.method} ${req.url}`);
+  next();
 });
 
 // CORS configuration
