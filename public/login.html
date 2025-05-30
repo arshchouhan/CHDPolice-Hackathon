@@ -246,7 +246,11 @@
                 showLoading();
                 console.log('Google Sign-In response received');
                 
-                const loginResponse = await fetch(`${BASE_URL}/api/auth/google`, {
+                // Use absolute URL for API requests
+                const apiUrl = `${BASE_URL}/api/auth/google`;
+                console.log('Making Google auth request to:', apiUrl);
+                
+                const loginResponse = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -255,6 +259,12 @@
                     credentials: 'include',
                     body: JSON.stringify({ credential: response.credential })
                 });
+                
+                if (!loginResponse.ok) {
+                    const errorText = await loginResponse.text();
+                    console.error('Google auth error response:', errorText);
+                    throw new Error(`Authentication failed: ${loginResponse.status} ${loginResponse.statusText}`);
+                }
                 
                 const data = await loginResponse.json();
                 
@@ -288,14 +298,25 @@
     
             try {
                 showLoading();
-                const response = await fetch(`${BASE_URL}/api/auth/login`, {
+                // Use absolute URL for API requests
+                const apiUrl = `${BASE_URL}/api/auth/login`;
+                console.log('Making login request to:', apiUrl);
+                
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
                     credentials: 'include',
                     body: JSON.stringify({ emailOrUsername, password })
                 });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Login error response:', errorText);
+                    throw new Error(`Login failed: ${response.status} ${response.statusText}`);
+                }
     
                 const data = await response.json();
     
