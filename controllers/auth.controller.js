@@ -45,10 +45,12 @@ async function handleGoogleUser(payload, res) {
         // Set cookie options
         const cookieOptions = {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            secure: true, // Always use secure cookies
+            sameSite: 'none', // Allow cross-site requests
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-            domain: process.env.NODE_ENV === 'production' ? '.onrender.com' : undefined
+            domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined,
+            path: '/',
+            secure: true
         };
 
         // Set token in cookie
@@ -84,13 +86,19 @@ const client = new OAuth2Client({
 
 // Function to get the appropriate redirect URI based on environment
 function getGoogleRedirectUri() {
-  if (process.env.REDIRECT_URI) {
-    return process.env.REDIRECT_URI;
+  const env = process.env.NODE_ENV;
+  
+  // Use environment-specific redirect URIs
+  if (env === 'production') {
+    // For Vercel frontend
+    return 'https://chd-police-hackathon.vercel.app/api/auth/google/callback';
+  } else if (env === 'development') {
+    const port = process.env.PORT || 3000;
+    return `http://localhost:${port}/api/auth/google/callback`;
   }
   
-  // Fallback for development
-  const port = process.env.PORT || 3000;
-  return `http://localhost:${port}/api/auth/google/callback`;
+  // Fallback
+  return process.env.REDIRECT_URI || `http://localhost:${process.env.PORT || 3000}/api/auth/google/callback`;
 }
 
 // Verify Google token
