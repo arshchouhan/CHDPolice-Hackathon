@@ -13,7 +13,8 @@ const allowedOrigins = [
   'http://localhost:5000',
   'https://chd-police-hackathon.onrender.com',
   'https://email-detection-api.onrender.com',
-  'http://localhost:3001' // Add any other development ports you use
+  'http://localhost:3001',
+  'https://accounts.google.com'  // Add Google's domain for OAuth
 ];
 
 const corsOptions = {
@@ -21,20 +22,14 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    // Check if origin is in allowed origins
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+    // Check if origin is in allowed origins (case-insensitive)
+    const normalizedOrigin = origin.toLowerCase();
+    const isAllowed = allowedOrigins.some(allowedOrigin => 
+      normalizedOrigin === allowedOrigin.toLowerCase() ||
+      normalizedOrigin.endsWith('.' + allowedOrigin.toLowerCase().replace(/^https?:\/\//, ''))
+    );
     
-    // Check if origin is a subdomain of allowed origins
-    const originParts = origin.replace(/https?:\/\//, '').split('.');
-    const isSubdomain = allowedOrigins.some(allowedOrigin => {
-      const allowedParts = allowedOrigin.replace(/https?:\/\//, '').split('.');
-      return originParts.length > 2 && 
-             originParts.slice(1).join('.') === allowedParts.join('.');
-    });
-    
-    if (isSubdomain) {
+    if (isAllowed) {
       return callback(null, true);
     }
     
@@ -50,24 +45,28 @@ const corsOptions = {
     'Origin',
     'X-Requested-With',
     'X-Access-Token',
-    'X-Requested-With',
     'Access-Control-Allow-Headers',
     'Access-Control-Request-Method',
     'Access-Control-Request-Headers',
-    'X-CSRF-Token'
+    'X-CSRF-Token',
+    'X-Requested-With'
   ],
   exposedHeaders: [
     'Content-Length',
+    'Content-Type',
     'Date',
     'X-Request-Id',
     'Set-Cookie',
-    'Authorization'
+    'Authorization',
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials'
   ],
   maxAge: 3600,
-  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 };
 
-// Apply CORS middleware
+// Apply CORS middleware with options
 app.use(cors(corsOptions));
 
 // Handle preflight requests
@@ -106,6 +105,37 @@ app.use((req, res, next) => {
 
 // Middleware
 app.use(express.json());
+
+// Session configuration
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+
+// Trust first proxy if behind a reverse proxy (like on Render)
+app.set('trust proxy', 1);
+
+// Session middleware
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI,
+    ttl: 24 * 60 * 60 // 1 day
+  }),
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000, // 1 day
+    domain: process.env.NODE_ENV === 'production' ? '.onrender.com' : undefined
+  }
+}));
+
+// Add user to request if authenticated
+app.use((req, res, next) => {
+  res.locals.user = req.session.user || null;
+  next();
+});
 
 // Cache configuration
 const cacheOptions = {

@@ -4,9 +4,92 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 
+// Helper function to handle Google user authentication and JWT generation
+async function handleGoogleUser(payload, res) {
+    try {
+        const { email, name, sub: googleId, picture } = payload;
+        
+        // Check if user exists
+        let user = await User.findOne({ email });
+        const isNewUser = !user;
+
+        // If user doesn't exist, create new user
+        if (!user) {
+            user = new User({
+                username: name || email.split('@')[0],
+                email,
+                password: await bcrypt.hash(Math.random().toString(36) + Date.now(), 10),
+                googleId,
+                profilePicture: picture,
+                isEmailVerified: true
+            });
+            await user.save();
+        } else if (googleId && !user.googleId) {
+            // If user exists but doesn't have googleId, update it
+            user.googleId = googleId;
+            if (picture) user.profilePicture = picture;
+            await user.save();
+        }
+
+        // Create JWT token
+        const token = jwt.sign(
+            { 
+                id: user._id, 
+                email: user.email,
+                role: user.role || 'user'
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' } // Longer expiry for better UX
+        );
+
+        // Set cookie options
+        const cookieOptions = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            domain: process.env.NODE_ENV === 'production' ? '.onrender.com' : undefined
+        };
+
+        // Set token in cookie
+        res.cookie('token', token, cookieOptions);
+
+        // Return success response
+        return res.status(200).json({
+            success: true,
+            message: isNewUser ? 'User registered successfully' : 'Login successful',
+            token,
+            user: {
+                id: user._id,
+                email: user.email,
+                username: user.username,
+                profilePicture: user.profilePicture,
+                role: user.role || 'user',
+                isNewUser
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in handleGoogleUser:', error);
+        throw error; // Let the calling function handle the error
+    }
+}
+
 // Login controller (shared for both Admin and User)
-// Google OAuth client
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+// Google OAuth client configuration
+const client = new OAuth2Client({
+  clientId: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET
+});
+
+// Function to get the appropriate redirect URI based on environment
+function getGoogleRedirectUri() {
+  const host = process.env.NODE_ENV === 'production' 
+    ? 'https://chd-police-hackathon.onrender.com' 
+    : 'http://localhost:3000';
+  
+  return `${host}/api/auth/google/callback`;
+}
 
 // Verify Google token
 async function verifyGoogleToken(token) {
@@ -28,7 +111,8 @@ exports.googleSignIn = async (req, res) => {
         console.log('Google sign-in request received:', {
             method: req.method,
             query: req.query,
-            body: req.body
+            body: req.body,
+            headers: req.headers
         });
         
         // Handle OAuth redirect flow (GET request)
@@ -37,67 +121,81 @@ exports.googleSignIn = async (req, res) => {
             
             if (req.query.error) {
                 console.error('Google OAuth error:', req.query.error);
-                return res.redirect('/login.html?error=' + encodeURIComponent(req.query.error));
+                return res.redirect('/login?error=' + encodeURIComponent(req.query.error));
             }
             
             if (req.query.code) {
-                // This is the OAuth code exchange flow
-                // For simplicity in this implementation, we'll redirect to login 
-                // with a message to use the direct login flow
-                console.log('Google OAuth code received, redirecting to login');
-                return res.redirect('/login.html?message=please_use_google_button');
+                try {
+                    console.log('Exchanging OAuth code for tokens');
+                    const { tokens } = await client.getToken({
+                        code: req.query.code,
+                        redirect_uri: getGoogleRedirectUri()
+                    });
+                    
+                    client.setCredentials(tokens);
+                    const ticket = await client.verifyIdToken({
+                        idToken: tokens.id_token,
+                        audience: process.env.GOOGLE_CLIENT_ID
+                    });
+                    
+                    const payload = ticket.getPayload();
+                    if (!payload.email) {
+                        throw new Error('No email in Google payload');
+                    }
+                    
+                    // Process the user (similar to the direct flow below)
+                    return await handleGoogleUser(payload, res);
+                    
+                } catch (error) {
+                    console.error('Error in OAuth callback:', error);
+                    return res.redirect('/login?error=auth_error');
+                }
             }
             
             // If we get here without a code or credential, redirect to login
-            return res.redirect('/login.html');
+            return res.redirect('/login');
         }
         
         // Handle direct sign-in flow (POST request)
-        let credential;
+        let credential = req.body.credential || req.body.id_token;
         
-        if (req.body.credential) {
-            // One-tap or popup mode - credential comes directly in request body
-            credential = req.body.credential;
-        } else {
-            console.log('No credential found in request', req.body);
-            return res.status(400).json({ message: 'Google credential not found' });
-        }
-
-        // Verify Google token
-        const ticket = await client.verifyIdToken({
-            idToken: credential,
-            audience: process.env.GOOGLE_CLIENT_ID
-        });
-        
-        const payload = ticket.getPayload();
-        if (!payload.email) {
-            return res.status(400).json({ message: 'Invalid Google account' });
-        }
-
-        const email = payload.email;
-        console.log('Successfully verified Google token for:', email);
-
-        // Check if user exists
-        let user = await User.findOne({ email });
-
-        // If user doesn't exist, create new user
-        if (!user) {
-            user = new User({
-                username: payload.name,
-                email: payload.email,
-                password: await bcrypt.hash(Math.random().toString(36), 10), // Random password for Google users
-                googleId: payload.sub,
-                profilePicture: payload.picture
+        if (!credential) {
+            console.log('No Google credential found in request', req.body);
+            return res.status(400).json({ 
+                success: false,
+                message: 'Google credential not found in request',
+                receivedData: Object.keys(req.body)
             });
-            await user.save();
         }
 
-        // Create JWT token
-        const token = jwt.sign(
-            { id: user._id, email: user.email },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+        try {
+            // Verify Google token
+            const ticket = await client.verifyIdToken({
+                idToken: credential,
+                audience: process.env.GOOGLE_CLIENT_ID
+            });
+            
+            const payload = ticket.getPayload();
+            if (!payload.email) {
+                return res.status(400).json({ 
+                    success: false,
+                    message: 'Invalid Google account: No email in token'
+                });
+            }
+
+            console.log('Successfully verified Google token for:', payload.email);
+            
+            // Process the user and generate JWT
+            return await handleGoogleUser(payload, res);
+            
+        } catch (error) {
+            console.error('Error verifying Google token:', error);
+            return res.status(401).json({
+                success: false,
+                message: 'Failed to authenticate with Google',
+                error: error.message
+            });
+        }
 
         // Set token in cookie
         const cookieOptions = {

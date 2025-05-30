@@ -70,6 +70,8 @@
             </div>
             <form id="loginForm" class="mt-8 space-y-6">
                 <div class="space-y-4 rounded-md">
+                    <!-- Google Sign-In Button -->
+                    <div id="googleSignInButton" class="w-full"></div>
                     <div>
                         <label for="emailOrUsername" class="text-sm font-medium text-gray-300 block mb-2">
                             <i class="fas fa-user mr-2"></i>Email or Username
@@ -201,14 +203,91 @@
     <script>
         // Use the centralized getBaseUrl function
         const BASE_URL = getBaseUrl();
+        const GOOGLE_CLIENT_ID = '317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com';
+        
+        // Initialize Google Sign-In
+        function initializeGoogleSignIn() {
+            if (typeof google === 'undefined' || !google.accounts) {
+                console.error('Google Sign-In library not loaded');
+                return;
+            }
+            
+            google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                callback: handleGoogleSignIn,
+                auto_select: false,
+                cancel_on_tap_outside: true,
+                context: 'signin',
+                ux_mode: 'popup'
+            });
+            
+            // Render the button
+            try {
+                google.accounts.id.renderButton(
+                    document.getElementById('googleSignInButton'),
+                    {
+                        type: 'standard',
+                        theme: 'outline',
+                        size: 'large',
+                        width: '100%',
+                        text: 'signin_with',
+                        shape: 'rectangular',
+                        logo_alignment: 'left'
+                    }
+                );
+            } catch (error) {
+                console.error('Error rendering Google Sign-In button:', error);
+            }
+        }
+        
+        // Handle Google Sign-In response
+        async function handleGoogleSignIn(response) {
+            try {
+                showLoading();
+                console.log('Google Sign-In response received');
+                
+                const loginResponse = await fetch(`${BASE_URL}/api/auth/google`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ credential: response.credential })
+                });
+                
+                const data = await loginResponse.json();
+                
+                if (data.success) {
+                    // Store the token in localStorage if provided
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                    }
+                    
+                    // Redirect based on user role
+                    const redirectUrl = data.user?.role === 'admin' 
+                        ? '/admin-dashboard.html' 
+                        : '/index.html';
+                    window.location.href = `${BASE_URL}${redirectUrl}`;
+                } else {
+                    throw new Error(data.message || 'Authentication failed');
+                }
+            } catch (error) {
+                console.error('Google Sign-In error:', error);
+                showError(error.message || 'Failed to sign in with Google');
+            } finally {
+                hideLoading();
+            }
+        }
     
-        // Update all fetch requests to use BASE_URL
+        // Handle regular form login
         async function handleLogin(event) {
             event.preventDefault();
             const emailOrUsername = document.getElementById('emailOrUsername').value;
             const password = document.getElementById('password').value;
     
             try {
+                showLoading();
                 const response = await fetch(`${BASE_URL}/api/auth/login`, {
                     method: 'POST',
                     headers: {
@@ -221,27 +300,82 @@
                 const data = await response.json();
     
                 if (response.ok) {
-                    // Show loading overlay
-                    document.getElementById('loadingOverlay').classList.remove('hidden');
-                    // Redirect to dashboard based on user role
-                    if (data.user && data.user.role === 'admin') {
-                        window.location.href = `${BASE_URL}/admin-dashboard.html`;
-                    } else {
-                        window.location.href = `${BASE_URL}/index.html`;
+                    // Store the token in localStorage if provided
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
                     }
+                    
+                    // Redirect based on user role
+                    const redirectUrl = data.user?.role === 'admin' 
+                        ? '/admin-dashboard.html' 
+                        : '/index.html';
+                    window.location.href = `${BASE_URL}${redirectUrl}`;
                 } else {
                     throw new Error(data.message || 'Login failed');
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                const errorMessage = document.getElementById('errorMessage');
-                errorMessage.textContent = error.message || 'An error occurred during login';
-                errorMessage.classList.remove('hidden');
+                showError(error.message || 'An error occurred during login');
+            } finally {
+                hideLoading();
             }
         }
-    
-        // Attach form submit handler
-        document.getElementById('loginForm').addEventListener('submit', handleLogin);
+        
+        // Show loading overlay
+        function showLoading() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.remove('hidden');
+            }
+        }
+        
+        // Hide loading overlay
+        function hideLoading() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+        
+        // Show error message
+        function showError(message) {
+            let errorMessage = document.getElementById('errorMessage');
+            if (!errorMessage) {
+                // Create error message element if it doesn't exist
+                errorMessage = document.createElement('div');
+                errorMessage.id = 'errorMessage';
+                errorMessage.className = 'bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4 hidden';
+                document.querySelector('form').appendChild(errorMessage);
+            }
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+            
+            // Auto-hide error after 5 seconds
+            setTimeout(() => {
+                errorMessage.classList.add('hidden');
+            }, 5000);
+        }
+        
+        // Initialize when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize Google Sign-In
+            initializeGoogleSignIn();
+            
+            // Attach form submit handler
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.addEventListener('submit', handleLogin);
+            }
+            
+            // Check for error messages in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            if (error) {
+                showError('Authentication error. Please try again.');
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
     </script>
 </body>
 </html>
