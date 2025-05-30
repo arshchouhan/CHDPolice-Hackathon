@@ -1,5 +1,7 @@
 const express = require('express');
 const path = require('path');
+const connectDB = require('./config/db');
+require('dotenv').config();
 
 const app = express();
 
@@ -22,9 +24,17 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Server start
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Server URL: http://localhost:${PORT}`);
-});
+// Connect to MongoDB
+connectDB()
+  .then(() => {
+    // Server start
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Server URL: http://0.0.0.0:${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('Failed to connect to MongoDB', err);
+    process.exit(1);
+  });
