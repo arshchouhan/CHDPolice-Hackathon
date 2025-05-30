@@ -285,79 +285,36 @@
             event.preventDefault();
             const emailOrUsername = document.getElementById('emailOrUsername').value;
             const password = document.getElementById('password').value;
-            
-            // Validate inputs
-            if (!emailOrUsername || !password) {
-                showError('Please enter both email/username and password');
-                return;
-            }
     
             try {
                 showLoading();
-                console.log('Attempting login with:', { emailOrUsername, baseUrl: BASE_URL });
-                
                 const response = await fetch(`${BASE_URL}/api/auth/login`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Content-Type': 'application/json'
                     },
                     credentials: 'include',
                     body: JSON.stringify({ emailOrUsername, password })
                 });
-                
-                console.log('Login response status:', response.status);
-                
-                // Check if response is JSON
-                const contentType = response.headers.get('content-type');
-                let data;
-                
-                try {
-                    data = await response.json();
-                } catch (jsonError) {
-                    console.error('Failed to parse JSON response:', jsonError);
-                    throw new Error('Invalid server response');
-                }
-                
-                console.log('Login response data:', data);
+    
+                const data = await response.json();
     
                 if (response.ok) {
                     // Store the token in localStorage if provided
                     if (data.token) {
                         localStorage.setItem('token', data.token);
-                        console.log('Token stored in localStorage');
                     }
                     
                     // Redirect based on user role
-                    let redirectUrl = '/index.html';
-                    if (data.user?.role === 'admin') {
-                        redirectUrl = '/admin-dashboard.html';
-                        console.log('Redirecting to admin dashboard');
-                    } else {
-                        console.log('Redirecting to user dashboard');
-                    }
-                    
-                    // Ensure we have a proper URL
-                    const fullUrl = `${BASE_URL}${redirectUrl}`.replace(/([^:]\/)\/+/g, '$1');
-                    console.log('Full redirect URL:', fullUrl);
-                    window.location.href = fullUrl;
+                    const redirectUrl = data.user?.role === 'admin' 
+                        ? '/admin-dashboard.html' 
+                        : '/index.html';
+                    window.location.href = `${BASE_URL}${redirectUrl}`;
                 } else {
-                    // Handle specific error status codes
-                    if (response.status === 401) {
-                        throw new Error('Invalid email/username or password');
-                    } else if (response.status === 403) {
-                        throw new Error('Account not verified. Please check your email.');
-                    } else {
-                        throw new Error(data.message || `Login failed with status ${response.status}`);
-                    }
+                    throw new Error(data.message || 'Login failed');
                 }
             } catch (error) {
-                console.error('Login error:', {
-                    message: error.message,
-                    name: error.name,
-                    stack: error.stack,
-                    time: new Date().toISOString()
-                });
+                console.error('Login error:', error);
                 showError(error.message || 'An error occurred during login');
             } finally {
                 hideLoading();

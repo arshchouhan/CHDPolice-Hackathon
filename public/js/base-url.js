@@ -1,21 +1,15 @@
 // Base URL configuration utility
 function getBaseUrl() {
     const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
     
-    // For local development
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
         return 'http://localhost:3000';
-    }
-    
-    // For production
-    if (hostname.includes('vercel.app') || hostname.includes('onrender.com')) {
-        // Always use HTTPS in production
+    } else if (hostname.includes('vercel.app')) {
         return 'https://chd-police-hackathon.onrender.com';
+    } else if (hostname.includes('onrender.com')) {
+        return '';
     }
-    
-    // Default to current origin if no match found
-    return `${protocol}//${hostname}`;
+    return '';
 }
 
 // Make getBaseUrl available globally
