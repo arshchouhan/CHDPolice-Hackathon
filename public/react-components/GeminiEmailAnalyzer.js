@@ -52,6 +52,12 @@ class GeminiEmailAnalyzer extends React.Component {
       // First try with Gemini API
       console.log('Attempting analysis with Gemini API...');
       
+      // Check if the analyzeEmailWithGemini function exists
+      if (typeof window.analyzeEmailWithGemini !== 'function') {
+        console.warn('Gemini API client not available. Using local analysis instead.');
+        throw new Error('window.analyzeEmailWithGemini is not a function');
+      }
+      
       // Use the simplified function to analyze the email
       const data = await window.analyzeEmailWithGemini(emailContent, emailSubject, emailSender);
       
@@ -75,6 +81,12 @@ class GeminiEmailAnalyzer extends React.Component {
       try {
         console.log('Falling back to local analysis...');
         this.setState({ error: 'Gemini API error: ' + error.message + '. Using local analysis instead.' });
+        
+        // Check if the analyzeEmailLocally function exists
+        if (typeof window.analyzeEmailLocally !== 'function') {
+          console.error('Local analysis function not available');
+          throw new Error('window.analyzeEmailLocally is not a function');
+        }
         
         // Use the simplified function to perform local analysis
         const localData = await window.analyzeEmailLocally(emailContent, emailSubject, emailSender);

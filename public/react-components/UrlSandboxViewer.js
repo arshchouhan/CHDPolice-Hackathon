@@ -177,6 +177,12 @@ class UrlSandboxViewer extends React.Component {
     try {
       this.addLog(`Sending data to Gemini AI for advanced threat analysis...`, 'info');
       
+      // Check if the analyzeUrlWithGemini function exists
+      if (typeof window.analyzeUrlWithGemini !== 'function') {
+        this.addLog(`Gemini API client not available. Using local analysis instead.`, 'warning');
+        throw new Error('window.analyzeUrlWithGemini is not a function');
+      }
+      
       // Use the simplified function to analyze the URL
       const data = await window.analyzeUrlWithGemini(
         url,
@@ -187,10 +193,11 @@ class UrlSandboxViewer extends React.Component {
       this.addLog(`Gemini AI analysis complete`, 'success');
       
       // Use findings from Gemini
-      if (data.findings && Array.isArray(data.findings)) {
+      if (data && data.findings && Array.isArray(data.findings)) {
         findings = data.findings;
       } else {
         // Fallback to local findings if Gemini doesn't return expected format
+        this.addLog(`Gemini API returned unexpected format. Using local analysis instead.`, 'warning');
         findings = await this.generateSecurityFindings(url);
       }
     } catch (error) {

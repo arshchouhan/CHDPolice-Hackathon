@@ -45,14 +45,14 @@ async function analyzeEmailWithGemini(emailData) {
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
     
     console.log('Sending request to Gemini API...');
-    // Generate content using the official client library
+    // Generate content using the official client library with fixed parameters for consistency
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.2,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 2048
+        temperature: 0.0,  // Set to 0 for maximum determinism
+        topK: 1,           // Most likely token only
+        topP: 1.0,         // No sampling
+        maxOutputTokens: 1024 // Reduced token count for simpler responses
       }
     });
     
@@ -85,7 +85,7 @@ async function analyzeEmailWithGemini(emailData) {
  */
 function createAnalysisPrompt(emailData) {
   return `
-You are a cybersecurity expert specializing in email phishing detection. Analyze this email for phishing indicators and suspicious URLs.
+You are a cybersecurity expert specializing in email phishing detection. Provide a simple analysis of this email.
 
 EMAIL DETAILS:
 From: ${emailData.sender}
@@ -97,20 +97,17 @@ URLs found in email:
 ${emailData.urls.map((url, index) => `${index + 1}. ${url}`).join('\n')}
 
 ANALYSIS INSTRUCTIONS:
-1. Identify any suspicious URLs based on:
-   - Domain age, reputation, or unusual TLDs (.xyz, .tk, etc.)
-   - Misspellings or lookalike domains (e.g., paypa1.com vs paypal.com)
-   - Unusual subdomains or path structures
+1. Perform a basic check for suspicious URLs based only on:
+   - Unusual TLDs (.xyz, .tk, etc.)
    - URL shorteners or redirects
+   - IP addresses instead of domain names
 
-2. Analyze the email content for phishing indicators:
-   - Urgency or threatening language
-   - Grammar/spelling errors
+2. Check the email content only for:
+   - Urgency language
    - Requests for personal information
-   - Mismatched sender domains
    - Generic greetings
 
-3. Assign a risk score (0-100) to each URL and the overall email
+3. Assign a simple risk score (0-100) to the overall email
 
 4. Format your response as JSON with the following structure:
 {
@@ -126,7 +123,7 @@ ANALYSIS INSTRUCTIONS:
   "summary": string
 }
 
-Provide ONLY the JSON response with no additional text.
+Provide ONLY the JSON response with no additional text. Keep your analysis simple and consistent.
 `;
 }
 
@@ -211,13 +208,12 @@ function extractUrlsFromEmail(emailContent) {
  * @returns {Object} Analysis results
  */
 function performLocalAnalysis(emailData) {
-  console.log('Performing local email analysis...');
+  console.log('Performing simplified local email analysis...');
   
-  // Basic risk indicators
+  // Reduced list of suspicious terms for simplicity
   const suspiciousTerms = [
-    'urgent', 'password', 'account', 'verify', 'bank', 'click', 'confirm',
-    'update', 'security', 'suspicious', 'unusual', 'login', 'access',
-    'important', 'attention', 'immediately', 'required', 'action needed'
+    'urgent', 'password', 'verify', 'bank', 'confirm',
+    'security', 'login', 'immediately', 'required'
   ];
   
   // Count suspicious terms in subject and body
@@ -234,38 +230,32 @@ function performLocalAnalysis(emailData) {
     }
   });
   
-  // Calculate basic risk score based on suspicious terms
+  // Simplified risk score calculation
   const termScore = Math.min(100, (termCount / suspiciousTerms.length) * 100);
   
-  // Analyze URLs
+  // Analyze URLs with simplified checks
   const urlAnalysis = emailData.urls.map(url => {
     // Basic URL risk assessment
     let urlRisk = 0;
     const reasons = [];
     
-    // Check for suspicious TLDs
-    const suspiciousTlds = ['.xyz', '.tk', '.top', '.club', '.online', '.site'];
+    // Check for suspicious TLDs - simplified list
+    const suspiciousTlds = ['.xyz', '.tk', '.top'];
     if (suspiciousTlds.some(tld => url.endsWith(tld))) {
-      urlRisk += 20;
-      reasons.push('Suspicious top-level domain');
+      urlRisk += 30;
+      reasons.push('Suspicious domain');
     }
     
     // Check for numeric domains
     if (/https?:\/\/\d+\.\d+\.\d+\.\d+/.test(url)) {
-      urlRisk += 15;
-      reasons.push('IP address used in URL instead of domain name');
+      urlRisk += 30;
+      reasons.push('IP address used instead of domain name');
     }
     
-    // Check for long URLs (potential obfuscation)
-    if (url.length > 100) {
-      urlRisk += 10;
-      reasons.push('Unusually long URL');
-    }
-    
-    // Check for URL shorteners
-    const shorteners = ['bit.ly', 'tinyurl', 'goo.gl', 't.co', 'is.gd', 'cli.gs', 'ow.ly'];
+    // Check for URL shorteners - simplified list
+    const shorteners = ['bit.ly', 'tinyurl', 'goo.gl'];
     if (shorteners.some(shortener => url.includes(shortener))) {
-      urlRisk += 25;
+      urlRisk += 30;
       reasons.push('URL shortener detected');
     }
     
@@ -276,21 +266,21 @@ function performLocalAnalysis(emailData) {
     };
   });
   
-  // Calculate overall risk (weighted average: 40% terms, 60% URLs)
+  // Simplified risk calculation - equal weighting
   const urlRiskAvg = urlAnalysis.length > 0 
     ? urlAnalysis.reduce((sum, url) => sum + url.riskScore, 0) / urlAnalysis.length 
     : 0;
   
-  const overallRiskScore = Math.round((termScore * 0.4) + (urlRiskAvg * 0.6));
+  const overallRiskScore = Math.round((termScore * 0.5) + (urlRiskAvg * 0.5));
   
   return {
     overallRiskScore,
     phishingIndicators: foundTerms.length > 0 
-      ? foundTerms.map(term => `Contains suspicious term: ${term}`) 
+      ? foundTerms.map(term => `Contains term: ${term}`) 
       : ['No obvious phishing indicators'],
     urlAnalysis,
-    summary: `Local analysis detected ${urlAnalysis.length} URLs and ${foundTerms.length} suspicious terms.`,
-    analysisMethod: 'local' // Indicate this was analyzed locally, not with Gemini
+    summary: `Simple analysis found ${urlAnalysis.length} URLs and ${foundTerms.length} suspicious terms.`,
+    analysisMethod: 'local'
   };
 }
 
