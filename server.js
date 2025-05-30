@@ -251,7 +251,31 @@ const cacheOptions = {
 };
 
 // Serve static files from the public directory with caching
-app.use(express.static(path.join(__dirname, 'public'), cacheOptions));
+app.use(express.static(path.join(__dirname, 'public'), {
+  ...cacheOptions,
+  index: false, // Don't automatically serve index.html
+  setHeaders: (res, path) => {
+    // Add cache-control for HTML files
+    if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+    // Add CORS headers for static files
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  }
+}));
+
+// Serve HTML files directly
+app.get('*.html', (req, res) => {
+  const filePath = path.join(__dirname, 'public', req.path);
+  res.sendFile(filePath);
+});
+
+// Serve index.html for all other routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Add cache control headers for all routes
 app.use((req, res, next) => {
