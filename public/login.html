@@ -211,18 +211,38 @@
     </div>
 
     <script>
-        // Determine the API base URL based on the current environment
-        let BASE_URL = '/api';
+        // Enhanced BASE_URL determination with better logging and error handling
+        const getBaseUrl = () => {
+            const hostname = window.location.hostname;
+            const origin = window.location.origin;
+            let baseUrl;
+            
+            // Determine base URL based on hostname
+            if (hostname.includes('vercel.app')) {
+                baseUrl = 'https://chd-police-hackathon.onrender.com/api';
+                console.log('Detected Vercel environment, using Render backend URL');
+            } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                baseUrl = '/api';
+                console.log('Detected local development environment, using relative URL');
+            } else if (hostname.includes('onrender.com')) {
+                baseUrl = '/api';
+                console.log('Detected Render environment, using relative URL');
+            } else {
+                baseUrl = '/api'; // Default to relative path for unknown environments
+                console.log('Using default environment detection, using relative URL');
+            }
+            
+            console.log('BASE_URL set to:', baseUrl);
+            return baseUrl;
+        };
         
-        // If the frontend is on Vercel and backend is on Render, we need to use the full URL
-        if (window.location.hostname.includes('vercel.app')) {
-            BASE_URL = 'https://chd-police-hackathon.onrender.com/api';
-            console.log('Detected Vercel environment, using Render backend URL');
-        } else {
-            console.log('Using relative URLs for API calls');
-        }
+        // Initialize BASE_URL
+        const BASE_URL = getBaseUrl();
         
-        console.log('API Base URL:', BASE_URL);
+        // Make getBaseUrl available globally for components
+        window.getBaseUrl = function() {
+            return BASE_URL;
+        };
 
         // Show loading overlay
         function showLoading() {
@@ -285,8 +305,9 @@
             showLoading();
             try {
                 if (response.credential) {
-                    console.log('Attempting Google sign-in to:', `${BASE_URL}/auth/google`);
-                    const res = await fetch(`${BASE_URL}/auth/google`, {
+                    const apiUrl = getBaseUrl();
+                    console.log('Attempting Google sign-in to:', `${apiUrl}/auth/google`);
+                    const res = await fetch(`${apiUrl}/auth/google`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -342,19 +363,20 @@
             }
 
             try {
-                console.log('Attempting login to:', `${BASE_URL}/auth/login`);
+                const apiUrl = getBaseUrl();
+                console.log('Attempting login to:', `${apiUrl}/auth/login`);
                 console.log('Request details:', {
-                    url: `${BASE_URL}/auth/login`,
+                    url: `${apiUrl}/auth/login`,
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    credentials: 'include',
+                    credentials: window.location.hostname.includes('vercel.app') ? 'include' : 'same-origin',
                     body: { emailOrUsername }
                 });
 
-                const response = await fetch(`${BASE_URL}/auth/login`, {
+                const response = await fetch(`${apiUrl}/auth/login`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
