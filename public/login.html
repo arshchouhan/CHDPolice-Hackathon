@@ -201,43 +201,24 @@
         // Enhanced BASE_URL determination with better logging and error handling
         const getBaseUrl = () => {
             const hostname = window.location.hostname;
-            const origin = window.location.origin;
             let baseUrl;
             
-            // Determine base URL based on hostname
             if (hostname.includes('vercel.app')) {
-                // For Vercel frontend with Render backend
                 baseUrl = 'https://chd-police-hackathon.onrender.com/api';
-                console.log('Detected Vercel environment, using Render backend URL');
+                console.log('Using Render backend URL');
             } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                // For local development
-                baseUrl = '/api';
-                console.log('Detected local development environment, using relative URL');
+                baseUrl = 'http://localhost:3000/api';
+                console.log('Using local development URL');
             } else if (hostname.includes('onrender.com')) {
-                // For Render environment
                 baseUrl = '/api';
-                console.log('Detected Render environment, using relative URL');
+                console.log('Using Render relative URL');
             } else {
-                // Default to relative path for unknown environments
                 baseUrl = '/api';
-                console.log('Using default environment detection, using relative URL');
+                console.log('Using default relative URL');
             }
             
-            // Remove trailing slash if present
-            if (baseUrl.endsWith('/')) {
-                baseUrl = baseUrl.slice(0, -1);
-            }
-            
-            console.log('BASE_URL set to:', baseUrl);
+            console.log('BASE_URL:', baseUrl);
             return baseUrl;
-        };
-        
-        // Initialize BASE_URL
-        const BASE_URL = getBaseUrl();
-        
-        // Make getBaseUrl available globally for components
-        window.getBaseUrl = function() {
-            return BASE_URL;
         };
 
         // Show loading overlay
@@ -316,17 +297,16 @@
             try {
                 if (response.credential) {
                     const apiUrl = getBaseUrl();
-                    // Ensure we're using the correct endpoint
-                    const googleEndpoint = apiUrl.endsWith('/auth') ? `${apiUrl}/google` : `${apiUrl}/auth/google`;
+                    const googleEndpoint = `${apiUrl}/auth/google`;
                     
-                    console.log('Attempting Google sign-in to:', googleEndpoint);
+                    console.log('Google sign-in endpoint:', googleEndpoint);
                     const res = await fetch(googleEndpoint, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Accept': 'application/json'
                         },
-                        credentials: window.location.hostname.includes('vercel.app') ? 'include' : 'same-origin',
+                        credentials: 'include',
                         body: JSON.stringify({
                             credential: response.credential
                         })
@@ -336,12 +316,7 @@
                     console.log('Google sign-in response:', data);
 
                     if (res.ok) {
-                        // Set flag to prevent flickering from multiple redirects
                         window.isRedirecting = true;
-                        console.log('Google sign-in successful, redirecting to dashboard');
-                        
-                        // Keep loading overlay visible during redirect
-                        // No need to store token in localStorage as it's in the cookie
                         window.location.href = '/index.html';
                     } else {
                         hideLoading();
@@ -349,11 +324,6 @@
                         errorMessage.textContent = data.message || 'Google sign in failed';
                         errorMessage.classList.remove('hidden');
                     }
-                } else {
-                    hideLoading();
-                    const errorMessage = document.getElementById('errorMessage');
-                    errorMessage.textContent = 'No credential received from Google';
-                    errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Google sign-in error:', error);
@@ -382,76 +352,36 @@
 
             try {
                 const apiUrl = getBaseUrl();
-                // Ensure we're using the correct endpoint
-                const loginEndpoint = apiUrl.endsWith('/auth') ? `${apiUrl}/login` : `${apiUrl}/auth/login`;
+                const loginEndpoint = `${apiUrl}/auth/login`;
                 
-                console.log('Attempting login to:', loginEndpoint);
-                console.log('Request details:', {
-                    url: loginEndpoint,
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    credentials: window.location.hostname.includes('vercel.app') ? 'include' : 'same-origin',
-                    body: JSON.stringify({
-                        emailOrUsername: emailOrUsername,
-                        password: password
-                    })
-                });
-
+                console.log('Login endpoint:', loginEndpoint);
                 const response = await fetch(loginEndpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    credentials: window.location.hostname.includes('vercel.app') ? 'include' : 'same-origin',
+                    credentials: 'include',
                     body: JSON.stringify({
-                        emailOrUsername: emailOrUsername,
-                        password: password
+                        emailOrUsername,
+                        password
                     })
                 });
 
                 console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
                 const data = await response.json();
                 console.log('Login response:', data);
 
                 if (response.ok) {
-                    console.log('Login successful');
-                    // Store token in localStorage
-                    if (data.token) {
-                        localStorage.setItem('token', data.token);
-                        console.log('Token saved to localStorage');
-                    } else {
-                        // If server didn't send token in response, create one from user data
-                        // This is a fallback for when using HttpOnly cookies
-                        localStorage.setItem('token', 'authenticated-user');
-                        console.log('Authentication marker saved to localStorage');
-                    }
-                    
-                    // Set flag to prevent flickering from multiple redirects
                     window.isRedirecting = true;
-                    
-                    // Check user role and redirect to appropriate dashboard
                     if (data.user && data.user.role === 'admin') {
-                        console.log('Admin user detected, redirecting to admin dashboard');
-                        localStorage.setItem('userRole', 'admin');
-                        // Keep loading overlay visible during redirect
                         window.location.href = '/admin-dashboard.html';
                     } else {
-                        console.log('Regular user detected, redirecting to user dashboard');
-                        localStorage.setItem('userRole', 'user');
-                        // Keep loading overlay visible during redirect
                         window.location.href = '/index.html';
                     }
                 } else {
                     hideLoading();
-                    const message = data.message || 'Invalid credentials';
-                    console.error('Login failed:', message);
-                    errorMessage.textContent = message;
+                    errorMessage.textContent = data.message || 'Invalid credentials';
                     errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
