@@ -7,7 +7,7 @@
     <title>Login - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -121,30 +121,17 @@
                         data-client_id="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
                         data-context="signin"
                         data-ux_mode="redirect"
-                        data-login_uri=""
+                        data-login_uri="https://chd-police-hackathon.onrender.com/api/auth/google"
                         data-auto_prompt="false">
                     </div>
                     
-                    <script>
-                        // Set the correct login_uri based on environment
-                        window.addEventListener('DOMContentLoaded', () => {
-                            const googleSignIn = document.getElementById('g_id_onload');
-                            if (window.location.hostname.includes('vercel.app')) {
-                                googleSignIn.setAttribute('data-login_uri', 'https://chd-police-hackathon.onrender.com/api/auth/google');
-                            } else {
-                                googleSignIn.setAttribute('data-login_uri', '/api/auth/google');
-                            }
-                        });
-                    </script>
-
                     <div class="g_id_signin"
                         data-type="standard"
                         data-shape="rectangular"
                         data-theme="outline"
                         data-text="signin_with"
                         data-size="large"
-                        data-logo_alignment="center"
-                        data-width="100%">
+                        data-logo_alignment="center">
                     </div>
                 </div>
 
