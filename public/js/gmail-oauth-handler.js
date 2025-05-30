@@ -11,11 +11,30 @@
 // Function to get the base URL for API requests
 function getBaseUrl() {
     const hostname = window.location.hostname;
+    const port = window.location.port;
+    const protocol = window.location.protocol;
+    
+    // For local development
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return `http://${hostname}:3000`;
-    } else {
-        return window.location.origin;
+        // If running on a specific port, use that
+        if (port && port !== '80' && port !== '443') {
+            return `${protocol}//${hostname}:${port}`;
+        }
+        return `${protocol}//${hostname}`;
     }
+    
+    // For production, use the current origin but ensure it's the correct protocol
+    const isProduction = hostname.endsWith('vercel.app') || 
+                        hostname.endsWith('onrender.com') ||
+                        hostname.endsWith('chdpolicehackathon.com'); // Add your production domains
+    
+    if (isProduction) {
+        // Force HTTPS in production
+        return `https://${hostname}`;
+    }
+    
+    // Default to current origin
+    return window.location.origin;
 }
 
 // Function to show the Gmail authorization modal
@@ -53,27 +72,52 @@ async function connectGmail() {
         // Verify token is valid by making a test request
         try {
             console.log('Verifying authentication token...');
-            const testResponse = await fetch(`${getBaseUrl()}/api/users/me`, {
+            const apiUrl = `${getBaseUrl()}/api/users/me`;
+            console.log('Making auth verification request to:', apiUrl);
+            
+            const testResponse = await fetch(apiUrl, {
                 method: 'GET',
+                credentials: 'include', // Include cookies and HTTP authentication data
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest' // Helps identify AJAX requests
+                },
+                mode: 'cors' // Ensure CORS mode is enabled
             });
             
             console.log('Auth verification response status:', testResponse.status);
+            console.log('Response headers:', JSON.stringify([...testResponse.headers.entries()]));
             
             if (!testResponse.ok) {
-                // Token is invalid or expired
-                console.error('Authentication verification failed with status:', testResponse.status);
-                localStorage.removeItem('token');
-                throw new Error('Your session has expired. Please log in again.');
+                // Try to get error details from response
+                let errorDetails = '';
+                try {
+                    const errorData = await testResponse.text();
+                    errorDetails = errorData ? `: ${errorData}` : '';
+                } catch (e) {
+                    console.error('Error reading error response:', e);
+                }
+                
+                console.error('Authentication verification failed with status:', 
+                    `${testResponse.status} ${testResponse.statusText}${errorDetails}`);
+                
+                if (testResponse.status === 401 || testResponse.status === 403) {
+                    localStorage.removeItem('token');
+                    throw new Error('Your session has expired. Please log in again.');
+                }
+                
+                throw new Error(`Server error: ${testResponse.status} ${testResponse.statusText}`);
             }
             
             // Get user info to confirm authentication
             const userData = await testResponse.json();
-            if (!userData.success) {
-                throw new Error('Authentication verification failed: ' + (userData.message || 'Unknown error'));
+            console.log('User data received:', JSON.stringify(userData, null, 2));
+            
+            if (!userData || !userData.success) {
+                throw new Error('Authentication verification failed: ' + 
+                    (userData?.message || 'Invalid response format'));
             }
             
             console.log('Authenticated as user:', userData.email || userData.username || userData._id);

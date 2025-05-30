@@ -8,6 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="/js/base-url.js"></script>
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -198,12 +199,8 @@
     </div>
 
     <script>
-        // Get base URL based on environment
-        const BASE_URL = window.location.hostname === 'localhost'
-        ? '' // Use relative URLs for local development
-        : window.location.hostname.includes('vercel.app')
-        ? 'https://chd-police-hackathon.onrender.com' // Render backend URL
-        : ''; // Fallback to relative URLs
+        // Use the centralized getBaseUrl function
+        const BASE_URL = getBaseUrl();
     
         // Update all fetch requests to use BASE_URL
         async function handleLogin(event) {
@@ -217,6 +214,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include',
                     body: JSON.stringify({ emailOrUsername, password })
                 });
     
@@ -225,14 +223,20 @@
                 if (response.ok) {
                     // Show loading overlay
                     document.getElementById('loadingOverlay').classList.remove('hidden');
-                    // Redirect to dashboard
-                    window.location.href = `${BASE_URL}/dashboard`;
+                    // Redirect to dashboard based on user role
+                    if (data.user && data.user.role === 'admin') {
+                        window.location.href = `${BASE_URL}/admin-dashboard.html`;
+                    } else {
+                        window.location.href = `${BASE_URL}/index.html`;
+                    }
                 } else {
                     throw new Error(data.message || 'Login failed');
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                alert(error.message || 'An error occurred during login');
+                const errorMessage = document.getElementById('errorMessage');
+                errorMessage.textContent = error.message || 'An error occurred during login';
+                errorMessage.classList.remove('hidden');
             }
         }
     

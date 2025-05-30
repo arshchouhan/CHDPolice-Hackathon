@@ -7,31 +7,102 @@ require('dotenv').config();
 const app = express();
 
 // CORS configuration
+const allowedOrigins = [
+  'https://chd-police-hackathon.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5000',
+  'https://chd-police-hackathon.onrender.com',
+  'https://email-detection-api.onrender.com',
+  'http://localhost:3001' // Add any other development ports you use
+];
+
 const corsOptions = {
-  origin: function(origin, callback) {
-    const allowedOrigins = [
-      'https://chd-police-hackathon.vercel.app',
-      'http://localhost:3000',
-      'http://localhost:5000',
-      'https://chd-police-hackathon.onrender.com'
-    ];
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed origins
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
     }
+    
+    // Check if origin is a subdomain of allowed origins
+    const originParts = origin.replace(/https?:\/\//, '').split('.');
+    const isSubdomain = allowedOrigins.some(allowedOrigin => {
+      const allowedParts = allowedOrigin.replace(/https?:\/\//, '').split('.');
+      return originParts.length > 2 && 
+             originParts.slice(1).join('.') === allowedParts.join('.');
+    });
+    
+    if (isSubdomain) {
+      return callback(null, true);
+    }
+    
+    console.error('CORS Error: Origin not allowed -', origin);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-  exposedHeaders: ['Set-Cookie'],
-  optionsSuccessStatus: 204 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'Origin',
+    'X-Requested-With',
+    'X-Access-Token',
+    'X-Requested-With',
+    'Access-Control-Allow-Headers',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
+    'X-CSRF-Token'
+  ],
+  exposedHeaders: [
+    'Content-Length',
+    'Date',
+    'X-Request-Id',
+    'Set-Cookie',
+    'Authorization'
+  ],
+  maxAge: 3600,
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
 
-// Handle preflight requests explicitly if not handled by cors middleware
+// Handle preflight requests
 app.options('*', cors(corsOptions));
+
+// Security and CORS response headers middleware
+app.use((req, res, next) => {
+    // Set CORS headers
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    
+    // Set other CORS headers
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, X-Access-Token, X-Requested-With, Access-Control-Allow-Headers, Access-Control-Request-Method, Access-Control-Request-Headers, X-CSRF-Token');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Date, X-Request-Id, Set-Cookie, Authorization');
+    
+    // Security headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'same-origin');
+    
+    // Cache control for API responses
+    if (req.path.startsWith('/api/')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    
+    // Continue to next middleware
+    next();
+});
 
 // Middleware
 app.use(express.json());
