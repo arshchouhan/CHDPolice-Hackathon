@@ -284,8 +284,16 @@ function performLocalAnalysis(emailData) {
   };
 }
 
+// Export functions for CommonJS environments
 module.exports = {
   analyzeEmailWithGemini,
   extractUrlsFromEmail,
   performLocalAnalysis
 };
+
+// Make functions available in the global scope for browser environments
+if (typeof window !== 'undefined') {
+  window.analyzeEmailWithGemini = analyzeEmailWithGemini;
+  window.extractUrlsFromEmail = extractUrlsFromEmail;
+  window.performLocalAnalysis = performLocalAnalysis;
+}
