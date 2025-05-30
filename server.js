@@ -21,9 +21,11 @@ const allowedOrigins = [
   'https://*.google.com',
   'https://*.googleusercontent.com',
   
-  // Production URLs (update these in production)
-  'https://your-production-domain.com',
-  'https://*.your-production-domain.com'
+  // Render deployment
+  'https://*.render.com',
+  
+  // Production URLs
+  'https://email-detection-api.onrender.com'
 ];
 
 // Function to check if origin is allowed
@@ -283,11 +285,14 @@ connectDB()
   .then(() => {
     // Server start
     const PORT = process.env.PORT || 3000;
-    const HOST = process.env.HOST || 'localhost';
+    const HOST = '0.0.0.0'; // Bind to all interfaces
 
+    // For Render deployment
+    app.set('trust proxy', true);
     app.listen(PORT, HOST, () => {
       console.log(`Server running on http://${HOST}:${PORT}`);
       console.log(`Access the site at: http://localhost:${PORT}`);
+      console.log('Server is ready to accept connections');
     });
   })
   .catch(err => {
