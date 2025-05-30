@@ -7,6 +7,40 @@ require('dotenv').config();
 
 const app = express();
 
+// Serve static files first
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1h',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, path) => {
+    // Handle HTML files - no caching
+    if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+    // Handle JavaScript and CSS files - cache for 1 hour
+    else if (path.endsWith('.js') || path.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    }
+    // Handle images - cache for 24 hours
+    else if (path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.gif')) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+    // Handle fonts - cache for 1 week
+    else if (path.endsWith('.woff') || path.endsWith('.woff2') || path.endsWith('.ttf') || path.endsWith('.eot')) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+    }
+    // Default cache for other files
+    else {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    }
+    
+    // Add CORS headers for static files
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  }
+}));
+
 // CORS configuration
 // Allowed origins with wildcard support
 const allowedOrigins = [
@@ -289,37 +323,9 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-// Serve HTML files directly
-app.get('*.html', (req, res, next) => {
-  const filePath = path.join(__dirname, 'public', req.path);
-  
-  // Check if file exists
-  fs.stat(filePath, (err, stats) => {
-    if (err) {
-      console.error('Error accessing file:', err);
-      return next(); // Let the next route handler handle it
-    }
-    
-    // Serve the file
-    res.sendFile(filePath);
-  });
-});
-
 // Fallback to index.html for all other routes
 app.get('*', (req, res) => {
-  const indexPath = path.join(__dirname, 'public', 'index.html');
-  
-  // Check if index.html exists
-  fs.stat(indexPath, (err, stats) => {
-    if (err) {
-      console.error('Error accessing index.html:', err);
-      res.status(404).send('Not Found');
-      return;
-    }
-    
-    // Serve index.html
-    res.sendFile(indexPath);
-  });
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Add cache control headers for all routes
