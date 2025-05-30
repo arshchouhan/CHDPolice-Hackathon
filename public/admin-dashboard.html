@@ -369,13 +369,6 @@
     <script>
         // Base URL for API calls
         const BASE_URL = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3000'
-            : window.location.hostname.includes('vercel.app')
-                ? 'https://chd-police-hackathon.vercel.app'
-                : window.location.hostname.includes('onrender.com')
-                    ? 'https://email-detection-api.onrender.com'
-                    : window.location.origin; // Fallback to current origin
-                    
         // Make getBaseUrl available globally for components
         window.getBaseUrl = function() {
             console.log('getBaseUrl called, returning:', BASE_URL);

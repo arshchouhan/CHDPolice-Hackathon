@@ -370,33 +370,18 @@
         </div>
 
     <script>
-        // Enhanced BASE_URL determination with better logging and error handling
+        // Standardized BASE_URL configuration
         const getBaseUrl = () => {
-            const hostname = window.location.hostname;
             const origin = window.location.origin;
-            let baseUrl;
+            const hostname = window.location.hostname;
             
-            // Determine base URL based on hostname
-            if (hostname.includes('vercel.app')) {
-                baseUrl = origin; // Use full origin for Vercel deployments
-                console.log('Detected Vercel environment');
-            } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                baseUrl = 'http://localhost:3000';
-                console.log('Detected local development environment');
-            } else if (hostname.includes('onrender.com')) {
-                baseUrl = 'https://email-detection-api.onrender.com';
-                console.log('Detected Render environment');
-            } else {
-                baseUrl = origin; // Default to current origin for unknown environments
-                console.log('Using default environment detection, origin:', origin);
-            }
-            
-            console.log('BASE_URL set to:', baseUrl);
-            return baseUrl;
+            // Use the same API URL for all environments
+            return 'https://email-detection-api.onrender.com';
         };
-        
+
         // Initialize BASE_URL
         const BASE_URL = getBaseUrl();
+        console.log('BASE_URL set to:', BASE_URL);
         
         // Show loading overlay
         function showLoading() {
