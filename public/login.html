@@ -219,17 +219,26 @@
             
             // Determine base URL based on hostname
             if (hostname.includes('vercel.app')) {
+                // For Vercel frontend with Render backend
                 baseUrl = 'https://chd-police-hackathon.onrender.com/api';
                 console.log('Detected Vercel environment, using Render backend URL');
             } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                // For local development
                 baseUrl = '/api';
                 console.log('Detected local development environment, using relative URL');
             } else if (hostname.includes('onrender.com')) {
+                // For Render environment
                 baseUrl = '/api';
                 console.log('Detected Render environment, using relative URL');
             } else {
-                baseUrl = '/api'; // Default to relative path for unknown environments
+                // Default to relative path for unknown environments
+                baseUrl = '/api';
                 console.log('Using default environment detection, using relative URL');
+            }
+            
+            // Remove trailing slash if present
+            if (baseUrl.endsWith('/')) {
+                baseUrl = baseUrl.slice(0, -1);
             }
             
             console.log('BASE_URL set to:', baseUrl);
@@ -285,15 +294,29 @@
         
         // Check if user is already logged in
         function checkAuthStatus() {
+            // Add a flag to prevent multiple redirects
+            if (window.isRedirecting) return;
+            
             const token = localStorage.getItem('token');
             if (token) {
+                // Set flag to prevent flickering from multiple redirects
+                window.isRedirecting = true;
+                
+                // Show loading before redirect
+                showLoading();
+                
                 // Already logged in, redirect to proper dashboard based on role
                 const userRole = localStorage.getItem('userRole');
-                if (userRole === 'admin') {
-                    window.location.href = '/admin-dashboard.html';
-                } else {
-                    window.location.href = '/index.html';
-                }
+                console.log('User already logged in, redirecting to dashboard');
+                
+                // Use setTimeout to ensure the loading overlay is visible before redirect
+                setTimeout(() => {
+                    if (userRole === 'admin') {
+                        window.location.href = '/admin-dashboard.html';
+                    } else {
+                        window.location.href = '/index.html';
+                    }
+                }, 100);
             } else {
                 // Not logged in, check for URL parameters
                 checkUrlParams();
@@ -306,8 +329,11 @@
             try {
                 if (response.credential) {
                     const apiUrl = getBaseUrl();
-                    console.log('Attempting Google sign-in to:', `${apiUrl}/auth/google`);
-                    const res = await fetch(`${apiUrl}/auth/google`, {
+                    // Ensure we're using the correct endpoint
+                    const googleEndpoint = apiUrl.endsWith('/auth') ? `${apiUrl}/google` : `${apiUrl}/auth/google`;
+                    
+                    console.log('Attempting Google sign-in to:', googleEndpoint);
+                    const res = await fetch(googleEndpoint, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -323,8 +349,13 @@
                     console.log('Google sign-in response:', data);
 
                     if (res.ok) {
+                        // Set flag to prevent flickering from multiple redirects
+                        window.isRedirecting = true;
+                        console.log('Google sign-in successful, redirecting to dashboard');
+                        
+                        // Keep loading overlay visible during redirect
                         // No need to store token in localStorage as it's in the cookie
-                        window.location.href = '/dashboard';
+                        window.location.href = '/index.html';
                     } else {
                         hideLoading();
                         const errorMessage = document.getElementById('errorMessage');
@@ -364,9 +395,12 @@
 
             try {
                 const apiUrl = getBaseUrl();
-                console.log('Attempting login to:', `${apiUrl}/auth/login`);
+                // Ensure we're using the correct endpoint
+                const loginEndpoint = apiUrl.endsWith('/auth') ? `${apiUrl}/login` : `${apiUrl}/auth/login`;
+                
+                console.log('Attempting login to:', loginEndpoint);
                 console.log('Request details:', {
-                    url: `${apiUrl}/auth/login`,
+                    url: loginEndpoint,
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -376,7 +410,7 @@
                     body: { emailOrUsername }
                 });
 
-                const response = await fetch(`${apiUrl}/auth/login`, {
+                const response = await fetch(loginEndpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -408,14 +442,19 @@
                         console.log('Authentication marker saved to localStorage');
                     }
                     
+                    // Set flag to prevent flickering from multiple redirects
+                    window.isRedirecting = true;
+                    
                     // Check user role and redirect to appropriate dashboard
                     if (data.user && data.user.role === 'admin') {
                         console.log('Admin user detected, redirecting to admin dashboard');
                         localStorage.setItem('userRole', 'admin');
+                        // Keep loading overlay visible during redirect
                         window.location.href = '/admin-dashboard.html';
                     } else {
                         console.log('Regular user detected, redirecting to user dashboard');
                         localStorage.setItem('userRole', 'user');
+                        // Keep loading overlay visible during redirect
                         window.location.href = '/index.html';
                     }
                 } else {
