@@ -15,8 +15,21 @@ app.use(cors({
 // Middleware
 app.use(express.json());
 
-// Serve static files from the public directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Cache configuration
+const cacheOptions = {
+  maxAge: '1h',
+  etag: true,
+  lastModified: true
+};
+
+// Serve static files from the public directory with caching
+app.use(express.static(path.join(__dirname, 'public'), cacheOptions));
+
+// Add cache control headers for all routes
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'public, max-age=3600'); // 1 hour
+  next();
+});
 
 // Import routes
 const userRoutes = require('./routes/user.route');
