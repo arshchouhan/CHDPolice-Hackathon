@@ -7,48 +7,121 @@ require('dotenv').config();
 const app = express();
 
 // CORS configuration
+// Allowed origins with wildcard support
 const allowedOrigins = [
-  'https://chd-police-hackathon.vercel.app',
+  // Development
+  `http://localhost:${process.env.PORT || 3000}`,
   'http://localhost:3000',
-  'http://localhost:5000',
-  'https://chd-police-hackathon.onrender.com',
-  'https://email-detection-api.onrender.com',
   'http://localhost:3001',
-  'https://accounts.google.com'  // Add Google's domain for OAuth
+  'http://localhost:5000',
+  'http://localhost:5173', // Vite dev server
+  
+  // Authentication providers
+  'https://accounts.google.com',
+  'https://*.google.com',
+  'https://*.googleusercontent.com',
+  
+  // Production URLs (update these in production)
+  'https://your-production-domain.com',
+  'https://*.your-production-domain.com'
 ];
 
+// Function to check if origin is allowed
+const isOriginAllowed = (origin) => {
+  if (!origin) return true; // Allow requests with no origin (like mobile apps)
+  
+  const normalizedOrigin = origin.toLowerCase().trim();
+  
+  // Check exact matches first
+  if (allowedOrigins.includes(normalizedOrigin)) {
+    return true;
+  }
+  
+  // Check wildcard matches
+  return allowedOrigins.some(allowedOrigin => {
+    if (allowedOrigin.startsWith('*')) {
+      const domain = allowedOrigin.replace('*.', '.').toLowerCase();
+      return normalizedOrigin.endsWith(domain);
+    }
+    return false;
+  });
+};
+
+// Enhanced CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is in allowed origins (case-insensitive)
-    const normalizedOrigin = origin.toLowerCase();
-    const isAllowed = allowedOrigins.some(allowedOrigin => 
-      normalizedOrigin === allowedOrigin.toLowerCase() ||
-      normalizedOrigin.endsWith('.' + allowedOrigin.toLowerCase().replace(/^https?:\/\//, ''))
-    );
-    
-    if (isAllowed) {
-      return callback(null, true);
+    if (isOriginAllowed(origin)) {
+      callback(null, true);
+    } else {
+      console.error('CORS Error: Origin not allowed -', origin);
+      callback(new Error('Not allowed by CORS'));
     }
-    
-    console.error('CORS Error: Origin not allowed -', origin);
-    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
     'Accept',
+    'Accept-Encoding',
+    'Accept-Language',
+    'Cache-Control',
+    'Connection',
+    'DNT',
+    'Host',
     'Origin',
+    'Pragma',
+    'Referer',
+    'User-Agent',
     'X-Requested-With',
-    'X-Access-Token',
-    'Access-Control-Allow-Headers',
-    'Access-Control-Request-Method',
-    'Access-Control-Request-Headers',
+    'X-Request-ID',
+    'X-HTTP-Method-Override',
     'X-CSRF-Token',
+    'X-XSRF-TOKEN',
+    'X-Access-Token',
+    'X-Forwarded-For',
+    'X-Forwarded-Proto',
+    'X-Forwarded-Port',
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Headers',
+    'Access-Control-Allow-Methods',
+    'Access-Control-Allow-Credentials',
+    'Access-Control-Expose-Headers',
+    'Access-Control-Max-Age',
+    'Access-Control-Request-Headers',
+    'Access-Control-Request-Method',
+    'Content-Security-Policy',
+    'If-Modified-Since',
+    'If-None-Match',
+    'ETag',
+    'Last-Modified',
+    'Link',
+    'Location',
+    'Retry-After',
+    'Vary',
+    'WWW-Authenticate',
+    'X-Content-Type-Options',
+    'X-DNS-Prefetch-Control',
+    'X-Download-Options',
+    'X-Frame-Options',
+    'X-Powered-By',
+    'X-RateLimit-Limit',
+    'X-RateLimit-Remaining',
+    'X-RateLimit-Reset',
+    'X-Robots-Tag',
+    'X-UA-Compatible',
+    'X-XSS-Protection',
+    'Strict-Transport-Security',
+    'Public-Key-Pins',
+    'Expect-CT',
+    'Feature-Policy',
+    'Permissions-Policy',
+    'Content-Security-Policy-Report-Only',
+    'Report-To',
+    'NEL',
+    'Server-Timing',
+    'SourceMap',
+    'X-SourceMap',
     'X-Requested-With'
   ],
   exposedHeaders: [
@@ -103,8 +176,39 @@ app.use((req, res, next) => {
     next();
 });
 
-// Middleware
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+// Apply JSON parsing middleware
 app.use(express.json());
+
+// Add CORS headers to all responses
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (isOriginAllowed(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+        res.header('Access-Control-Allow-Headers', [
+            'Content-Type',
+            'Authorization',
+            'Accept',
+            'Origin',
+            'X-Requested-With',
+            'X-Access-Token',
+            'X-CSRF-Token'
+        ].join(', '));
+        
+        // Handle preflight requests
+        if (req.method === 'OPTIONS') {
+            return res.status(200).end();
+        }
+    }
+    next();
+});
 
 // Session configuration
 const session = require('express-session');
@@ -154,14 +258,20 @@ app.use((req, res, next) => {
 });
 
 // Import routes
+const authRoutes = require('./routes/auth.route');
+const emailRoutes = require('./routes/email.route');
 const userRoutes = require('./routes/user.route');
 const adminRoutes = require('./routes/admin.route');
-const authRoutes = require('./routes/auth.route');
+const loginRoute = require('./routes/login');
 
 // API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/emails', emailRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/auth', authRoutes);
+
+// Serve login page with environment variables
+app.use('/login.html', loginRoute);
 
 // Serve index.html for all other routes
 app.get('*', (req, res) => {
@@ -173,9 +283,11 @@ connectDB()
   .then(() => {
     // Server start
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Server URL: http://0.0.0.0:${PORT}`);
+    const HOST = process.env.HOST || 'localhost';
+
+    app.listen(PORT, HOST, () => {
+      console.log(`Server running on http://${HOST}:${PORT}`);
+      console.log(`Access the site at: http://localhost:${PORT}`);
     });
   })
   .catch(err => {

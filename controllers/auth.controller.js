@@ -84,11 +84,13 @@ const client = new OAuth2Client({
 
 // Function to get the appropriate redirect URI based on environment
 function getGoogleRedirectUri() {
-  const host = process.env.NODE_ENV === 'production' 
-    ? 'https://chd-police-hackathon.onrender.com' 
-    : 'http://localhost:3000';
+  if (process.env.REDIRECT_URI) {
+    return process.env.REDIRECT_URI;
+  }
   
-  return `${host}/api/auth/google/callback`;
+  // Fallback for development
+  const port = process.env.PORT || 3000;
+  return `http://localhost:${port}/api/auth/google/callback`;
 }
 
 // Verify Google token

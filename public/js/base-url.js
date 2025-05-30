@@ -4,9 +4,9 @@ function getBaseUrl() {
     const protocol = window.location.protocol;
     const port = window.location.port;
     
-    // Development environment
+    // Development environment - use current port
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:3000';
+        return `${protocol}//${hostname}${port ? ':' + port : ''}`;
     }
     
     // Production environment - Vercel frontend

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Email Security Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="/js/base-url.js"></script>
+    <style>
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 bg-gray-900">
+    <!-- Background overlay with subtle pattern -->
+    <div class="fixed inset-0 z-0 opacity-20" style="background-image: url('https://images.unsplash.com/photo-1544197150-b99a580bb7a8?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'); background-size: cover;"></div>
+    <!-- Blue overlay for depth -->
+    <div class="fixed inset-0 z-0 bg-blue-900 opacity-10"></div>
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white/10 backdrop-blur-lg p-6 rounded-lg flex flex-col items-center">
+            <div class="loader mb-4"></div>
+            <p class="text-white">Loading your dashboard...</p>
+        </div>
+    </div>
+    <div class="max-w-5xl w-full flex flex-col md:flex-row overflow-hidden rounded-xl shadow-2xl relative z-10">
+        <!-- Left side: Login form -->
+        <div class="w-full md:w-1/2 bg-white/10 backdrop-blur-lg p-8 space-y-6">
+            <!-- Logo and branding in top corner -->
+            <div class="absolute top-6 left-6 flex items-center space-x-2">
+                <div class="bg-blue-600 p-2 rounded-lg shadow-lg">
+                    <i class="fas fa-shield-alt text-white"></i>
+                </div>
+                <span class="text-white font-bold text-sm">CHD Police</span>
+            </div>
+            
+            <div class="mt-10">
+                <div class="text-center text-white mb-6">
+                    <i class="fas fa-shield-alt text-4xl text-blue-400 mb-4"></i>
+                    <h2 class="text-3xl font-bold">Secure Login</h2>
+                    <p class="mt-2 text-sm text-gray-300">Access your phishing detection dashboard</p>
+                </div>
+                <div class="flex justify-center space-x-4 mb-6">
+                    <div class="text-center">
+                        <i class="fas fa-envelope-shield text-2xl text-blue-400 mb-2"></i>
+                        <p class="text-xs text-gray-400">Email<br>Protection</p>
+                    </div>
+                    <div class="text-center">
+                        <i class="fas fa-virus-slash text-2xl text-blue-400 mb-2"></i>
+                        <p class="text-xs text-gray-400">Threat<br>Detection</p>
+                    </div>
+                    <div class="text-center">
+                        <i class="fas fa-lock text-2xl text-blue-400 mb-2"></i>
+                        <p class="text-xs text-gray-400">Secure<br>Access</p>
+                    </div>
+                </div>
+            </div>
+            <form id="loginForm" class="mt-8 space-y-6">
+                <div class="space-y-4 rounded-md">
+                    <!-- Google Sign-In Button -->
+                    <div id="googleSignInButton" class="w-full"></div>
+                    <div>
+                        <label for="emailOrUsername" class="text-sm font-medium text-gray-300 block mb-2">
+                            <i class="fas fa-user mr-2"></i>Email or Username
+                        </label>
+                        <input type="text" id="emailOrUsername" name="emailOrUsername" placeholder="Enter email or username" required
+                        class="w-full px-4 py-2 rounded bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none"
+                        autocomplete="username">
+                    </div>
+                    <div>
+                        <label for="password" class="text-sm font-medium text-gray-300 block mb-2">
+                            <i class="fas fa-lock mr-2"></i>Password
+                        </label>
+                        <div class="relative">
+                            <input type="password" id="password" name="password" placeholder="Password" required
+                                autocomplete="current-password"
+                                class="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-600
+                                bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2
+                                focus:ring-blue-500 focus:border-transparent transition duration-200">
+                            <button type="button" id="togglePassword" 
+                                class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <button type="submit"
+                        class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium
+                        rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition duration-300
+                        disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                            <i class="fas fa-sign-in-alt text-blue-400 group-hover:text-blue-300"></i>
+                        </span>
+                        Sign in
+                    </button>
+                </div>
+
+                <div id="errorMessage" class="hidden text-red-400 text-center text-sm"></div>
+
+                <div class="mt-4">
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-gray-900 text-gray-400">Or continue with</span>
+                    </div>
+                </div>
+
+                <!-- Google Sign In button -->
+                <div class="mt-4">
+                    <div id="g_id_onload"
+                        data-client_id="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
+                        data-context="signin"
+                        data-ux_mode="redirect"
+                        data-login_uri="https://chd-police-hackathon.onrender.com/api/auth/google"
+                        data-auto_prompt="false">
+                    </div>
+                    
+                    <div class="g_id_signin"
+                        data-type="standard"
+                        data-shape="rectangular"
+                        data-theme="outline"
+                        data-text="signin_with"
+                        data-size="large"
+                        data-logo_alignment="center">
+                    </div>
+                </div>
+
+                <div class="text-center text-sm mt-6">
+                    <p class="text-gray-400">
+                    Don't have an account?
+                    <a href="/signup.html" class="font-medium text-blue-400 hover:text-blue-300 transition duration-200">
+                        Create one now
+                    </a>
+                    </p>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Right side: Email Protection Imagery -->
+        <div class="hidden md:block md:w-1/2 bg-blue-800 relative overflow-hidden">
+            <!-- Email security image overlay -->
+            <div class="absolute inset-0 bg-gradient-to-br from-blue-800/90 to-blue-900/90 z-10"></div>
+            <!-- Main image -->
+            <img src="https://images.unsplash.com/photo-1563986768494-4dee2763ff3f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+                 alt="Email Security" class="absolute inset-0 h-full w-full object-cover opacity-70">
+            
+            <!-- Content overlay -->
+            <div class="relative z-20 p-10 h-full flex flex-col justify-center">
+                <h3 class="text-white text-2xl font-bold mb-6">Email Phishing Protection</h3>
+                <div class="space-y-6">
+                    <div class="flex items-start space-x-4">
+                        <div class="bg-blue-500 p-2 rounded-full">
+                            <i class="fas fa-shield-virus text-white"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-semibold">Advanced Threat Detection</h4>
+                            <p class="text-blue-200 text-sm">Identifies and blocks sophisticated phishing attempts</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start space-x-4">
+                        <div class="bg-blue-500 p-2 rounded-full">
+                            <i class="fas fa-envelope-open-text text-white"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-semibold">Email Content Analysis</h4>
+                            <p class="text-blue-200 text-sm">Deep scanning of links, attachments, and content</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start space-x-4">
+                        <div class="bg-blue-500 p-2 rounded-full">
+                            <i class="fas fa-user-shield text-white"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-semibold">User Protection</h4>
+                            <p class="text-blue-200 text-sm">Real-time alerts and preventive measures</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Bottom info -->
+                <div class="mt-auto">
+                    <p class="text-blue-200 text-sm italic">"Protecting your digital communication with cutting-edge security"</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Use the centralized getBaseUrl function
+        const BASE_URL = getBaseUrl();
+        const GOOGLE_CLIENT_ID = '317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com';
+        
+        // Initialize Google Sign-In
+        function initializeGoogleSignIn() {
+            if (typeof google === 'undefined' || !google.accounts) {
+                console.error('Google Sign-In library not loaded');
+                return;
+            }
+            
+            google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                callback: handleGoogleSignIn,
+                auto_select: false,
+                cancel_on_tap_outside: true,
+                context: 'signin',
+                ux_mode: 'popup'
+            });
+            
+            // Render the button
+            try {
+                google.accounts.id.renderButton(
+                    document.getElementById('googleSignInButton'),
+                    {
+                        type: 'standard',
+                        theme: 'outline',
+                        size: 'large',
+                        width: '100%',
+                        text: 'signin_with',
+                        shape: 'rectangular',
+                        logo_alignment: 'left'
+                    }
+                );
+            } catch (error) {
+                console.error('Error rendering Google Sign-In button:', error);
+            }
+        }
+        
+        // Handle Google Sign-In response
+        async function handleGoogleSignIn(response) {
+            // Prevent multiple clicks
+            if (window.isProcessingGoogleSignIn) return;
+            window.isProcessingGoogleSignIn = true;
+            try {
+                showLoading();
+                console.log('Google Sign-In response received');
+                
+                // Use absolute URL for API requests
+                const apiUrl = `${BASE_URL}/api/auth/google`;
+                console.log('Making Google auth request to:', apiUrl);
+                
+                const loginResponse = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ credential: response.credential })
+                });
+                
+                if (!loginResponse.ok) {
+                    const errorText = await loginResponse.text();
+                    console.error('Google auth error response:', errorText);
+                    throw new Error(`Authentication failed: ${loginResponse.status} ${loginResponse.statusText}`);
+                }
+                
+                const data = await loginResponse.json();
+                
+                if (data.success) {
+                    // Store the token in localStorage if provided
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                    }
+                    
+                    // Redirect based on user role
+                    const redirectUrl = data.user?.role === 'admin' 
+                        ? '/admin-dashboard.html' 
+                        : '/index.html';
+                    window.location.href = `${BASE_URL}${redirectUrl}`;
+                } else {
+                    throw new Error(data.message || 'Authentication failed');
+                }
+            } catch (error) {
+                console.error('Google Sign-In error:', error);
+                showError(error.message || 'Failed to sign in with Google');
+            } finally {
+                hideLoading();
+            }
+        }
+    
+        // Handle regular form login
+        async function handleLogin(event) {
+            event.preventDefault();
+            const emailOrUsername = document.getElementById('emailOrUsername').value;
+            const password = document.getElementById('password').value;
+    
+            try {
+                showLoading();
+                // Use absolute URL for API requests
+                const apiUrl = `${BASE_URL}/api/auth/login`;
+                console.log('Making login request to:', apiUrl);
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ emailOrUsername, password })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Login error response:', errorText);
+                    throw new Error(`Login failed: ${response.status} ${response.statusText}`);
+                }
+    
+                const data = await response.json();
+    
+                if (response.ok) {
+                    // Store the token in localStorage if provided
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                    }
+                    
+                    // Redirect based on user role
+                    const redirectUrl = data.user?.role === 'admin' 
+                        ? '/admin-dashboard.html' 
+                        : '/index.html';
+                    window.location.href = `${BASE_URL}${redirectUrl}`;
+                } else {
+                    throw new Error(data.message || 'Login failed');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showError(error.message || 'An error occurred during login');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Show loading overlay
+        function showLoading() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.remove('hidden');
+            }
+        }
+        
+        // Hide loading overlay
+        function hideLoading() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+        
+        // Show error message
+        function showError(message) {
+            let errorMessage = document.getElementById('errorMessage');
+            if (!errorMessage) {
+                // Create error message element if it doesn't exist
+                errorMessage = document.createElement('div');
+                errorMessage.id = 'errorMessage';
+                errorMessage.className = 'bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4 hidden';
+                document.querySelector('form').appendChild(errorMessage);
+            }
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+            
+            // Auto-hide error after 5 seconds
+            setTimeout(() => {
+                errorMessage.classList.add('hidden');
+            }, 5000);
+        }
+        
+        // Check if user is already logged in
+        function checkAuthStatus() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                // User is already logged in, redirect to dashboard
+                window.location.href = `${BASE_URL}/index.html`;
+                return true;
+            }
+            return false;
+        }
+
+        // Initialize when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if user is already logged in
+            if (checkAuthStatus()) return;
+            
+            // Initialize Google Sign-In only once
+            if (!window.googleSignInInitialized) {
+                initializeGoogleSignIn();
+                window.googleSignInInitialized = true;
+            }
+            
+            // Attach form submit handler
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm && !loginForm.hasAttribute('data-handler-attached')) {
+                loginForm.addEventListener('submit', handleLogin);
+                loginForm.setAttribute('data-handler-attached', 'true');
+            }
+            
+            // Check for error messages in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            if (error) {
+                showError('Authentication error. Please try again.');
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
+    </script>
+</body>
+</html>
