@@ -97,56 +97,55 @@ app.use((req, res, next) => {
 });
 
 // CORS configuration
-// Allowed origins with wildcard support
-const allowedOrigins = [
-  // Development
-  `http://localhost:${process.env.PORT || 3000}`,
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:5000',
-  'http://localhost:5173', // Vite dev server
-  
-  // Authentication providers
-  'https://accounts.google.com',
-  'https://*.google.com',
-  'https://*.googleusercontent.com',
-  
-  // Vercel frontend
-  'https://chd-police-hackathon.vercel.app',
-  'https://*.vercel.app',
-  
-  // Render deployment
-  'https://*.render.com',
-  
-  // Production URLs
-  'https://email-detection-api.onrender.com'
-];
-
-// Function to check if origin is allowed
-const isOriginAllowed = (origin) => {
-  if (!origin) return true; // Allow requests with no origin (like mobile apps)
-  
-  const normalizedOrigin = origin.toLowerCase().trim();
-  
-  // Check exact matches first
-  if (allowedOrigins.includes(normalizedOrigin)) {
-    return true;
-  }
-  
-  // Check wildcard matches
-  return allowedOrigins.some(allowedOrigin => {
-    if (allowedOrigin.startsWith('*')) {
-      const domain = allowedOrigin.replace('*.', '.').toLowerCase();
-      return normalizedOrigin.endsWith(domain);
-    }
-    return false;
-  });
-};
-
-// Enhanced CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    if (isOriginAllowed(origin)) {
+    const allowedOrigins = [
+      // Development
+      `http://localhost:${process.env.PORT || 3000}`,
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:5000',
+      'http://localhost:5173', // Vite dev server
+      
+      // Authentication providers
+      'https://accounts.google.com',
+      'https://*.google.com',
+      'https://*.googleusercontent.com',
+      
+      // Vercel frontend
+      'https://chd-police-hackathon.vercel.app',
+      'https://*.vercel.app',
+      
+      // Render deployment
+      'https://*.render.com',
+      
+      // Production URLs
+      'https://email-detection-api.onrender.com'
+    ];
+
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    const normalizedOrigin = origin.toLowerCase().trim();
+    
+    // Check exact matches first
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      callback(null, true);
+      return;
+    }
+
+    // Check wildcard matches
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (allowedOrigin.startsWith('*')) {
+        const domain = allowedOrigin.replace('*.', '.').toLowerCase();
+        return normalizedOrigin.endsWith(domain);
+      }
+      return false;
+    });
+
+    if (isAllowed) {
       callback(null, true);
     } else {
       console.error('CORS Error: Origin not allowed -', origin);
@@ -155,100 +154,32 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'Accept',
-    'Accept-Encoding',
-    'Accept-Language',
-    'Cache-Control',
-    'Connection',
-    'DNT',
-    'Host',
-    'Origin',
-    'Pragma',
-    'Referer',
-    'User-Agent',
-    'X-Requested-With',
-    'X-Request-ID',
-    'X-HTTP-Method-Override',
-    'X-CSRF-Token',
-    'X-XSRF-TOKEN',
-    'X-Access-Token',
-    'X-Forwarded-For',
-    'X-Forwarded-Proto',
-    'X-Forwarded-Port',
-    'Access-Control-Allow-Origin',
-    'Access-Control-Allow-Headers',
-    'Access-Control-Allow-Methods',
-    'Access-Control-Allow-Credentials',
-    'Access-Control-Expose-Headers',
-    'Access-Control-Max-Age',
-    'Access-Control-Request-Headers',
-    'Access-Control-Request-Method',
-    'Content-Security-Policy',
-    'If-Modified-Since',
-    'If-None-Match',
-    'ETag',
-    'Last-Modified',
-    'Link',
-    'Location',
-    'Retry-After',
-    'Vary',
-    'WWW-Authenticate',
-    'X-Content-Type-Options',
-    'X-DNS-Prefetch-Control',
-    'X-Download-Options',
-    'X-Frame-Options',
-    'X-Powered-By',
-    'X-RateLimit-Limit',
-    'X-RateLimit-Remaining',
-    'X-RateLimit-Reset',
-    'X-Robots-Tag',
-    'X-UA-Compatible',
-    'X-XSS-Protection',
-    'Strict-Transport-Security',
-    'Public-Key-Pins',
-    'Expect-CT',
-    'Feature-Policy',
-    'Permissions-Policy',
-    'Content-Security-Policy-Report-Only',
-    'Report-To',
-    'NEL',
-    'Server-Timing',
-    'SourceMap',
-    'X-SourceMap',
-    'X-Requested-With'
-  ],
-  exposedHeaders: [
-    'Content-Length',
-    'Content-Type',
-    'Date',
-    'X-Request-Id',
-    'Set-Cookie',
-    'Authorization',
-    'Access-Control-Allow-Origin',
-    'Access-Control-Allow-Credentials'
-  ],
-  maxAge: 3600,
-  optionsSuccessStatus: 200,
-  preflightContinue: false
+  allowedHeaders: '*',
+  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+  maxAge: 86400 // 24 hours
 };
 
-// Apply CORS middleware with options
+// Apply CORS middleware first
 app.use(cors(corsOptions));
 
-// Handle preflight requests
-app.options('*', cors(corsOptions));
-
-// Security and CORS response headers middleware
+// Security headers middleware
 app.use((req, res, next) => {
-    // Set CORS headers
-    const origin = req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    }
-    
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  
+  // Cache control for API responses
+  if (req.path.startsWith('/api/')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  
+  next();
     // Set other CORS headers
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, X-Access-Token, X-Requested-With, Access-Control-Allow-Headers, Access-Control-Request-Method, Access-Control-Request-Headers, X-CSRF-Token');
