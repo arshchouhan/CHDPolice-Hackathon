@@ -121,9 +121,21 @@
                         data-client_id="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
                         data-context="signin"
                         data-ux_mode="redirect"
-                        data-login_uri="https://chd-police-hackathon.vercel.app/api/auth/google"
+                        data-login_uri=""
                         data-auto_prompt="false">
                     </div>
+                    
+                    <script>
+                        // Set the correct login_uri based on environment
+                        window.addEventListener('DOMContentLoaded', () => {
+                            const googleSignIn = document.getElementById('g_id_onload');
+                            if (window.location.hostname.includes('vercel.app')) {
+                                googleSignIn.setAttribute('data-login_uri', 'https://chd-police-hackathon.onrender.com/api/auth/google');
+                            } else {
+                                googleSignIn.setAttribute('data-login_uri', '/api/auth/google');
+                            }
+                        });
+                    </script>
 
                     <div class="g_id_signin"
                         data-type="standard"
@@ -199,10 +211,18 @@
     </div>
 
     <script>
-        // Use relative URLs for all API calls to work with any deployment
-        const BASE_URL = '/api';
+        // Determine the API base URL based on the current environment
+        let BASE_URL = '/api';
         
-        console.log('Using relative URLs for API calls');
+        // If the frontend is on Vercel and backend is on Render, we need to use the full URL
+        if (window.location.hostname.includes('vercel.app')) {
+            BASE_URL = 'https://chd-police-hackathon.onrender.com/api';
+            console.log('Detected Vercel environment, using Render backend URL');
+        } else {
+            console.log('Using relative URLs for API calls');
+        }
+        
+        console.log('API Base URL:', BASE_URL);
 
         // Show loading overlay
         function showLoading() {
@@ -272,7 +292,7 @@
                             'Content-Type': 'application/json',
                             'Accept': 'application/json'
                         },
-                        credentials: 'include',
+                        credentials: window.location.hostname.includes('vercel.app') ? 'include' : 'same-origin',
                         body: JSON.stringify({
                             credential: response.credential
                         })
@@ -340,7 +360,7 @@
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    credentials: 'include',
+                    credentials: window.location.hostname.includes('vercel.app') ? 'include' : 'same-origin',
                     body: JSON.stringify({
                         emailOrUsername: emailOrUsername,
                         password: password
