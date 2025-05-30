@@ -407,7 +407,10 @@
                         'Accept': 'application/json'
                     },
                     credentials: window.location.hostname.includes('vercel.app') ? 'include' : 'same-origin',
-                    body: { emailOrUsername }
+                    body: JSON.stringify({
+                        emailOrUsername: emailOrUsername,
+                        password: password
+                    })
                 });
 
                 const response = await fetch(loginEndpoint, {
