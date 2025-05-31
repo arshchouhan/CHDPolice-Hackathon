@@ -96,28 +96,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// Allowed origins with wildcard support
+// Allowed origins with exact matches only for better security
 const allowedOrigins = [
   // Development
-  `http://localhost:${process.env.PORT || 3000}`,
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:5000',
   'http://localhost:5173', // Vite dev server
   
-  // Authentication providers
-  'https://accounts.google.com',
-  'https://*.google.com',
-  'https://*.googleusercontent.com',
-  
-  // Vercel frontend
+  // Production frontend
   'https://chd-police-hackathon.vercel.app',
-  'https://*.vercel.app',
   
-  // Render deployment
-  'https://*.render.com',
-  
-  // Production URLs
+  // Production backend
   'https://email-detection-api.onrender.com'
 ];
 
@@ -145,24 +135,49 @@ const isOriginAllowed = (origin) => {
 // CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    if (isOriginAllowed(origin)) {
-      callback(null, true);
-    } else {
-      console.error('CORS Error: Origin not allowed -', origin);
-      callback(new Error('Not allowed by CORS'));
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const normalizedOrigin = origin.toLowerCase().trim();
+    
+    // Check exact matches
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      return callback(null, true);
     }
+    
+    // Log blocked origins for debugging
+    console.log('Blocked origin:', normalizedOrigin);
+    console.log('Allowed origins:', allowedOrigins);
+    
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
-  allowedHeaders: '*',
-  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Allow-Headers',
+    'Access-Control-Request-Method'
+  ],
+  exposedHeaders: [
+    'Content-Length',
+    'Content-Type',
+    'Authorization',
+    'Access-Control-Allow-Origin'
+  ],
   preflightContinue: false,
   optionsSuccessStatus: 204,
   maxAge: 86400 // 24 hours
 };
 
-// Apply CORS middleware first
+// Apply CORS middleware with options
 app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 // Security headers middleware
 app.use((req, res, next) => {
@@ -179,62 +194,52 @@ app.use((req, res, next) => {
     res.setHeader('Expires', '0');
   }
   
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   next();
-    // Set other CORS headers
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, X-Access-Token, X-Requested-With, Access-Control-Allow-Headers, Access-Control-Request-Method, Access-Control-Request-Headers, X-CSRF-Token');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Date, X-Request-Id, Set-Cookie, Authorization');
-    
-    // Security headers
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    res.setHeader('Referrer-Policy', 'same-origin');
-    
-    // Cache control for API responses
-    if (req.path.startsWith('/api/')) {
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-    }
-    
-    // Continue to next middleware
-    next();
 });
-
-// Apply CORS middleware
-app.use(cors(corsOptions));
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
 
 // Apply JSON parsing middleware
 app.use(express.json());
 
 // Add CORS headers to all responses
 app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    if (isOriginAllowed(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-        res.header('Access-Control-Allow-Credentials', 'true');
-        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-        res.header('Access-Control-Allow-Headers', [
-            'Content-Type',
-            'Authorization',
-            'Accept',
-            'Origin',
-            'X-Requested-With',
-            'X-Access-Token',
-            'X-CSRF-Token'
-        ].join(', '));
-        
-        // Handle preflight requests
-        if (req.method === 'OPTIONS') {
-            return res.status(200).end();
-        }
-    }
-    next();
+  const origin = req.headers.origin;
+  if (isOriginAllowed(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+    res.header('Access-Control-Allow-Headers', [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'Origin',
+      'X-Requested-With',
+      'X-Access-Token',
+      'X-CSRF-Token'
+    ].join(', '));
+  }
+  next();
+});
+
+// Log request details for debugging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`, {
+    headers: req.headers,
+    body: req.body,
+    query: req.query,
+    params: req.params
+  });
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
 });
 
 // Session configuration
