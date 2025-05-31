@@ -96,37 +96,52 @@ app.use((req, res, next) => {
   next();
 });
 
-// Allowed origins with exact matches only for better security
+// Allowed origins with development and production URLs
 const allowedOrigins = [
   // Development
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:5000',
   'http://localhost:5173', // Vite dev server
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:5000',
+  'http://127.0.0.1:5173',
   
   // Production frontend
   'https://chd-police-hackathon.vercel.app',
+  'https://*.vercel.app',
   
   // Production backend
-  'https://email-detection-api.onrender.com'
+  'https://email-detection-api.onrender.com',
+  'https://*.onrender.com',
+  
+  // For development with IP
+  /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/, // Local network IPs
+  /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/ // Local network IPs
 ];
 
 // Function to check if origin is allowed
 const isOriginAllowed = (origin) => {
-  if (!origin) return true; // Allow requests with no origin (like mobile apps)
+  if (!origin) return true; // Allow requests with no origin (like mobile apps or curl)
   
   const normalizedOrigin = origin.toLowerCase().trim();
   
-  // Check exact matches first
-  if (allowedOrigins.includes(normalizedOrigin)) {
-    return true;
-  }
-  
-  // Check wildcard matches
+  // Check if origin matches any pattern in allowedOrigins
   return allowedOrigins.some(allowedOrigin => {
-    if (allowedOrigin.startsWith('*')) {
-      const domain = allowedOrigin.replace('*.', '.').toLowerCase();
-      return normalizedOrigin.endsWith(domain);
+    // Handle string patterns (exact matches and wildcards)
+    if (typeof allowedOrigin === 'string') {
+      // Handle wildcard subdomains (e.g., '*.example.com')
+      if (allowedOrigin.startsWith('*')) {
+        const domain = allowedOrigin.replace('*.', '.').toLowerCase();
+        return normalizedOrigin.endsWith(domain);
+      }
+      // Handle exact matches
+      return normalizedOrigin === allowedOrigin.toLowerCase();
+    }
+    // Handle regex patterns
+    else if (allowedOrigin instanceof RegExp) {
+      return allowedOrigin.test(normalizedOrigin);
     }
     return false;
   });
@@ -140,18 +155,18 @@ const corsOptions = {
     
     const normalizedOrigin = origin.toLowerCase().trim();
     
-    // Check exact matches
-    if (allowedOrigins.includes(normalizedOrigin)) {
+    // Check if origin is allowed
+    if (isOriginAllowed(normalizedOrigin)) {
       return callback(null, true);
     }
     
     // Log blocked origins for debugging
-    console.log('Blocked origin:', normalizedOrigin);
-    console.log('Allowed origins:', allowedOrigins);
+    console.log('CORS: Blocked origin:', normalizedOrigin);
+    console.log('CORS: Allowed origins:', allowedOrigins);
     
     callback(new Error('Not allowed by CORS'));
   },
-  credentials: true,
+  credentials: true, // Enable credentials (cookies, authorization headers)
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   allowedHeaders: [
     'Content-Type',
@@ -159,18 +174,24 @@ const corsOptions = {
     'X-Requested-With',
     'Accept',
     'Origin',
+    'X-Access-Token',
+    'X-CSRF-Token',
     'Access-Control-Allow-Headers',
-    'Access-Control-Request-Method'
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
   ],
   exposedHeaders: [
     'Content-Length',
     'Content-Type',
     'Authorization',
-    'Access-Control-Allow-Origin'
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials'
   ],
   preflightContinue: false,
   optionsSuccessStatus: 204,
-  maxAge: 86400 // 24 hours
+  maxAge: 86400, // 24 hours
+  // Allow credentials for all origins
+  credentials: true
 };
 
 // Apply CORS middleware with options
@@ -178,6 +199,32 @@ app.use(cors(corsOptions));
 
 // Handle preflight requests for all routes
 app.options('*', cors(corsOptions));
+
+// Add CORS headers to all responses
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && isOriginAllowed(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+    res.header('Access-Control-Allow-Headers', [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+      'X-Access-Token',
+      'X-CSRF-Token'
+    ].join(', '));
+  }
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  
+  next();
+});
 
 // Request timing middleware
 app.use((req, res, next) => {
