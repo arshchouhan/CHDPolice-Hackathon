@@ -289,36 +289,49 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Log request details for debugging (skip health checks)
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memoryUsage: process.memoryUsage(),
+    nodeVersion: process.version,
+    platform: process.platform,
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Log request details for debugging
 app.use((req, res, next) => {
-  // Skip logging for health checks
-  if (req.path === '/health') {
+  const start = Date.now();
+  const { method, url, ip, headers } = req;
+  const userAgent = headers['user-agent'] || '';
+  
+  // Skip logging for health checks and load balancer checks
+  if (url === '/health' || userAgent.includes('Go-http-client')) {
     return next();
   }
-
-  const start = Date.now();
   
-  // Log request start
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`, {
-    ip: req.ip || req.connection.remoteAddress,
-    userAgent: req.headers['user-agent'],
-    referrer: req.headers['referer'] || req.headers['referrer'],
-    query: Object.keys(req.query).length ? req.query : undefined,
-    params: Object.keys(req.params).length ? req.params : undefined,
-    body: Object.keys(req.body).length ? req.body : undefined
-  });
-
-  // Log response finish
+  const referrer = headers.referer || headers.referrer;
+  
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl || req.url} ${res.statusCode} - ${duration}ms`);
+    console.log(`[${new Date().toISOString()}] ${method} ${url} ${res.statusCode} - ${duration}ms`);
+    
+    // Only log detailed info for non-GET requests or if in development
+    if (method !== 'GET' || process.env.NODE_ENV === 'development') {
+      console.log(JSON.stringify({
+        ip,
+        userAgent,
+        referrer,
+        query: req.query,
+        params: req.params,
+        body: req.body
+      }, null, 2));
+    }
   });
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
+
   next();
 });
 
