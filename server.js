@@ -176,8 +176,14 @@ const corsOptions = {
 // Apply CORS middleware with options
 app.use(cors(corsOptions));
 
-// Handle preflight requests
+// Handle preflight requests for all routes
 app.options('*', cors(corsOptions));
+
+// Request timing middleware
+app.use((req, res, next) => {
+  req.requestStart = process.hrtime();
+  next();
+});
 
 // Security headers middleware
 app.use((req, res, next) => {
@@ -225,13 +231,40 @@ app.use((req, res, next) => {
   next();
 });
 
-// Log request details for debugging
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    env: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Log request details for debugging (skip health checks)
 app.use((req, res, next) => {
+  // Skip logging for health checks
+  if (req.path === '/health') {
+    return next();
+  }
+
+  const start = Date.now();
+  
+  // Log request start
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`, {
-    headers: req.headers,
-    body: req.body,
-    query: req.query,
-    params: req.params
+    ip: req.ip || req.connection.remoteAddress,
+    userAgent: req.headers['user-agent'],
+    referrer: req.headers['referer'] || req.headers['referrer'],
+    query: Object.keys(req.query).length ? req.query : undefined,
+    params: Object.keys(req.params).length ? req.params : undefined,
+    body: Object.keys(req.body).length ? req.body : undefined
+  });
+
+  // Log response finish
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl || req.url} ${res.statusCode} - ${duration}ms`);
   });
   
   // Handle preflight requests
