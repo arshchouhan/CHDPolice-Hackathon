@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "server.js",
+      "src": "api/index.js",
       "use": "@vercel/node"
     },
     {
@@ -13,17 +13,18 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server.js"
+      "dest": "/api"
     },
     {
       "src": "/auth/(.*)",
-      "dest": "/server.js"
+      "dest": "/api"
     },
     {
       "src": "^/static/(.*)",
       "headers": {
         "cache-control": "public, max-age=31536000, immutable"
-      }
+      },
+      "dest": "/public/static/$1"
     },
     {
       "src": "^/login$",
@@ -42,7 +43,7 @@
       "dest": "/public/login.html"
     },
     {
-      "src": "^/(.*)",
+      "src": "^/(.*\\.(?:js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot))$",
       "dest": "/public/$1"
     },
     {

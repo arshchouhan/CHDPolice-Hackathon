@@ -426,39 +426,65 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Connect to MongoDB
-connectDB()
-  .then(() => {
-    // Server start
-    const PORT = process.env.PORT || 3000;
-    const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
-
-    // For production deployment
-    app.set('trust proxy', 1); // Trust first proxy
+// Function to start the server
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await connectDB();
+    console.log('MongoDB connected successfully');
     
-    // Only start the server if not in Vercel environment
+    // Get port from environment variable (Render/Vercel sets this) or use default 3000
+    const PORT = process.env.PORT || 3000;
+    
+    // For Render and other cloud providers, we need to bind to 0.0.0.0
+    // For Vercel, we don't start a server directly
     if (!process.env.VERCEL) {
+      const HOST = '0.0.0.0'; // Important: Bind to all network interfaces
+      
       const server = app.listen(PORT, HOST, () => {
+        console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
         console.log(`Server running on http://${HOST}:${PORT}`);
-        console.log(`Access the site at: http://localhost:${PORT}`);
         console.log('Server is ready to accept connections');
+        
+        // Log environment information
+        console.log('Environment Variables:');
+        console.log(`- NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`- PORT: ${PORT}`);
+        console.log(`- VERCEL: ${process.env.VERCEL || 'false'}`);
+        console.log(`- RENDER: ${process.env.RENDER ? 'true' : 'false'}`);
       });
       
       // Handle server errors
       server.on('error', (error) => {
         if (error.code === 'EADDRINUSE') {
-          console.error(`Port ${PORT} is already in use`);
+          console.error(`Error: Port ${PORT} is already in use`);
         } else {
           console.error('Server error:', error);
         }
         process.exit(1);
       });
+      
+      // Handle process termination
+      process.on('SIGTERM', () => {
+        console.log('SIGTERM received. Shutting down gracefully...');
+        server.close(() => {
+          console.log('Server closed');
+          process.exit(0);
+        });
+      });
     }
-  })
-  .catch(err => {
-    console.error('Failed to connect to MongoDB', err);
+    
+    return app;
+  } catch (err) {
+    console.error('Failed to start server:', err);
     process.exit(1);
-  });
+  }
+};
 
-// Export the Express API for Vercel
-module.exports = app;
+// Only start the server if this file is run directly (not when imported as a module)
+if (require.main === module) {
+  startServer();
+}
+
+// Export the app for Vercel serverless functions
+module.exports = startServer();
