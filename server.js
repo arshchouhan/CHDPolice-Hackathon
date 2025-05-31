@@ -439,9 +439,36 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Track if server is already starting/started
 let isServerStarting = false;
 let serverInstance = null;
+
+// Function to handle graceful shutdown
+const gracefulShutdown = (server) => {
+  return () => {
+    console.log('\nShutting down gracefully...');
+    
+    // Close the server first to stop accepting new connections
+    if (server) {
+      server.close(() => {
+        console.log('Server closed');
+        
+        // Close database connections here if needed
+        mongoose.connection.close(false, () => {
+          console.log('MongoDB connection closed');
+          process.exit(0);
+        });
+      });
+      
+      // Force close the server after 10 seconds
+      setTimeout(() => {
+        console.error('Could not close connections in time, forcefully shutting down');
+        process.exit(1);
+      }, 10000);
+    } else {
+      process.exit(0);
+    }
+  };
+};
 
 /**
  * Start the Express server
@@ -466,13 +493,15 @@ const startServer = async () => {
     await connectDB();
     console.log('MongoDB connected successfully');
     
+    let server = null;
+    
     // Only start the HTTP server if not in Vercel environment
     if (!process.env.VERCEL) {
       const PORT = process.env.PORT || 3000;
       const HOST = '0.0.0.0'; // Important: Bind to all network interfaces
       
       // Create HTTP server
-      const server = app.listen(PORT, HOST, () => {
+      server = app.listen(PORT, HOST, () => {
         console.log(`\n=== Server Information ===`);
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`Listening on: http://${HOST}:${PORT}`);
@@ -499,39 +528,9 @@ const startServer = async () => {
           process.exit(1);
         }
       });
-      
-      // Handle process termination
-      const gracefulShutdown = () => {
-        console.log('\nShutting down gracefully...');
-        server.close(() => {
-          console.log('Server closed');
-          process.exit(0);
-        });
-        
-        // Force shutdown after timeout
-        setTimeout(() => {
-          console.error('Could not close connections in time, forcefully shutting down');
-          process.exit(1);
-        }, 10000);
-      };
-      
-      // Handle different shutdown signals
-      process.on('SIGTERM', gracefulShutdown);
-      process.on('SIGINT', gracefulShutdown);
-      
-      // Handle uncaught exceptions
-      process.on('uncaughtException', (error) => {
-        console.error('Uncaught Exception:', error);
-        gracefulShutdown();
-      });
-      
-      // Handle unhandled promise rejections
-      process.on('unhandledRejection', (reason, promise) => {
-        console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-      });
     }
     
-    return app;
+    return { app, server };
   } catch (err) {
     console.error('Failed to start server:', err);
     // Only exit if not in production to allow for container restart
@@ -546,10 +545,27 @@ const startServer = async () => {
 
 // Start the server immediately when this file is run directly
 if (require.main === module) {
-  startServer().catch(err => {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-  });
+  startServer()
+    .then(({ app, server }) => {
+      // Handle process signals
+      process.on('SIGTERM', gracefulShutdown(server));
+      process.on('SIGINT', gracefulShutdown(server));
+      
+      // Handle uncaught exceptions
+      process.on('uncaughtException', (error) => {
+        console.error('Uncaught Exception:', error);
+        gracefulShutdown(server)();
+      });
+      
+      // Handle unhandled promise rejections
+      process.on('unhandledRejection', (reason, promise) => {
+        console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+      });
+    })
+    .catch(err => {
+      console.error('Failed to start server:', err);
+      process.exit(1);
+    });
 } else {
   // For when this file is imported as a module (e.g., in tests or Vercel)
   let serverPromise = null;
