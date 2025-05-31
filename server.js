@@ -426,65 +426,124 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Function to start the server
+// Track if server is already starting/started
+let isServerStarting = false;
+let serverInstance = null;
+
+/**
+ * Start the Express server
+ */
 const startServer = async () => {
+  // If server is already starting/started, return the existing instance
+  if (serverInstance) {
+    console.log('Server instance already exists, returning existing instance');
+    return app;
+  }
+
+  // Prevent multiple server starts
+  if (isServerStarting) {
+    console.log('Server is already starting, returning app without starting new instance');
+    return app;
+  }
+
+  isServerStarting = true;
+  
   try {
     // Connect to MongoDB
     await connectDB();
     console.log('MongoDB connected successfully');
     
-    // Get port from environment variable (Render/Vercel sets this) or use default 3000
-    const PORT = process.env.PORT || 3000;
-    
-    // For Render and other cloud providers, we need to bind to 0.0.0.0
-    // For Vercel, we don't start a server directly
+    // Only start the HTTP server if not in Vercel environment
     if (!process.env.VERCEL) {
+      const PORT = process.env.PORT || 3000;
       const HOST = '0.0.0.0'; // Important: Bind to all network interfaces
       
+      // Create HTTP server
       const server = app.listen(PORT, HOST, () => {
-        console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
-        console.log(`Server running on http://${HOST}:${PORT}`);
-        console.log('Server is ready to accept connections');
+        console.log(`\n=== Server Information ===`);
+        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`Listening on: http://${HOST}:${PORT}`);
+        console.log(`Process ID: ${process.pid}`);
+        console.log(`Node Version: ${process.version}`);
+        console.log(`Platform: ${process.platform} ${process.arch}`);
+        console.log(`Memory Usage: ${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`);
+        console.log('==========================\n');
         
-        // Log environment information
-        console.log('Environment Variables:');
-        console.log(`- NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`- PORT: ${PORT}`);
-        console.log(`- VERCEL: ${process.env.VERCEL || 'false'}`);
-        console.log(`- RENDER: ${process.env.RENDER ? 'true' : 'false'}`);
+        // Store the server instance
+        serverInstance = server;
       });
       
       // Handle server errors
       server.on('error', (error) => {
         if (error.code === 'EADDRINUSE') {
-          console.error(`Error: Port ${PORT} is already in use`);
+          console.error(`Error: Port ${PORT} is already in use. Another instance may be running.`);
+          // Don't exit in production to allow for container orchestration
+          if (process.env.NODE_ENV !== 'production') {
+            process.exit(1);
+          }
         } else {
           console.error('Server error:', error);
+          process.exit(1);
         }
-        process.exit(1);
       });
       
       // Handle process termination
-      process.on('SIGTERM', () => {
-        console.log('SIGTERM received. Shutting down gracefully...');
+      const gracefulShutdown = () => {
+        console.log('\nShutting down gracefully...');
         server.close(() => {
           console.log('Server closed');
           process.exit(0);
         });
+        
+        // Force shutdown after timeout
+        setTimeout(() => {
+          console.error('Could not close connections in time, forcefully shutting down');
+          process.exit(1);
+        }, 10000);
+      };
+      
+      // Handle different shutdown signals
+      process.on('SIGTERM', gracefulShutdown);
+      process.on('SIGINT', gracefulShutdown);
+      
+      // Handle uncaught exceptions
+      process.on('uncaughtException', (error) => {
+        console.error('Uncaught Exception:', error);
+        gracefulShutdown();
+      });
+      
+      // Handle unhandled promise rejections
+      process.on('unhandledRejection', (reason, promise) => {
+        console.error('Unhandled Rejection at:', promise, 'reason:', reason);
       });
     }
     
     return app;
   } catch (err) {
     console.error('Failed to start server:', err);
-    process.exit(1);
+    // Only exit if not in production to allow for container restart
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
+    throw err; // Re-throw for Vercel to handle
+  } finally {
+    isServerStarting = false;
   }
 };
 
-// Only start the server if this file is run directly (not when imported as a module)
+// Start the server immediately when this file is run directly
 if (require.main === module) {
-  startServer();
+  startServer().catch(err => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+} else {
+  // For when this file is imported as a module (e.g., in tests or Vercel)
+  let serverPromise = null;
+  module.exports = () => {
+    if (!serverPromise) {
+      serverPromise = startServer();
+    }
+    return serverPromise;
+  };
 }
-
-// Export the app for Vercel serverless functions
-module.exports = startServer();

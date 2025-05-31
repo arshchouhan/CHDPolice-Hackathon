@@ -30,14 +30,28 @@ process.on('SIGINT', async () => {
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+    const options = {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-    });
+      // Enable retryWrites for better handling of network issues
+      retryWrites: true,
+      // Use the new Server Discover and Monitoring engine
+      serverSelectionTimeoutMS: 5000,
+      // Set the write concern for better durability
+      w: 'majority'
+    };
+    
+    // Only set these options if they're not already set in the MONGO_URI
+    if (!process.env.MONGO_URI.includes('retryWrites')) {
+      options.retryWrites = true;
+    }
+    
+    const conn = await mongoose.connect(process.env.MONGO_URI, options);
     
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log(`Database Name: ${conn.connection.name}`);
+    console.log(`MongoDB Version: ${conn.connection.version}`);
+    
     return conn;
   } catch (error) {
     console.error(`MongoDB connection error: ${error.message}`);
