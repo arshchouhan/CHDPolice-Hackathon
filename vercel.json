@@ -20,24 +20,34 @@
       "dest": "/server.js"
     },
     {
-      "src": "/",
+      "src": "^/static/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "^/login$",
       "dest": "/public/login.html"
     },
     {
-      "src": "/login",
-      "dest": "/public/login.html"
-    },
-    {
-      "src": "/signup",
+      "src": "^/signup$",
       "dest": "/public/signup.html"
     },
     {
-      "src": "/dashboard",
+      "src": "^/dashboard$",
       "dest": "/public/index.html"
     },
     {
-      "src": "/(.*)",
+      "src": "^/$",
+      "dest": "/public/login.html"
+    },
+    {
+      "src": "^/(.*)",
       "dest": "/public/$1"
+    },
+    {
+      "src": "^/(.*)",
+      "dest": "/public/index.html"
     }
   ]
 }

@@ -431,17 +431,34 @@ connectDB()
   .then(() => {
     // Server start
     const PORT = process.env.PORT || 3000;
-    const HOST = '0.0.0.0'; // Bind to all interfaces
+    const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
-    // For Render deployment
-    app.set('trust proxy', true);
-    app.listen(PORT, HOST, () => {
-      console.log(`Server running on http://${HOST}:${PORT}`);
-      console.log(`Access the site at: http://localhost:${PORT}`);
-      console.log('Server is ready to accept connections');
-    });
+    // For production deployment
+    app.set('trust proxy', 1); // Trust first proxy
+    
+    // Only start the server if not in Vercel environment
+    if (!process.env.VERCEL) {
+      const server = app.listen(PORT, HOST, () => {
+        console.log(`Server running on http://${HOST}:${PORT}`);
+        console.log(`Access the site at: http://localhost:${PORT}`);
+        console.log('Server is ready to accept connections');
+      });
+      
+      // Handle server errors
+      server.on('error', (error) => {
+        if (error.code === 'EADDRINUSE') {
+          console.error(`Port ${PORT} is already in use`);
+        } else {
+          console.error('Server error:', error);
+        }
+        process.exit(1);
+      });
+    }
   })
   .catch(err => {
     console.error('Failed to connect to MongoDB', err);
     process.exit(1);
   });
+
+// Export the Express API for Vercel
+module.exports = app;

@@ -9,9 +9,9 @@ function getBaseUrl() {
         return `${protocol}//${hostname}${port ? ':' + port : ''}`;
     }
     
-    // Production environment - Vercel frontend
+    // For Vercel frontend, use the same domain for API calls
     if (hostname.includes('vercel.app')) {
-        return 'https://chd-police-hackathon.onrender.com';
+        return `${protocol}//${hostname}/api`; // Use relative path with /api prefix
     }
     
     // Production environment - Render backend
@@ -19,8 +19,8 @@ function getBaseUrl() {
         return `${protocol}//${hostname}${port ? ':' + port : ''}`;
     }
     
-    // Default to current origin
-    return window.location.origin;
+    // Default to current origin with /api prefix
+    return `${window.location.origin}/api`;
 }
 
 // Make getBaseUrl available globally
