@@ -14,8 +14,12 @@
     "render-build": "npm install"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "CHD Police Hackathon Team",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/arshchouhan/CHDPolice-Hackathon/issues"
+  },
+  "homepage": "https://github.com/arshchouhan/CHDPolice-Hackathon#readme",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.9.0",

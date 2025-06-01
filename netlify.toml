@@ -1,20 +1,36 @@
 [build]
   command = "npm run build"
-  publish = "public"
+  publish = "build"
+  environment = { NODE_VERSION = "18.0.0", NPM_VERSION = "9.0.0" }
 
 [dev]
-  framework = "#custom"
-  targetPort = 3000
+  command = "npm start"
   port = 3000
+  targetPort = 3000
+  framework = "create-react-app"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
-[build.environment]
-  NODE_VERSION = "18.0.0"
-  NPM_VERSION = "9.0.0"
+[context.production]
+  command = "npm run build"
+  publish = "build"
+  environment = { 
+    NODE_VERSION = "18.0.0",
+    NPM_VERSION = "9.0.0",
+    REACT_APP_API_URL = "https://email-detection-backend.onrender.com"
+  }
+
+[context.deploy-preview]
+  command = "npm run build"
+  publish = "build"
+  environment = { 
+    NODE_VERSION = "18.0.0",
+    NPM_VERSION = "9.0.0",
+    REACT_APP_API_URL = "https://email-detection-backend-dev.onrender.com"
+  }
 
 [functions]
   directory = "netlify/functions"
