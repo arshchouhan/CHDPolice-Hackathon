@@ -151,22 +151,12 @@ exports.googleSignIn = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
-    console.log('Login attempt - Request body:', JSON.stringify(req.body, null, 2));
-    console.log('Request headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Login attempt:', req.body);
     
     // Handle both the old 'email' parameter and the new 'emailOrUsername' parameter
+    // This makes the API backwards compatible with existing clients
     const emailOrUsername = req.body.emailOrUsername || req.body.email;
     const password = req.body.password;
-    
-    // Basic validation
-    if (!emailOrUsername || !password) {
-      console.log('Missing credentials - Email/Username:', !!emailOrUsername, 'Password:', !!password);
-      return res.status(400).json({ 
-        success: false,
-        message: 'Username/Email and password are required.',
-        code: 'MISSING_CREDENTIALS'
-      });
-    }
     
     console.log('Normalized credentials:', { emailOrUsername, password: '****' });
 
@@ -207,24 +197,13 @@ exports.login = async (req, res) => {
     }
 
     // Compare password
-    let isMatch = false;
-    try {
-        isMatch = await bcrypt.compare(password, account.password);
-    } catch (bcryptError) {
-        console.error('Bcrypt compare error:', bcryptError);
-        return res.status(500).json({
-            success: false,
-            error: 'Error processing credentials',
-            code: 'AUTH_ERROR',
-            details: process.env.NODE_ENV === 'development' ? bcryptError.message : undefined
-        });
-    }
+    const isMatch = await bcrypt.compare(password, account.password);
 
     if (!isMatch) {
         console.log('Password mismatch for:', emailOrUsername);
         return res.status(401).json({
             success: false,
-            error: 'Invalid credentials. Please check your username/email and password.',
+            error: 'Invalid credentials',
             code: 'INVALID_CREDENTIALS'
         });
     }
@@ -244,24 +223,19 @@ exports.login = async (req, res) => {
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     };
 
-    // In production, set secure cookies
+    // In production, set domain based on request origin
     if (process.env.NODE_ENV === 'production') {
         const origin = req.get('origin');
         console.log('Request origin:', origin);
-        
-        // For Render deployments
-        if (origin && origin.includes('render.com')) {
-            cookieOptions.domain = '.onrender.com';
-            cookieOptions.sameSite = 'none';
-            cookieOptions.secure = true;
-        } 
-        // For Vercel deployments
-        else if (origin && origin.includes('vercel.app')) {
+        if (origin && origin.includes('vercel.app')) {
+            // Match any Vercel subdomain
             cookieOptions.domain = '.vercel.app';
+            // For Vercel, we need to set SameSite=None and Secure=true
             cookieOptions.sameSite = 'none';
             cookieOptions.secure = true;
+        } else if (origin && origin.includes('render.com')) {
+            cookieOptions.domain = '.onrender.com';
         }
-        
         console.log('Cookie options:', cookieOptions);
     }
 

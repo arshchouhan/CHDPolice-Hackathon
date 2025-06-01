@@ -152,37 +152,50 @@ app.get('/login.html', (req, res) => {
 
 // Consolidated CORS configuration
 const corsOptions = {
-    origin: function (origin, callback) {
+    origin: function(origin, callback) {
+        const allowedOrigins = [
+            'https://chdpolice-hackathon.onrender.com',
+            'https://chd-police-hackathon-jku23otvi-arsh-chauhans-projects-1f436a49.vercel.app',
+            'https://chd-police-hackathon.vercel.app',
+            'http://localhost:3000',
+            'http://localhost:5000',  // For local development with separate ports
+            'http://localhost:5500',  // Common port for live server
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:5000',
+            'http://127.0.0.1:5500'
+        ];
+        
+        console.log('Request origin:', origin || 'No origin (direct access)');
+        
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) {
-            console.log('No origin header - allowing request');
+            console.log('No origin, allowing request');
             return callback(null, true);
         }
-        
-        console.log('Incoming request from origin:', origin);
-        
-        // Allow all subdomains of vercel.app and render.com
-        if (origin.includes('vercel.app') || origin.includes('onrender.com') || 
-            origin.includes('localhost') || origin.includes('127.0.0.1')) {
-            console.log('Origin allowed by CORS');
-            return callback(null, true);
+
+        // Check if the origin is in the allowed list
+        if (allowedOrigins.includes(origin)) {
+            console.log('Origin allowed:', origin);
+            return callback(null, origin); // Return the origin instead of true for dynamic CORS
         }
         
-        // Allow local development
+        // For development, allow all origins but log a warning
         if (process.env.NODE_ENV !== 'production') {
-            console.log('Allowing request in development mode');
-            return callback(null, true);
+            console.warn(`Allowing request from non-whitelisted origin in development: ${origin}`);
+            return callback(null, origin);
         }
         
-        console.log('Origin not allowed by CORS');
+        // In production, block unauthorized origins
         console.warn(`Blocked request from unauthorized origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
     },
-    credentials: true,
+    credentials: true, // Required for cookies, authorization headers with HTTPS
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
     allowedHeaders: [
-        'Content-Type',
-        'Authorization',
+        'Content-Type', 
+        'Authorization', 
         'X-Requested-With',
         'X-Access-Token',
         'X-Forwarded-For',
@@ -198,8 +211,7 @@ const corsOptions = {
         'X-Access-Token',
         'X-Requested-With'
     ],
-    maxAge: 86400, // 24 hours
-    preflightContinue: false,
+    maxAge: 86400,  // 24 hours
     optionsSuccessStatus: 200
 };
 
