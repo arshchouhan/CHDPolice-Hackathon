@@ -38,14 +38,6 @@ async function isAuthenticated() {
         return false;
     }
     
-    // Check if this is the initial page load after successful login
-    const authChecked = sessionStorage.getItem('auth_checked');
-    if (authChecked === 'true') {
-        console.log('Auth already checked in this session');
-        sessionStorage.removeItem('auth_checked');
-        return true;
-    }
-    
     const token = localStorage.getItem('token');
     if (!token) {
         // If no token but we're not on login page, redirect to login

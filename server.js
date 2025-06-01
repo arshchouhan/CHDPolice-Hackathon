@@ -193,12 +193,6 @@ const corsOptions = {
             return callback(null, origin);
         }
         
-        // For development, log a warning but allow the request
-        if (process.env.NODE_ENV === 'development') {
-            console.warn('Allowing request from origin in development:', origin);
-            return callback(null, origin);
-        }
-        
         // For development, allow all origins but log a warning
         if (process.env.NODE_ENV !== 'production') {
             console.warn(`Allowing request from non-whitelisted origin in development: ${origin}`);
@@ -235,26 +229,9 @@ const corsOptions = {
     optionsSuccessStatus: 200
 };
 
-// Configure CORS with enhanced options
-const corsConfig = {
-    ...corsOptions,
-    credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    exposedHeaders: ['set-cookie']
-};
-
-// Enable CORS with enhanced options
-app.use(cors(corsConfig));
-
-// Handle preflight requests
-app.options('*', cors(corsConfig));
-
-// Parse JSON bodies (as sent by API clients)
-app.use(express.json());
-
-// Parse URL-encoded bodies (as sent by HTML forms)
-app.use(express.urlencoded({ extended: true }));
+// Apply CORS configuration with preflight continue
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Enable preflight for all routes
 
 // Enhanced authentication middleware with session validation
 const authenticateUser = (req, res, next) => {
