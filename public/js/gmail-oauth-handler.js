@@ -8,55 +8,54 @@
  * - Redirecting the user back to the dashboard
  */
 
-// Function to get the base URL for API requests
-function getBaseUrl() {
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
-    const port = window.location.port;
+// Initialize BASE_URL only once using IIFE to avoid conflicts
+(function() {
+    // Check if BASE_URL is already defined globally
+    if (typeof window.BASE_URL !== 'undefined') {
+        console.log('BASE_URL already exists:', window.BASE_URL);
+        return;
+    }
     
-    // Development environment (local)
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        const devUrl = `${protocol}//${hostname}${port ? ':' + port : ''}`;
-        console.log('Using development URL:', devUrl);
-        return devUrl;
-    } 
-    // Production environment
-    else {
-        // Check if we're in a Vercel or Render deployment
-        const isVercel = window.location.hostname.endsWith('.vercel.app');
-        const isRender = window.location.hostname.endsWith('.onrender.com');
+    // Function to get the base URL for API requests
+    function getBaseUrl() {
+        const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
+        const port = window.location.port;
         
-        // For Vercel and Render, use the current origin
-        if (isVercel || isRender) {
+        // Development environment (local)
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            const devUrl = `${protocol}//${hostname}${port ? ':' + port : ''}`;
+            console.log('Using development URL:', devUrl);
+            return devUrl;
+        } 
+        // Production environment
+        else {
+            // Check if we're in a Vercel or Render deployment
+            const isVercel = window.location.hostname.endsWith('.vercel.app');
+            const isRender = window.location.hostname.endsWith('.onrender.com');
+            
+            // For Vercel and Render, use the current origin
+            if (isVercel || isRender) {
+                const prodUrl = window.location.origin;
+                console.log('Using production URL (Vercel/Render):', prodUrl);
+                return prodUrl;
+            }
+            
+            // For custom domains, use the current origin
             const prodUrl = window.location.origin;
-            console.log('Using production URL (Vercel/Render):', prodUrl);
+            console.log('Using production URL (custom domain):', prodUrl);
             return prodUrl;
         }
-        
-        // For custom domains, use the current origin
-        const prodUrl = window.location.origin;
-        console.log('Using production URL (custom domain):', prodUrl);
-        return prodUrl;
-    }
-}
-
-// Initialize BASE_URL only once
-(function() {
-    // Check if BASE_URL is already defined in the window object
-    if (!window.BASE_URL) {
-        // If not, define it
-        Object.defineProperty(window, 'BASE_URL', {
-            value: getBaseUrl(),
-            writable: false,
-            configurable: false
-        });
-        console.log('Base URL initialized:', window.BASE_URL);
     }
     
-    // Create a local constant that won't conflict with other scripts
-    const GMAIL_BASE_URL = window.BASE_URL;
+    // Define BASE_URL as a non-configurable property
+    Object.defineProperty(window, 'BASE_URL', {
+        value: getBaseUrl(),
+        writable: false,
+        configurable: false
+    });
     
-  
+    console.log('Base URL initialized:', window.BASE_URL);
 })();
 
 /**
@@ -77,10 +76,10 @@ async function checkAuthentication() {
             headers['Authorization'] = `Bearer ${token}`;
         }
 
-        console.log('Sending auth check to:', `${BASE_URL}/auth/check-auth`);
-        const response = await fetch(`${BASE_URL}/auth/check-auth`, {
+        console.log('Sending auth check to:', `${window.BASE_URL}/auth/check-auth`);
+        const response = await fetch(`${window.BASE_URL}/auth/check-auth`, {
             method: 'GET',
-            credentials: 'include', // Send cookies
+            credentials: 'include',
             headers: headers
         });
         
@@ -127,6 +126,44 @@ function hideGmailAuthModal() {
     }
 }
 
+// Function to show loading state
+function showLoading() {
+    const statusText = document.getElementById('gmailStatusText');
+    if (statusText) {
+        statusText.textContent = 'Connecting...';
+        statusText.className = 'text-blue-500 text-sm';
+    }
+}
+
+// Function to hide loading state
+function hideLoading() {
+    const statusText = document.getElementById('gmailStatusText');
+    if (statusText) {
+        statusText.textContent = '';
+    }
+}
+
+// Function to show error message
+function showError(title, message) {
+    console.error(`${title}: ${message}`);
+    const statusText = document.getElementById('gmailStatusText');
+    if (statusText) {
+        statusText.textContent = message;
+        statusText.className = 'text-red-500 text-sm';
+    }
+    alert(`${title}: ${message}`);
+}
+
+// Function to show success notification
+function showSuccessNotification(title, message) {
+    console.log(`${title}: ${message}`);
+    const statusText = document.getElementById('gmailStatusText');
+    if (statusText) {
+        statusText.textContent = message;
+        statusText.className = 'text-green-500 text-sm';
+    }
+}
+
 // Function to connect Gmail account
 async function connectGmail() {
     console.log('Initiating Gmail connection...');
@@ -140,17 +177,23 @@ async function connectGmail() {
     const isAuthenticated = await checkAuthentication();
     if (!isAuthenticated) {
         console.log('User not authenticated, redirecting to login...');
-        window.location.href = `${BASE_URL}/login.html?redirect=${encodeURIComponent(window.location.pathname)}`;
+        window.location.href = `${window.BASE_URL}/login.html?redirect=${encodeURIComponent(window.location.pathname)}`;
         return;
     }
     
+    hideGmailAuthModal();
+    showLoading();
+    
     try {
+        // Verify user is logged in
         const token = localStorage.getItem('token');
         if (!token) {
-            throw new Error('Not authenticated. Please log in again.');
+            throw new Error('Authentication token not found. Please log in again.');
         }
         
-        const response = await fetch('/api/gmail/auth-url', {
+        // Verify token is valid by making a test request
+        console.log('Verifying authentication token...');
+        const testResponse = await fetch(`${window.BASE_URL}/api/users/me`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -158,81 +201,28 @@ async function connectGmail() {
             }
         });
         
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to get auth URL');
+        console.log('Auth verification response status:', testResponse.status);
+        
+        if (!testResponse.ok) {
+            console.error('Authentication verification failed with status:', testResponse.status);
+            localStorage.removeItem('token');
+            throw new Error('Your session has expired. Please log in again.');
         }
         
-        const data = await response.json();
-        console.log('Auth URL response:', data);
-        
-        if (data.authUrl) {
-            // Store the current URL to return after OAuth flow
-            localStorage.setItem('preOAuthPath', window.location.pathname);
-            console.log('Redirecting to Google OAuth:', data.authUrl);
-            window.location.href = data.authUrl;
-        } else {
-            throw new Error('No auth URL received from server');
-        }
-    } catch (error) {
-        console.error('Error connecting to Gmail:', error);
-        if (statusText) {
-            statusText.textContent = `Error: ${error.message}`;
-            statusText.className = 'text-red-500 text-sm';
-        }
-        if (connectBtn) connectBtn.disabled = false;
-        
-        // Show error toast or alert
-        alert(`Failed to connect Gmail: ${error.message}`);
-    }
-    hideGmailAuthModal();
-    showLoading();
-    
-    try {
-        // First, verify user is logged in
-        const token = localStorage.getItem('token');
-        if (!token) {
-            throw new Error('Authentication token not found. Please log in again.');
+        // Get user info to confirm authentication
+        const userData = await testResponse.json();
+        if (!userData.success) {
+            throw new Error('Authentication verification failed: ' + (userData.message || 'Unknown error'));
         }
         
-        // Verify token is valid by making a test request
-        try {
-            console.log('Verifying authentication token...');
-            const testResponse = await fetch(`${getBaseUrl()}/api/users/me`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            console.log('Auth verification response status:', testResponse.status);
-            
-            if (!testResponse.ok) {
-                // Token is invalid or expired
-                console.error('Authentication verification failed with status:', testResponse.status);
-                localStorage.removeItem('token');
-                throw new Error('Your session has expired. Please log in again.');
-            }
-            
-            // Get user info to confirm authentication
-            const userData = await testResponse.json();
-            if (!userData.success) {
-                throw new Error('Authentication verification failed: ' + (userData.message || 'Unknown error'));
-            }
-            
-            console.log('Authenticated as user:', userData.email || userData.username || userData._id);
-        } catch (authError) {
-            console.error('Authentication verification failed:', authError);
-            throw new Error('Authentication failed. Please log in again.');
-        }
+        console.log('Authenticated as user:', userData.email || userData.username || userData._id);
         
         // Store the exact current URL to return after auth
         const currentUrl = window.location.href;
         localStorage.setItem('gmailAuthReturnUrl', currentUrl);
         
         // Get environment information for debugging
-        const baseUrl = window.GMAIL_BASE_URL;
+        const baseUrl = window.BASE_URL;
         const hostname = window.location.hostname;
         const origin = window.location.origin;
         
@@ -262,7 +252,7 @@ async function connectGmail() {
         console.log('Using redirect URI:', redirectUri);
         console.log('Platform detected:', platform);
         
-        // Get the OAuth URL from our backend with explicit redirect_uri and platform info
+        // Get the OAuth URL from our backend
         const response = await fetch(`${baseUrl}/api/gmail/auth-url?platform=${platform}&redirect_uri=${encodeURIComponent(redirectUri)}`, {
             method: 'GET',
             headers: {
@@ -295,6 +285,9 @@ async function connectGmail() {
         
         console.log('Redirecting to Google OAuth consent screen');
         
+        // Store the current URL to return after OAuth flow
+        localStorage.setItem('preOAuthPath', window.location.pathname);
+        
         // Redirect to Google OAuth consent screen
         window.location.href = data.authUrl;
         
@@ -314,66 +307,71 @@ async function connectGmail() {
         } else {
             showError('Gmail Connection Error', error.message);
         }
+        
+        // Re-enable the connect button
+        const connectBtn = document.getElementById('connectGmailBtn');
+        if (connectBtn) connectBtn.disabled = false;
     }
 }
 
 // Function to check if we just completed the OAuth flow
 function checkOAuthRedirect() {
-    console.log('Checking for OAuth redirect...');
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const error = urlParams.get('error');
-    const oauthError = urlParams.get('oauth_error');
-    
-    // If we have an error, show it and clean up the URL
-    if (error || oauthError) {
-        const errorMessage = error || oauthError;
-        console.error('OAuth error:', errorMessage);
-        
-        // Show error to user
-        alert(`Gmail connection failed: ${decodeURIComponent(errorMessage)}`);
-        
-        // Clean up URL without reloading
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
-        return;
-    }
-    
-    // If we have a code, we're coming back from OAuth
-    if (code) {
-        console.log('Detected OAuth callback with code');
-        
-        // Show loading state
-        const statusText = document.getElementById('gmailStatusText');
-        if (statusText) {
-            statusText.textContent = 'Completing Gmail connection...';
-            statusText.className = 'text-blue-500 text-sm';
-        }
-        
-        // Clean up the URL
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
-        
-        // Redirect to dashboard after a short delay to show success message
-        setTimeout(() => {
-            // Check if we have a stored pre-OAuth path to return to
-            const preOAuthPath = localStorage.getItem('preOAuthPath') || '/dashboard';
-            localStorage.removeItem('preOAuthPath');
-            
-            // Add success parameter
-            const separator = preOAuthPath.includes('?') ? '&' : '?';
-            window.location.href = `${preOAuthPath}${separator}gmail_connected=true`;
-        }, 1000);
-    }
     try {
         console.log('Checking for OAuth redirect...');
         
-        // Check if we just completed OAuth flow (URL has connected=true)
+        // Check URL parameters
         const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const error = urlParams.get('error');
+        const oauthError = urlParams.get('oauth_error');
         const justConnected = urlParams.get('connected') === 'true';
         const redirectTarget = urlParams.get('redirect');
         const token = urlParams.get('token');
         
+        // If we have an error, show it and clean up the URL
+        if (error || oauthError) {
+            const errorMessage = error || oauthError;
+            console.error('OAuth error:', errorMessage);
+            
+            // Show error to user
+            showError('Gmail Connection Failed', decodeURIComponent(errorMessage));
+            
+            // Clean up URL without reloading
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            return false;
+        }
+        
+        // If we have a code, we're coming back from OAuth
+        if (code) {
+            console.log('Detected OAuth callback with code');
+            
+            // Show loading state
+            const statusText = document.getElementById('gmailStatusText');
+            if (statusText) {
+                statusText.textContent = 'Completing Gmail connection...';
+                statusText.className = 'text-blue-500 text-sm';
+            }
+            
+            // Clean up the URL
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            
+            // Redirect to dashboard after a short delay to show success message
+            setTimeout(() => {
+                // Check if we have a stored pre-OAuth path to return to
+                const preOAuthPath = localStorage.getItem('preOAuthPath') || '/dashboard';
+                localStorage.removeItem('preOAuthPath');
+                
+                // Add success parameter
+                const separator = preOAuthPath.includes('?') ? '&' : '?';
+                window.location.href = `${preOAuthPath}${separator}gmail_connected=true`;
+            }, 1000);
+            
+            return true;
+        }
+        
+        // Check if we just completed OAuth flow (URL has connected=true)
         if (justConnected) {
             console.log('Detected successful OAuth completion from URL parameter');
             
@@ -391,17 +389,13 @@ function checkOAuthRedirect() {
             window.history.replaceState({}, document.title, newUrl);
             
             // Force update the connection status
-            if (typeof updateGmailConnectionStatus === 'function') {
-                updateGmailConnectionStatus(true, 'Gmail Account');
-            }
+            updateGmailConnectionStatus(true, 'Gmail Account');
             
             // Show success notification
-            if (typeof showSuccessNotification === 'function') {
-                showSuccessNotification(
-                    'Gmail Connected Successfully', 
-                    'Your Gmail account is now connected and protected.'
-                );
-            }
+            showSuccessNotification(
+                'Gmail Connected Successfully', 
+                'Your Gmail account is now connected and protected.'
+            );
             
             // Show emails section if it exists
             const emailsSection = document.getElementById('emailsSection');
@@ -411,8 +405,6 @@ function checkOAuthRedirect() {
                 if (typeof loadUserEmails === 'function') {
                     loadUserEmails();
                 }
-            } else {
-                console.warn('emailsSection element not found in DOM');
             }
             
             // If we have a specific redirect target, handle it
@@ -439,7 +431,7 @@ function checkOAuthRedirect() {
 async function verifyAndLoadUserData(token) {
     try {
         console.log('Verifying token and loading user data...');
-        const response = await fetch(`${getBaseUrl()}/api/users/me`, {
+        const response = await fetch(`${window.BASE_URL}/api/users/me`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -461,200 +453,6 @@ async function verifyAndLoadUserData(token) {
             if (typeof updateUserInfo === 'function') {
                 updateUserInfo(data.user);
             }
-
-            // Gmail OAuth Handler
-            const GMAIL_AUTH_URL = '/api/gmail/auth-url';
-            const GMAIL_STATUS_URL = '/api/gmail/status';
-
-            // Check if we're coming back from OAuth redirect
-            function checkOAuthRedirect() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const code = urlParams.get('code');
-                const error = urlParams.get('error');
-                const state = urlParams.get('state');
-
-                if (code && state) {
-                    console.log('OAuth flow in progress...');
-                    // The backend will handle the rest via the callback URL
-                    return true;
-                } else if (error) {
-                    const errorDescription = urlParams.get('error_description') || error;
-                    console.error('OAuth error:', errorDescription);
-                    showError(`Failed to connect Gmail: ${errorDescription}`);
-                    return false;
-                }
-                return false;
-            }
-
-            // Show error message to user
-            function showError(message) {
-                const errorDiv = document.getElementById('error-message');
-                if (errorDiv) {
-                    errorDiv.textContent = message;
-                    errorDiv.classList.remove('hidden');
-                    setTimeout(() => errorDiv.classList.add('hidden'), 5000);
-                } else {
-                    alert(message);
-                }
-            }
-
-            // Initialize Gmail OAuth flow
-            async function initGmailOAuth() {
-                const isRedirect = checkOAuthRedirect();
-                if (!isRedirect) {
-                    await checkGmailStatus();
-                }
-
-                // Set up connect button
-                const connectBtn = document.getElementById('connectGmailBtn');
-                if (connectBtn) {
-                    connectBtn.addEventListener('click', connectGmail);
-                }
-            }
-
-            // Connect to Gmail
-            async function connectGmail() {
-                const connectBtn = document.getElementById('connectGmailBtn');
-                const statusText = document.getElementById('gmailStatusText');
-
-                try {
-                    // Disable button and show loading state
-                    if (connectBtn) connectBtn.disabled = true;
-                    if (statusText) {
-                        statusText.textContent = 'Connecting to Gmail...';
-                        statusText.className = 'text-blue-500 text-sm';
-                    }
-
-                    // Get the auth URL from the server
-                    const response = await fetch(GMAIL_AUTH_URL, {
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-
-                    if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.message || 'Failed to get auth URL');
-                    }
-
-                    const data = await response.json();
-
-                    if (data.authUrl) {
-                        // Store the current URL to return after OAuth flow
-                        localStorage.setItem('preOAuthPath', window.location.pathname);
-                        // Redirect to Google OAuth
-                        window.location.href = data.authUrl;
-                    } else {
-                        throw new Error('No auth URL received from server');
-                    }
-                } catch (error) {
-                    console.error('Error connecting to Gmail:', error);
-                    if (statusText) {
-                        statusText.textContent = `Error: ${error.message}`;
-                        statusText.className = 'text-red-500 text-sm';
-                    }
-                    if (connectBtn) connectBtn.disabled = false;
-                    showError(`Failed to connect Gmail: ${error.message}`);
-                }
-            }
-
-            // Check Gmail connection status - implementation is moved to the bottom of the file
-
-            // Update UI based on connection status
-            function updateUI(isConnected) {
-                const connectBtn = document.getElementById('connectGmailBtn');
-                const statusText = document.getElementById('gmailStatusText');
-
-                if (!connectBtn || !statusText) return;
-
-                if (isConnected) {
-                    connectBtn.textContent = 'Disconnect Gmail';
-                    connectBtn.className = connectBtn.className.replace('bg-blue-500', 'bg-red-500 hover:bg-red-600');
-                    statusText.textContent = 'Gmail is connected';
-                    statusText.className = 'text-green-500 text-sm';
-                } else {
-                    connectBtn.textContent = 'Connect Gmail';
-                    connectBtn.className = connectBtn.className.replace('bg-red-500 hover:bg-red-600', 'bg-blue-500 hover:bg-blue-600');
-                    statusText.textContent = 'Gmail is not connected';
-                    statusText.className = 'text-gray-500 text-sm';
-                }
-
-                connectBtn.disabled = false;
-            }
-
-            // Initialize when DOM is loaded
-            document.addEventListener('DOMContentLoaded', initGmailOAuth);
-
-            // Check Gmail connection status - implementation is moved to the bottom of the file
-
-            // Update UI based on Gmail connection status
-            function updateGmailUI(isConnected) {
-                const connectBtn = document.getElementById('connectGmailBtn');
-                const statusText = document.getElementById('gmailStatusText');
-
-                if (isConnected) {
-                    if (connectBtn) {
-                        connectBtn.textContent = 'Reconnect Gmail';
-                        connectBtn.className = 'px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600';
-                    }
-                    if (statusText) {
-                        statusText.textContent = 'Gmail is connected';
-                        statusText.className = 'text-green-500 text-sm';
-                    }
-                } else {
-                    if (connectBtn) {
-                        connectBtn.textContent = 'Connect Gmail';
-                        connectBtn.className = 'px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600';
-                    }
-                    if (statusText) {
-                        statusText.textContent = 'Gmail is not connected';
-                        statusText.className = 'text-gray-500 text-sm';
-                    }
-                }
-            }
-
-            // Initialize the Gmail OAuth handlers when the page loads
-            document.addEventListener('DOMContentLoaded', function() {
-                console.log('Initializing Gmail OAuth handlers...');
-
-                // Check if we're coming back from OAuth
-                checkOAuthRedirect();
-
-                // Set up connect button if it exists
-                const connectBtn = document.getElementById('connectGmailBtn');
-                if (connectBtn) {
-                    connectBtn.addEventListener('click', connectGmail);
-                }
-
-                // Set up event listener for the modal's connect button
-                const authorizeGmailBtn = document.getElementById('authorizeGmailBtn');
-                if (authorizeGmailBtn) {
-                    authorizeGmailBtn.addEventListener('click', function(e) {
-                        console.log('Modal Gmail button clicked');
-                        e.preventDefault();
-                        connectGmail();
-                    });
-                }
-
-                // Set up event listener for the modal's close button
-                const closeModalBtn = document.getElementById('closeModal');
-                if (closeModalBtn) {
-                    closeModalBtn.addEventListener('click', function(e) {
-                        console.log('Close modal button clicked');
-                        e.preventDefault();
-                        hideGmailAuthModal();
-                    });
-                }
-            });
-
-            // Export functions for use in other scripts
-            window.gmailOAuth = {
-                connect: connectGmail,
-                showModal: showGmailAuthModal,
-                hideModal: hideGmailAuthModal,
-                checkRedirect: checkOAuthRedirect
-            };
         } else {
             console.error('Failed to load user data:', data.message || 'Unknown error');
         }
@@ -699,29 +497,8 @@ async function checkGmailStatus() {
         const data = await response.json();
         
         // Update the UI based on the connection status
-        if (data.connected) {
-            if (gmailStatusText) {
-                gmailStatusText.textContent = 'Connected';
-                gmailStatusText.className = 'text-green-500';
-            }
-            if (connectBtn) {
-                connectBtn.textContent = 'Disconnect Gmail';
-                connectBtn.className = connectBtn.className
-                    .replace('bg-blue-500', 'bg-red-500')
-                    .replace('hover:bg-blue-600', 'hover:bg-red-600');
-            }
-        } else {
-            if (gmailStatusText) {
-                gmailStatusText.textContent = 'Not Connected';
-                gmailStatusText.className = 'text-red-500';
-            }
-            if (connectBtn) {
-                connectBtn.textContent = 'Connect Gmail';
-                connectBtn.className = connectBtn.className
-                    .replace('bg-red-500', 'bg-blue-500')
-                    .replace('hover:bg-red-600', 'hover:bg-blue-600');
-            }
-        }
+        updateGmailConnectionStatus(data.connected, data.email);
+        
     } catch (error) {
         console.error('Error checking Gmail status:', error);
         if (statusText) {
@@ -733,31 +510,41 @@ async function checkGmailStatus() {
             gmailStatusText.className = 'text-red-500';
         }
     }
-
 }
 
 // Update UI based on Gmail connection status
-function updateGmailUI(isConnected) {
+function updateGmailConnectionStatus(isConnected, email = null) {
     const connectBtn = document.getElementById('connectGmailBtn');
     const statusText = document.getElementById('gmailStatusText');
+    const gmailStatusText = document.getElementById('gmailStatus');
 
     if (isConnected) {
         if (connectBtn) {
             connectBtn.textContent = 'Reconnect Gmail';
             connectBtn.className = 'px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600';
+            connectBtn.disabled = false;
         }
         if (statusText) {
-            statusText.textContent = 'Gmail is connected';
+            statusText.textContent = `Gmail is connected${email ? ` (${email})` : ''}`;
             statusText.className = 'text-green-500 text-sm';
+        }
+        if (gmailStatusText) {
+            gmailStatusText.textContent = 'Connected';
+            gmailStatusText.className = 'text-green-500';
         }
     } else {
         if (connectBtn) {
             connectBtn.textContent = 'Connect Gmail';
             connectBtn.className = 'px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600';
+            connectBtn.disabled = false;
         }
         if (statusText) {
             statusText.textContent = 'Gmail is not connected';
             statusText.className = 'text-gray-500 text-sm';
+        }
+        if (gmailStatusText) {
+            gmailStatusText.textContent = 'Not Connected';
+            gmailStatusText.className = 'text-red-500';
         }
     }
 }
@@ -767,7 +554,12 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Initializing Gmail OAuth handlers...');
     
     // Check if we're coming back from OAuth
-    checkOAuthRedirect();
+    const hasRedirect = checkOAuthRedirect();
+    
+    // If we didn't handle a redirect, check Gmail status
+    if (!hasRedirect) {
+        checkGmailStatus();
+    }
     
     // Set up connect button if it exists
     const connectBtn = document.getElementById('connectGmailBtn');
@@ -801,5 +593,7 @@ window.gmailOAuth = {
     connect: connectGmail,
     showModal: showGmailAuthModal,
     hideModal: hideGmailAuthModal,
-    checkRedirect: checkOAuthRedirect
+    checkRedirect: checkOAuthRedirect,
+    checkStatus: checkGmailStatus,
+    updateStatus: updateGmailConnectionStatus
 };
