@@ -1,5 +1,14 @@
 # Kavach MailGuard - Advanced Email Phishing Detection
 
+<div align="center">
+  <img src="./public/images/login-interface.png" alt="Login Interface" width="45%" />
+  <img src="./public/images/gmail-connected.png" alt="Gmail Connected" width="45%" />
+  <img src="./public/images/email-analysis.png" alt="Email Analysis" width="45%" />
+  <img src="./public/images/sandbox-analysis.png" alt="Sandbox Analysis" width="45%" />
+  <img src="./public/images/email-details.png" alt="Email Details" width="45%" />
+  <img src="./public/images/analysis-results.png" alt="Analysis Results" width="45%" />
+</div>
+
 [![Watch Demo](https://img.youtube.com/vi/DkL7JsifCWk/0.jpg)](https://youtu.be/DkL7JsifCWk)
 
 ## Overview
