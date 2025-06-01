@@ -399,7 +399,7 @@
         });
 
         // Check if user is already authenticated
-        async function checkAuthStatus() {
+        window.checkAuthStatus = async function() {
             // Don't redirect if we're already on the login page
             if (window.location.pathname.endsWith('login.html')) {
                 return false;
@@ -409,7 +409,7 @@
             if (!token) return false;
             
             try {
-                const response = await fetch(`${BASE_URL}/auth/check-auth`, {
+                const response = await fetch(`${window.BASE_URL || ''}/auth/check-auth`, {
                     method: 'GET',
                     credentials: 'include',
                     headers: {
@@ -445,18 +445,34 @@
                 localStorage.removeItem('token');
                 return false;
             }
-        }
+        };
         
+        // Set base URL if not already set
+        if (!window.BASE_URL) {
+            window.BASE_URL = window.location.origin;
+            console.log('BASE_URL set to:', window.BASE_URL);
+        }
+
         // Check auth status on page load
         document.addEventListener('DOMContentLoaded', async () => {
-            // Small delay to allow other scripts to initialize
-            setTimeout(async () => {
-                try {
-                    await checkAuthStatus();
-                } catch (error) {
-                    console.error('Initial auth check failed:', error);
+            try {
+                console.log('DOM fully loaded, checking auth status...');
+                await window.checkAuthStatus();
+                
+                // Initialize Google Sign-In button if it exists
+                if (typeof initializeGoogleSignIn === 'function') {
+                    initializeGoogleSignIn();
                 }
-            }, 100);
+                
+                // Initialize any other UI elements
+                const loginForm = document.getElementById('loginForm');
+                if (loginForm) {
+                    loginForm.style.opacity = '1';
+                    loginForm.style.transform = 'translateY(0)';
+                }
+            } catch (error) {
+                console.error('Initial auth check failed:', error);
+            }
         });
         
         // Password visibility toggle
