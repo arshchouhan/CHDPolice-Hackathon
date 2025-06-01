@@ -12,16 +12,10 @@ router.get('/callback', gmailController.handleCallback);
 // Check Gmail connection status
 router.get('/status', authenticateToken, gmailController.getStatus);
 
-// Get Gmail profile information
-router.get('/profile', authenticateToken, gmailController.getProfile);
-
 // Fetch emails from Gmail
 router.get('/fetch-emails', authenticateToken, gmailController.fetchEmails);
 
 // Scan emails for phishing threats
-router.post('/scan', authenticateToken, gmailController.fetchEmails);
-
-// Disconnect Gmail
-router.post('/disconnect', authenticateToken, gmailController.disconnectGmail);
+router.post('/scan', authenticateToken, gmailController.scanEmails);
 
 module.exports = router;
