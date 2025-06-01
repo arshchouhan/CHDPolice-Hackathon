@@ -728,18 +728,10 @@ const startServer = () => {
             console.log(`✅ Server running on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
             
             // Log important URLs
-            if (process.env.NODE_ENV === 'production') {
-                const origin = req.get('origin');
-                if (origin && origin.includes('chd-police-hackathon.vercel.app')) {
-                    cookieOptions.domain = '.chd-police-hackathon.vercel.app';
-                } else if (origin && origin.includes('render.com')) {
-                    cookieOptions.domain = '.onrender.com';
-                }
-                if (process.env.RENDER) {
-                    console.log('Render deployment URL: https://email-detection-api.onrender.com');
-                } else if (process.env.VERCEL) {
-                    console.log('Vercel deployment URL: https://chd-police-hackathon.vercel.app');
-                }
+            if (process.env.RENDER) {
+                console.log('Render deployment URL: https://email-detection-api.onrender.com');
+            } else if (process.env.VERCEL) {
+                console.log('Vercel deployment URL: https://chd-police-hackathon.vercel.app');
             } else {
                 console.log('Local development URL: http://localhost:3000');
             }
