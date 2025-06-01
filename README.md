@@ -1,6 +1,6 @@
-# 🛡️ AI-Powered Email Security Platform
+# 🚔 CHD Police Hackathon: AI-Powered Email Security Platform
 
-A comprehensive email security solution that leverages Google's Gemini AI to detect and prevent phishing attacks, analyze suspicious URLs, and protect organizations from email-based threats.
+A cutting-edge email security solution developed for the CHD Police Hackathon, leveraging Google's Gemini AI to combat phishing attacks, analyze suspicious URLs, and safeguard law enforcement communications from email-based threats.
 
 ![Email Security Dashboard](https://img.shields.io/badge/Status-Production%20Ready-green)
 ![License](https://img.shields.io/badge/License-MIT-blue)
