@@ -1,13 +1,4 @@
- Advanced Email Phishing Detection
-
-<div align="center">
-  <img src="./public/images/login-interface.png" alt="Login Interface" width="45%" />
-  <img src="./public/images/gmail-connected.png" alt="Gmail Connected" width="45%" />
-  <img src="./public/images/email-analysis.png" alt="Email Analysis" width="45%" />
-  <img src="./public/images/sandbox-analysis.png" alt="Sandbox Analysis" width="45%" />
-  <img src="./public/images/email-details.png" alt="Email Details" width="45%" />
-  <img src="./public/images/analysis-results.png" alt="Analysis Results" width="45%" />
-</div>
+# Kavach MailGuard - Advanced Email Phishing Detection
 
 [![Watch Demo](https://img.youtube.com/vi/DkL7JsifCWk/0.jpg)](https://youtu.be/DkL7JsifCWk)
 
@@ -122,22 +113,9 @@ Kavach MailGuard is an AI-powered email security solution designed to detect and
 - Secure OAuth token handling
 
 ### Email Analysis Dashboard
-
-![Email Analysis Interface](./public/images/email-analysis.png)
-
 - Clean, intuitive interface for submitting emails
-- Real-time analysis results with detailed scoring
+- Real-time analysis results
 - Historical record of analyzed emails
-- Visual indicators for threat levels
-
-### Advanced Sandbox Analysis
-
-![Sandbox Analysis](./public/images/sandbox-analysis.png)
-
-- In-depth URL and attachment analysis
-- Real-time scanning progress tracking
-- Detailed threat assessment
-- Actionable security recommendations
 
 ### Threat Intelligence
 - Integration with threat intelligence feeds
