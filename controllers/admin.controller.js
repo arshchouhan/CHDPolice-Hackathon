@@ -1,13 +1,71 @@
 const Email = require('../models/Email');
 const User = require('../models/Users');
+const Admin = require('../models/Admin');
+const { google } = require('googleapis');
 
-exports.dashboard = (req, res) => {
-  res.status(200).json({ message: 'Welcome to the Admin Dashboard' });
+// Helper function to check if user is admin
+const isAdmin = async (userId) => {
+  try {
+    const admin = await Admin.findById(userId);
+    return !!admin;
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    return false;
+  }
+};
+
+// Admin dashboard with stats
+exports.dashboard = async (req, res) => {
+  try {
+    // Verify admin role
+    const adminCheck = await isAdmin(req.user.id);
+    if (!adminCheck) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin privileges required.'
+      });
+    }
+
+    // Get counts for dashboard
+    const [usersCount, emailsCount, highRiskCount, pendingReviewCount] = await Promise.all([
+      User.countDocuments(),
+      Email.countDocuments(),
+      Email.countDocuments({ phishingRisk: 'high' }),
+      Email.countDocuments({ status: 'New' })
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: 'Welcome to the Admin Dashboard',
+      stats: {
+        totalUsers: usersCount,
+        totalEmails: emailsCount,
+        highRiskEmails: highRiskCount,
+        pendingReview: pendingReviewCount
+      }
+    });
+  } catch (error) {
+    console.error('Admin dashboard error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to load dashboard',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 };
 
 // Get all analyzed emails
 exports.getAllEmails = async (req, res) => {
   try {
+    // Verify admin role
+    const adminCheck = await isAdmin(req.user.id);
+    if (!adminCheck) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin privileges required.'
+      });
+    }
+
     const { risk, userId, status, flagged, sort = '-analyzedAt', page = 1, limit = 20 } = req.query;
     
     // Build query

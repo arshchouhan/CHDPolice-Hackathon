@@ -1,6 +1,13 @@
 const { google } = require('googleapis');
 const User = require('../models/Users');
 const Email = require('../models/Email');
+const Admin = require('../models/Admin');
+const logger = require('../utils/logger');
+
+// Constants
+const EMAIL_BATCH_SIZE = 50; // Number of emails to process in a single batch
+const MAX_EMAILS_PER_USER = 500; // Maximum number of emails to fetch per user
+const CONNECTION_TIMEOUT_MS = 30000; // 30 seconds timeout for Gmail API calls
 
 // Configure OAuth2 client with dynamic redirect URI based on environment
 const getRedirectUri = () => {
@@ -839,136 +846,171 @@ function analyzeEmail(emailData) {
 // Helper function to calculate risk level based on score
 function calculateRiskLevel(score) {
   if (score < 30) return 'Low';
-  if (score < 50) return 'Medium';
-  if (score < 80) return 'High';
+  if (score < 60) return 'Medium';
+  if (score < 90) return 'High';
   return 'Critical';
 }
 
 // Get Gmail connection status
 exports.getStatus = async (req, res) => {
   try {
-    const userId = req.user.id;
-    console.log('Checking Gmail connection status for user:', userId);
+    const userId = req.params.userId || req.user?.id;
     
-    // Check if user exists
-    const user = await User.findById(userId, 'gmail_connected gmail_tokens');
-    if (!user) {
-      console.error('User not found for Gmail status check:', userId);
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    // Check if Gmail is connected
-    const isConnected = user.gmail_connected;
-    
-    console.log('Gmail connection status for user:', userId, isConnected ? 'Connected' : 'Not connected');
-    
-    res.status(200).json({
-      success: true,
-      connected: isConnected
-    });
-  } catch (error) {
-    console.error('Error checking Gmail status:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to check Gmail connection status',
-      error: error.message
-    });
-  }
-};
-
-// Get Gmail profile information
-exports.getProfile = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    console.log('Fetching Gmail profile for user:', userId);
-    
-    // Check if user exists
-    const user = await User.findById(userId, 'gmail_connected gmail_tokens email');
-    if (!user) {
-      console.error('User not found for Gmail profile fetch:', userId);
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    // Check if Gmail is connected
-    if (!user.gmail_connected) {
-      console.error('Gmail not connected for user:', userId);
-      return res.status(400).json({ message: 'Gmail not connected' });
-    }
-    
-    // Return user profile information
-    res.status(200).json({
-      success: true,
-      user: {
-        email: user.email,
-        connected: true
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching Gmail profile:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch Gmail profile',
-      error: error.message
-    });
-  }
-};
-
-// Disconnect Gmail
-exports.disconnectGmail = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    console.log('Disconnecting Gmail for user:', userId);
-    
-    // Check if user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      console.error('User not found for Gmail disconnection:', userId);
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    // Update user to remove Gmail connection
-    const updatedUser = await User.findByIdAndUpdate(userId, {
-      gmail_access_token: null,
-      gmail_refresh_token: null,
-      gmail_token_expiry: null,
-      gmail_connected: false
-    }, { new: true });
-    
-    console.log('Gmail disconnected successfully for user:', userId);
-    
-    res.status(200).json({ 
-      success: true,
-      message: 'Gmail disconnected successfully',
-      gmailConnected: false
-    });
-  } catch (error) {
-    console.error('Error disconnecting Gmail:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to disconnect Gmail',
-      error: error.message 
-    });
-  }
-};
-
-// Scan emails for phishing threats
-exports.scanEmails = async (req, res) => {
-  try {
-    console.log('Scanning emails for phishing threats...');
-    const userId = req.user.id;
-    
-    // Check if user exists and Gmail is connected
-    const user = await User.findById(userId);
-    if (!user) {
-      console.error('User not found for email scanning:', userId);
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    if (!user.gmail_connected) {
-      console.error('Gmail not connected for user:', userId);
-      return res.status(400).json({ 
+    if (!userId) {
+      logger.warn('Missing userId parameter in getStatus');
+      return res.status(400).json({
         success: false,
-        message: 'Gmail not connected. Please connect your Gmail account first.' 
+        message: 'User ID is required',
+        code: 'MISSING_USER_ID'
+      });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      logger.warn(`User not found with ID: ${userId}`);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    // Check if Gmail is connected
+    if (!user.gmail_connected || !user.gmail_token) {
+      logger.info(`Gmail not connected for user: ${userId}`);
+      return res.status(200).json({
+        success: true,
+        connected: false,
+        message: 'Gmail not connected',
+        lastSync: user.last_email_sync,
+        emailCount: await Email.countDocuments({ userId: user._id })
+      });
+    }
+
+    // Try to get profile to verify token is still valid
+    try {
+      oauth2Client.setCredentials(user.gmail_token);
+      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+      
+      // Get profile to verify token
+      const profile = await gmail.users.getProfile({
+        userId: 'me'
+      });
+
+      // Get unread count
+      const unread = await gmail.users.messages.list({
+        userId: 'me',
+        q: 'is:unread',
+        maxResults: 1
+      });
+
+      // Get total email count
+      const allEmails = await gmail.users.messages.list({
+        userId: 'me',
+        maxResults: 1
+      });
+
+      logger.info(`Successfully verified Gmail connection for user: ${userId}`);
+      
+      return res.status(200).json({
+        success: true,
+        connected: true,
+        email: profile.data.emailAddress,
+        messagesTotal: allEmails.data.resultSizeEstimate,
+        unreadCount: unread.data.resultSizeEstimate,
+        lastSync: user.last_email_sync,
+        emailCount: await Email.countDocuments({ userId: user._id }),
+        tokenExpiry: user.gmail_token.expiry_date ? new Date(user.gmail_token.expiry_date * 1000).toISOString() : null,
+        tokenExpired: user.gmail_token.expiry_date ? (user.gmail_token.expiry_date * 1000) < Date.now() : true
+      });
+      
+    } catch (error) {
+      logger.error(`Error verifying Gmail token for user ${userId}:`, error);
+      
+      // If token is invalid, update user status
+      if (error.code === 401) {
+        user.gmail_connected = false;
+        user.gmail_token = undefined;
+        await user.save();
+        
+        return res.status(200).json({
+          success: true,
+          connected: false,
+          message: 'Gmail token expired or revoked',
+          code: 'TOKEN_EXPIRED',
+          lastSync: user.last_email_sync,
+          emailCount: await Email.countDocuments({ userId: user._id })
+        });
+      }
+      
+      throw error;
+    }
+    
+  } catch (error) {
+    logger.error('Error in getStatus:', error);
+    
+    // Handle specific error cases
+    if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+      return res.status(503).json({
+        success: false,
+        message: 'Unable to connect to Gmail service',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check Gmail status',
+      code: 'INTERNAL_ERROR',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Scan emails for phishing threats with admin support
+exports.scanEmails = async (req, res) => {
+  let session;
+  
+  try {
+    session = await mongoose.startSession();
+    await session.startTransaction();
+    const userId = req.params.userId || req.user?.id;
+    const isAdminRequest = req.user?.role === 'admin' && req.params.userId;
+    
+    if (!userId) {
+      logger.warn('Missing userId parameter in scanEmails');
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+        code: 'MISSING_USER_ID'
+      });
+    }
+    
+    // Check if user exists
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      logger.warn(`User not found with ID: ${userId}`);
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+    
+    // Check if Gmail is connected
+    if (!user.gmail_connected || !user.gmail_token) {
+      logger.info(`Gmail not connected for user: ${userId}`);
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'Gmail not connected. Please connect your Gmail account first.',
+        code: 'GMAIL_NOT_CONNECTED'
       });
     }
     
@@ -1077,10 +1119,30 @@ exports.scanEmails = async (req, res) => {
     });
   } catch (error) {
     console.error('Error scanning emails:', error);
+    
+    // Only try to abort transaction if session exists
+    if (session) {
+      try {
+        await session.abortTransaction();
+      } catch (abortError) {
+        console.error('Error aborting transaction:', abortError);
+      }
+    }
+    
     return res.status(500).json({
       success: false,
       message: 'Failed to scan emails',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'SCAN_ERROR'
     });
+  } finally {
+    // Always end the session
+    if (session) {
+      try {
+        await session.endSession();
+      } catch (endSessionError) {
+        console.error('Error ending session:', endSessionError);
+      }
+    }
   }
 };

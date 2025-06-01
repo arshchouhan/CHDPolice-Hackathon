@@ -38,6 +38,9 @@ const gmailRoutes = require('./routes/gmail.route');
 const emailAnalysisRoutes = require('./routes/emailAnalysis.route');
 const geminiAnalysisRoutes = require('./routes/geminiAnalysis.route');
 
+// Import middleware
+const requireAdmin = require('./middlewares/requireAdmin');
+
 // Essential middleware
 app.use(express.json());
 app.use(cookieParser());
@@ -157,6 +160,26 @@ const authenticateUser = (req, res, next) => {
 
 // Register authentication routes (no auth required)
 app.use('/auth', authRoutes);
+
+// Basic health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    node_version: process.version,
+    platform: process.platform,
+    memory: process.memoryUsage(),
+    uptime: process.uptime()
+  });
+});
+
+// Register API routes
+app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/gmail', gmailRoutes);
+app.use('/api/email-analysis', emailAnalysisRoutes);
+app.use('/api/gemini', geminiAnalysisRoutes);
 
 // Health check endpoint for Render deployment
 app.get('/health', (req, res) => {
@@ -349,21 +372,6 @@ app.get('/health', async (req, res) => {
     });
 });
 
-// Explicit route handlers for HTML pages
-app.get('/', (req, res) => {
-    console.log('Serving root path');
-    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
-});
-
-app.get('/login', (req, res) => {
-    console.log('Serving login page');
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-app.get('/login.html', (req, res) => {
-    console.log('Serving login.html');
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
 
 app.get('/signup', (req, res) => {
     console.log('Serving signup page');
