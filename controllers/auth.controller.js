@@ -224,7 +224,11 @@ exports.login = async (req, res) => {
         const origin = req.get('origin');
         console.log('Request origin:', origin);
         if (origin && origin.includes('vercel.app')) {
-            cookieOptions.domain = '.email-detection-eight.vercel.app';
+            // Match any Vercel subdomain
+            cookieOptions.domain = '.vercel.app';
+            // For Vercel, we need to set SameSite=None and Secure=true
+            cookieOptions.sameSite = 'none';
+            cookieOptions.secure = true;
         } else if (origin && origin.includes('render.com')) {
             cookieOptions.domain = '.onrender.com';
         }
