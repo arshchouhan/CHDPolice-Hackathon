@@ -113,9 +113,22 @@ Kavach MailGuard is an AI-powered email security solution designed to detect and
 - Secure OAuth token handling
 
 ### Email Analysis Dashboard
+
+![Email Analysis Interface](./public/images/email-analysis.png)
+
 - Clean, intuitive interface for submitting emails
-- Real-time analysis results
+- Real-time analysis results with detailed scoring
 - Historical record of analyzed emails
+- Visual indicators for threat levels
+
+### Advanced Sandbox Analysis
+
+![Sandbox Analysis](./public/images/sandbox-analysis.png)
+
+- In-depth URL and attachment analysis
+- Real-time scanning progress tracking
+- Detailed threat assessment
+- Actionable security recommendations
 
 ### Threat Intelligence
 - Integration with threat intelligence feeds
