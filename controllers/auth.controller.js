@@ -151,18 +151,30 @@ exports.googleSignIn = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
-    console.log('Login attempt:', req.body);
+    console.log('Login attempt received:', {
+      body: req.body,
+      headers: req.headers,
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
     
     // Handle both the old 'email' parameter and the new 'emailOrUsername' parameter
-    // This makes the API backwards compatible with existing clients
     const emailOrUsername = req.body.emailOrUsername || req.body.email;
     const password = req.body.password;
     
-    console.log('Normalized credentials:', { emailOrUsername, password: '****' });
+    console.log('Normalized credentials:', { 
+      emailOrUsername, 
+      passwordProvided: !!password // Just log if password was provided, not the actual password
+    });
 
     if (!emailOrUsername || !password) {
-      console.log('Missing credentials');
-      return res.status(400).json({ message: 'Username/Email and password are required.' });
+      const error = new Error('Missing credentials');
+      error.code = 'MISSING_CREDENTIALS';
+      error.details = {
+        emailOrUsername: !emailOrUsername ? 'Missing' : 'Provided',
+        password: !password ? 'Missing' : 'Provided'
+      };
+      throw error;
     }
 
     // Check if the input is an email (contains @ symbol)
@@ -171,40 +183,75 @@ exports.login = async (req, res) => {
     let account;
     let role;
 
-    // Check for admin first
-    if (isEmail) {
-      account = await Admin.findOne({ email: emailOrUsername });
-    } else {
-      account = await Admin.findOne({ username: emailOrUsername });
-    }
-
-    if (account) {
-      role = 'admin';
-    } else {
-      // If not admin, check if it's a regular user
+    try {
+      // Check for admin first
+      console.log('Searching for admin with:', isEmail ? 'email' : 'username', emailOrUsername);
       if (isEmail) {
-        account = await User.findOne({ email: emailOrUsername });
+        account = await Admin.findOne({ email: emailOrUsername });
       } else {
-        account = await User.findOne({ username: emailOrUsername });
+        account = await Admin.findOne({ username: emailOrUsername });
       }
-      role = 'user';
+
+      if (account) {
+        console.log('Admin account found:', { id: account._id, email: account.email });
+        role = 'admin';
+      } else {
+        // If not admin, check if it's a regular user
+        console.log('No admin found, searching for user with:', isEmail ? 'email' : 'username', emailOrUsername);
+        if (isEmail) {
+          account = await User.findOne({ email: emailOrUsername });
+        } else {
+          account = await User.findOne({ username: emailOrUsername });
+        }
+        role = 'user';
+      }
+
+      // If no account found
+      if (!account) {
+        console.log('No account found with:', { emailOrUsername });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Account not found.',
+          code: 'ACCOUNT_NOT_FOUND',
+          details: process.env.NODE_ENV === 'development' ? `No ${isEmail ? 'email' : 'username'} found: ${emailOrUsername}` : undefined
+        });
+      }
+    } catch (dbError) {
+      console.error('Database error during login:', dbError);
+      throw new Error('Database error during login');
     }
 
-    // If no account found
-    if (!account) {
-      console.log('Account not found:', { emailOrUsername });
-      return res.status(404).json({ message: 'Account not found.' });
-    }
+    // Compare password with detailed logging
+    console.log('Comparing password for user:', emailOrUsername);
+    console.log('Stored password hash exists:', account.password ? 'Yes' : 'No');
+    
+    try {
+        const isMatch = await bcrypt.compare(password, account.password);
+        console.log('Password comparison result:', isMatch);
 
-    // Compare password
-    const isMatch = await bcrypt.compare(password, account.password);
-
-    if (!isMatch) {
-        console.log('Password mismatch for:', emailOrUsername);
-        return res.status(401).json({
+        if (!isMatch) {
+            console.log('Password mismatch for user:', emailOrUsername);
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid credentials',
+                code: 'INVALID_CREDENTIALS',
+                details: process.env.NODE_ENV === 'development' ? {
+                    message: 'Password comparison failed',
+                    userExists: true,
+                    hashExists: !!account.password
+                } : undefined
+            });
+        }
+    } catch (bcryptError) {
+        console.error('Error comparing passwords:', bcryptError);
+        return res.status(500).json({
             success: false,
-            error: 'Invalid credentials',
-            code: 'INVALID_CREDENTIALS'
+            error: 'Authentication error',
+            code: 'AUTH_ERROR',
+            details: process.env.NODE_ENV === 'development' ? {
+                message: bcryptError.message,
+                stack: bcryptError.stack
+            } : undefined
         });
     }
 

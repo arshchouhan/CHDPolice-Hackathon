@@ -43,8 +43,40 @@ const geminiAnalysisRoutes = require('./routes/geminiAnalysis.route');
 // Import middleware
 const requireAdmin = require('./middlewares/requireAdmin');
 
+// Configure CORS for production
+const allowedOrigins = [
+    'https://chdpolice-hackathon.onrender.com',
+    'https://chdpolice-hackathon.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5000'
+];
+
+const corsConfig = {
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+            callback(null, true);
+        } else {
+            console.log('CORS blocked for origin:', origin);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range'],
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+};
+
+// Apply CORS with the config
+app.use(cors(corsConfig));
+app.options('*', cors(corsConfig)); // Enable pre-flight for all routes
+
 // Essential middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.SESSION_SECRET || 'your-secret-key'));
 
 // Session configuration
@@ -69,8 +101,9 @@ const sessionConfig = {
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 1 day
         path: '/',
+        // In production, set domain based on the actual domain
         ...(process.env.NODE_ENV === 'production' && {
-            domain: '.vercel.app'
+            domain: process.env.PRODUCTION_DOMAIN || '.vercel.app'
         })
     },
     rolling: true, // Reset maxAge on every request

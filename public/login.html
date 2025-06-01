@@ -200,27 +200,56 @@
     </div>
 
     <script>
-        // Dynamically determine the base URL based on the current environment
+        // Enhanced base URL detection for all environments
         function getBaseUrl() {
-            // If we're running on localhost, use the local server
+            // If we're in development
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                return window.location.origin;
+                // For local development with backend on port 5000
+                return `${window.location.protocol}//${window.location.hostname}:5000`;
             }
+            
             // For production, use the current origin
+            // This will work for both Render and Vercel deployments
             return window.location.origin;
         }
-        
-        const BASE_URL = getBaseUrl();
-        console.log('Using BASE_URL:', BASE_URL);
 
-        // Show loading overlay
+        // Global error handler
+        window.addEventListener('error', function(event) {
+            console.error('Global error:', event.error);
+            showError('An unexpected error occurred. Please try again.');
+            hideLoading();
+        });
+
+        // Show error message with better formatting
+        function showError(message, isFatal = false) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.innerHTML = `
+                <div class="flex items-center p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-800/30 dark:text-red-300" role="alert">
+                    <i class="fas fa-exclamation-circle mr-2"></i>
+                    <span class="font-medium">${message}</span>
+                    ${isFatal ? '<span class="ml-2 text-xs">Please refresh the page and try again.</span>' : ''}
+                </div>
+            `;
+            errorDiv.classList.remove('hidden');
+            
+            // Auto-hide non-fatal errors after 5 seconds
+            if (!isFatal) {
+                setTimeout(() => {
+                    errorDiv.classList.add('hidden');
+                }, 5000);
+            }
+        }
+        
+        // Show loading state
         function showLoading() {
             document.getElementById('loadingOverlay').classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
         }
-
-        // Hide loading overlay
+        
+        // Hide loading state
         function hideLoading() {
             document.getElementById('loadingOverlay').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
         }
 
         // Check URL parameters for messages or errors
