@@ -5,7 +5,7 @@
  */
 
 // Global state
-const gmailStatus = {
+let gmailStatus = {
     connected: false,
     email: null,
     loading: true
@@ -113,14 +113,17 @@ function initGmailStatus() {
  */
 function updateGmailConnectionStatus(connected, email = null) {
     try {
-        const statusElement = document.getElementById('gmailStatus');
-        const emailElement = document.getElementById('gmailEmail');
-        const connectButton = document.getElementById('connectGmailBtn');
-        const disconnectButton = document.getElementById('disconnectGmailBtn');
-        const loadingIndicator = document.getElementById('gmailLoading');
+        // Use the globally cached elements
+        statusElement = document.getElementById('gmailStatus');
+        emailElement = document.getElementById('gmailEmail');
+        connectButton = document.getElementById('connectGmailBtn');
+        disconnectButton = document.getElementById('disconnectGmailBtn');
+        loadingIndicator = document.getElementById('gmailLoading');
         
         // Update global state
-        gmailStatus = { connected, email, loading: false };
+        gmailStatus.connected = connected;
+        gmailStatus.email = email;
+        gmailStatus.loading = false;
         
         // Update UI elements if they exist
         if (loadingIndicator) loadingIndicator.style.display = 'none';
@@ -198,7 +201,7 @@ async function checkGmailStatus() {
         }
         
         // Check Gmail status via API
-        const data = await gmail.getStatus();
+        const data = await API.checkGmailStatus();
         console.log('Gmail connection data:', data);
         
         if (data.connected) {
