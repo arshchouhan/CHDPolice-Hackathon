@@ -1828,75 +1828,51 @@
         });
 
         // Handle logout with improved reliability and visual feedback
-        document.getElementById('logoutBtn').addEventListener('click', function() {
+        document.getElementById('logoutBtn').addEventListener('click', async function() {
             // Show loading immediately when button is clicked
             showLoading();
             console.log('Logout initiated, showing loading indicator');
             
-            // Use setTimeout to ensure the loading indicator has time to appear
-            setTimeout(async function() {
+            try {
+                const baseUrl = getBaseUrl();
+                console.log('Logging out from:', baseUrl);
+                
+                // Clear all authentication data from storage
+                console.log('Clearing authentication data...');
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.removeItem('userRole');
+                localStorage.removeItem('userEmail');
+                localStorage.removeItem('gmailConnected');
+                
+                // Clear session storage
+                sessionStorage.clear();
+                
+                // Try to call the server logout endpoint
                 try {
-                    // Use getBaseUrl() instead of BASE_URL to ensure we have the latest URL
-                    const baseUrl = getBaseUrl();
-                    console.log('Logging out from:', baseUrl);
-                    console.log('Current hostname:', window.location.hostname);
-                    
-                    // Always clear local storage first to ensure logout works even if server call fails
-                    console.log('Clearing local storage...');
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('userRole');
-                    localStorage.removeItem('userEmail');
-                    localStorage.removeItem('gmailConnected');
-                    
-                    // Clear any cookies by setting them to expire
-                    document.cookie.split(';').forEach(cookie => {
-                        const [name] = cookie.trim().split('=');
-                        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+                    console.log('Calling server logout endpoint...');
+                    await fetch(`${baseUrl}/api/auth/logout`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
                     });
-                    
-                    // Try to call the server logout endpoint, but don't wait for it
-                    try {
-                        console.log('Attempting server logout call...');
-                        fetch(`${baseUrl}/api/auth/logout`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            }
-                        }).catch(err => {
-                            console.log('Server logout call failed, but continuing with client-side logout');
-                        });
-                    } catch (serverError) {
-                        console.log('Error calling server logout endpoint, but continuing with client-side logout');
-                    }
-                    
-                    // Wait a moment to ensure loading indicator is visible
-                    console.log('Preparing to redirect to login page...');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    
-                    // Redirect to login page
-                    const loginUrl = `${baseUrl}/login.html`;
-                    console.log('Redirecting to:', loginUrl);
-                    window.location.href = loginUrl;
-                    
-                    // If redirect doesn't work after a delay, try a more forceful approach
-                    setTimeout(() => {
-                        console.log('Forcing page reload as backup...');
-                        window.location.replace(loginUrl);
-                    }, 500);
-                    
-                } catch (error) {
-                    console.error('Logout process error:', error);
-                    // Even if there's an error, try to logout anyway
-                    localStorage.clear();
-                    sessionStorage.clear();
-                    
-                    // Redirect to login page with a forced reload
-                    const baseUrl = getBaseUrl();
-                    const loginUrl = `${baseUrl}/login.html`;
-                    console.log('Error during logout, forcing redirect to:', loginUrl);
-                    window.location.replace(loginUrl);
+                } catch (serverError) {
+                    console.log('Server logout call failed, continuing with client-side cleanup');
                 }
-            }, 200); // Small delay to ensure loading indicator appears
+                
+                // Redirect to login page
+                const loginUrl = `${baseUrl}/login.html`;
+                console.log('Redirecting to login page:', loginUrl);
+                window.location.href = loginUrl;
+                
+            } catch (error) {
+                console.error('Logout process error:', error);
+                // If anything goes wrong, do a hard redirect
+                const baseUrl = getBaseUrl();
+                window.location.href = `${baseUrl}/login.html`;
+            }
         });
 
         // Check authentication when page loads

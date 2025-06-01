@@ -1208,17 +1208,27 @@
             try {
                 showLoading();
                 
-                const response = await fetch(`${BASE_URL}/auth/logout`, {
+                // Clear local storage first
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.removeItem('userRole');
+                
+                // Call the server logout endpoint
+                const response = await fetch(`${BASE_URL}/api/auth/logout`, {
                     method: 'POST',
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
                 });
                 
-                localStorage.removeItem('token');
+                // Always redirect to login page, even if server call fails
                 window.location.href = '/login.html';
                 
             } catch (error) {
                 console.error('Logout error:', error);
-                hideLoading();
+                // Still redirect to login page even if there's an error
+                window.location.href = '/login.html';
             }
         });
         
