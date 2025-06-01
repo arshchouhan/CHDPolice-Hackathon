@@ -151,12 +151,22 @@ exports.googleSignIn = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
-    console.log('Login attempt:', req.body);
+    console.log('Login attempt - Request body:', JSON.stringify(req.body, null, 2));
+    console.log('Request headers:', JSON.stringify(req.headers, null, 2));
     
     // Handle both the old 'email' parameter and the new 'emailOrUsername' parameter
-    // This makes the API backwards compatible with existing clients
     const emailOrUsername = req.body.emailOrUsername || req.body.email;
     const password = req.body.password;
+    
+    // Basic validation
+    if (!emailOrUsername || !password) {
+      console.log('Missing credentials - Email/Username:', !!emailOrUsername, 'Password:', !!password);
+      return res.status(400).json({ 
+        success: false,
+        message: 'Username/Email and password are required.',
+        code: 'MISSING_CREDENTIALS'
+      });
+    }
     
     console.log('Normalized credentials:', { emailOrUsername, password: '****' });
 
@@ -197,13 +207,24 @@ exports.login = async (req, res) => {
     }
 
     // Compare password
-    const isMatch = await bcrypt.compare(password, account.password);
+    let isMatch = false;
+    try {
+        isMatch = await bcrypt.compare(password, account.password);
+    } catch (bcryptError) {
+        console.error('Bcrypt compare error:', bcryptError);
+        return res.status(500).json({
+            success: false,
+            error: 'Error processing credentials',
+            code: 'AUTH_ERROR',
+            details: process.env.NODE_ENV === 'development' ? bcryptError.message : undefined
+        });
+    }
 
     if (!isMatch) {
         console.log('Password mismatch for:', emailOrUsername);
         return res.status(401).json({
             success: false,
-            error: 'Invalid credentials',
+            error: 'Invalid credentials. Please check your username/email and password.',
             code: 'INVALID_CREDENTIALS'
         });
     }
