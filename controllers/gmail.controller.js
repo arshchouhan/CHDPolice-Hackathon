@@ -4,6 +4,74 @@ const User = require('../models/Users');
 const Email = require('../models/Email');
 const logger = require('../utils/logger');
 
+/**
+ * Check if Gmail is connected for the current user
+ */
+exports.getStatus = async (req, res) => {
+    const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+        // Log the status check request
+        logger.info(`[${requestId}] getStatus called`, {
+            userId: req.user?.id,
+            ip: req.ip,
+            userAgent: req.get('user-agent')
+        });
+
+        // Check if user is authenticated
+        if (!req.user?.id) {
+            logger.error(`[${requestId}] Unauthorized: No user in request`);
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required',
+                code: 'AUTH_REQUIRED',
+                requestId
+            });
+        }
+
+        // Find the user in the database
+        const user = await User.findById(req.user.id).select('gmailConnected gmailEmail');
+        if (!user) {
+            logger.error(`[${requestId}] User not found`, { userId: req.user.id });
+            return res.status(404).json({
+                success: false,
+                message: 'User not found',
+                code: 'USER_NOT_FOUND',
+                requestId
+            });
+        }
+
+        // Return the connection status
+        logger.info(`[${requestId}] Gmail status retrieved`, {
+            userId: user._id,
+            connected: !!user.gmailConnected,
+            email: user.gmailEmail
+        });
+
+        return res.status(200).json({
+            success: true,
+            connected: !!user.gmailConnected,
+            email: user.gmailEmail || null,
+            requestId
+        });
+
+    } catch (error) {
+        logger.error(`[${requestId}] Error checking Gmail status`, {
+            error: error.message,
+            stack: error.stack,
+            userId: req.user?.id
+        });
+        
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to check Gmail status',
+            code: 'GMAIL_STATUS_ERROR',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+            requestId
+        });
+    }
+};
+
 // Validate required environment variables
 const requiredEnvVars = [
   'GOOGLE_CLIENT_ID',
