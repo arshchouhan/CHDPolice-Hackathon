@@ -4,24 +4,50 @@
 
 ## 📸 Application Screenshots
 
+### 1. Login Interface
+![Login Page](public/images/Screenshot%202025-06-01%20155549.png)
 
-![](public/images/Screenshot%202025-06-01%20155549.png)
+### 2. Google Sign-in
+![Google Sign-in](public/images/Screenshot%202025-06-01%20155610.png)
 
-![](public/images/Screenshot%202025-06-01%20155610.png)
+### 3. Gmail Connection Status
+![Gmail Connected](public/images/Screenshot%202025-06-01%20155615.png)
 
+### 4. Email Analysis Process
+![Email Analysis](public/images/Screenshot%202025-06-01%20155623.png)
 
-![](public/images/Screenshot%202025-06-01%20155615.png)
+### 5. Sandbox Analysis
+![Sandbox Analysis](public/images/Screenshot%202025-06-01%20155633.png)
 
-![](public/images/Screenshot%202025-06-01%20155623.png)
+### 6. Dashboard Overview
+![Dashboard](public/images/Screenshot%202025-06-01%20181330.png)
 
-![](public/images/Screenshot%202025-06-01%20155633.png)
+### 7. Email Analysis Results
+![Analysis Results](public/images/Screenshot%202025-06-01%20181221.png)
 
+### 8. Detailed Threat Report
+![Threat Report](public/images/Screenshot%202025-06-01%20181227.png)
 
-![](public/images/Screenshot%202025-06-01%20155649.png)
+### 9. System Settings
+![Settings](public/images/Screenshot%202025-06-01%20181147.png)
 
-![](public/images/Screenshot%2025-06-01%20181123.png)
+### 10. User Profile
+![Profile](public/images/Screenshot%202025-06-01%20181123.png)
 
+### 11. Mobile View
+![Mobile](public/images/Screenshot%202025-06-01%20155456.png)
 
+### 12. Email Composition
+![Compose](public/images/Screenshot%202025-06-01%20181130.png)
+
+### 13. Security Alerts
+![Alerts](public/images/Screenshot%202025-06-01%20155512.png)
+
+### 14. System Logs
+![Logs](public/images/Screenshot%202025-06-01%20155649.png)
+
+### 15. Help & Support
+![Help](public/images/Screenshot%202025-06-01%20155655.png)
 
 
 ## Overview
