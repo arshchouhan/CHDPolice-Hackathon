@@ -1,5 +1,6 @@
 [build]
-  command = "npm run build"
+  base = "client"
+  command = "npm install && npm run build"
   publish = "build"
 
 [build.environment]
@@ -30,8 +31,9 @@
     CI = "false"
 
 [context.deploy-preview]
-  command = "npm install && npm run netlify-build"
-  publish = "client/build"
+  base = "client"
+  command = "npm install && npm run build"
+  publish = "build"
   [context.deploy-preview.environment]
     NODE_VERSION = "18.17.0"
     NPM_VERSION = "9.0.0"
