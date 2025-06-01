@@ -3,13 +3,16 @@ const mongoose = require('mongoose');
 const User = require('../models/Users');
 const Email = require('../models/Email');
 const logger = require('../utils/logger');
+const { v4: uuidv4 } = require('uuid');
 
 // Validate required environment variables
 const requiredEnvVars = [
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'JWT_SECRET',
-  'MONGODB_URI'
+  'MONGODB_URI',
+  'NODE_ENV',
+  'FRONTEND_URL'
 ];
 
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -23,43 +26,94 @@ if (missingVars.length > 0) {
 // Create OAuth2 client with proper redirect URI
 const getRedirectUri = () => {
   if (process.env.NODE_ENV === 'production') {
-    return 'https://email-detection-api.onrender.com/api/gmail/callback';
+    // Use environment variable if set, otherwise fallback to default
+    const domain = process.env.API_BASE_URL || 'https://email-detection-api.onrender.com';
+    return `${domain}/api/gmail/callback`;
   }
-  return 'http://localhost:3000/api/gmail/callback';
+  // For development, use the frontend URL from environment or default to localhost:3000
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  return `${frontendUrl}/api/gmail/callback`;
 };
 
+// Initialize OAuth2 client
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   getRedirectUri()
 );
 
+// Scopes for Gmail API
+const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile'
+];
+
 // Generate Gmail OAuth URL
 exports.getAuthUrl = (req, res) => {
-  const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = req.requestId || `req_${uuidv4().substr(0, 8)}`;
   
   try {
     // Log the incoming request details for debugging
-    logger.info(`[${requestId}] getAuthUrl called`, { 
+    logger.info(`[${requestId}] [getAuthUrl] Request received`, { 
       userId: req.user?.id,
       ip: req.ip,
-      userAgent: req.get('user-agent')
+      userAgent: req.get('user-agent'),
+      sessionId: req.sessionID
     });
     
     // Check if user is authenticated
     if (!req.user?.id) {
       const errorMsg = 'User not authenticated for Gmail auth';
-      logger.error(`[${requestId}] ${errorMsg}`, { 
-        headers: req.headers,
-        session: req.session
+      logger.error(`[${requestId}] [getAuthUrl] ${errorMsg}`, { 
+        session: req.session ? 'exists' : 'none',
+        hasToken: !!req.cookies?.token,
+        authHeader: !!req.headers.authorization,
+        ip: req.ip,
+        userAgent: req.get('user-agent')
       });
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
+      
+      return res.status(401).json({ 
+        success: false, 
+        message: errorMsg,
         code: 'AUTH_REQUIRED',
-        requestId
+        requestId,
+        authenticated: false
       });
     }
+    
+    // Generate a unique state parameter for CSRF protection
+    const state = JSON.stringify({
+      userId: req.user.id,
+      sessionId: req.sessionID,
+      nonce: uuidv4(),
+      timestamp: Date.now()
+    });
+    
+    // Store the state in the session
+    req.session.oauthState = state;
+    
+    // Generate the authorization URL
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: SCOPES,
+      state: state,
+      include_granted_scopes: true
+    });
+    
+    logger.info(`[${requestId}] [getAuthUrl] Generated OAuth URL`, {
+      authUrl: authUrl.replace(/[?&]code_challenge=[^&]+/g, '[REDACTED]'),
+      userId: req.user.id,
+      sessionId: req.sessionID
+    });
+    
+    return res.json({
+      success: true,
+      authUrl: authUrl,
+      requestId
+    });
 
     // Validate required environment variables
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {

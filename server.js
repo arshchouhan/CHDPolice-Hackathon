@@ -1,11 +1,18 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path');
-const jwt = require('jsonwebtoken');
-const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const crypto = require('crypto');
+const util = require('util');
+const stream = require('stream');
+const pipeline = util.promisify(stream.pipeline);
 const Admin = require('./models/Admin');
 const User = require('./models/Users');
 require('dotenv').config();
@@ -43,38 +50,113 @@ const geminiAnalysisRoutes = require('./routes/geminiAnalysis.route');
 // Import middleware
 const requireAdmin = require('./middlewares/requireAdmin');
 
+// Request ID middleware
+app.use((req, res, next) => {
+    // Generate a unique request ID
+    const requestId = `req_${crypto.randomBytes(8).toString('hex')}`;
+    
+    // Add request ID to request object
+    req.requestId = requestId;
+    
+    // Add request ID to response headers
+    res.set('X-Request-ID', requestId);
+    
+    // Log request
+    console.log(`[${requestId}] ${req.method} ${req.originalUrl}`, {
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        referer: req.get('referer')
+    });
+    
+    // Add response logging
+    const originalSend = res.send;
+    res.send = function(body) {
+        console.log(`[${requestId}] Response:`, {
+            statusCode: res.statusCode,
+            statusMessage: res.statusMessage,
+            contentType: res.get('Content-Type'),
+            body: typeof body === 'string' && body.length < 500 ? body : '[Response body too large or not a string]'
+        });
+        return originalSend.call(this, body);
+    };
+    
+    next();
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    const requestId = req.requestId || `req_${crypto.randomBytes(8).toString('hex')}`;
+    
+    console.error(`[${requestId}] Unhandled error:`, {
+        error: err,
+        stack: err.stack,
+        url: req.originalUrl,
+        method: req.method,
+        body: req.body,
+        query: req.query,
+        params: req.params
+    });
+    
+    if (!res.headersSent) {
+        res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
+            requestId: requestId
+        });
+    }
+});
+
 // Essential middleware
 app.use(express.json());
 app.use(cookieParser(process.env.SESSION_SECRET || 'your-secret-key'));
 
+// Determine cookie domain based on environment
+const getCookieDomain = () => {
+    if (process.env.NODE_ENV !== 'production') return undefined;
+    
+    // Handle Vercel preview URLs
+    if (process.env.VERCEL_ENV === 'preview') {
+        return `.${process.env.VERCEL_URL}`;
+    }
+    
+    // Handle production domain
+    if (process.env.PRODUCTION_DOMAIN) {
+        return `.${process.env.PRODUCTION_DOMAIN}`;
+    }
+    
+    return undefined;
+};
+
 // Session configuration
 const sessionConfig = {
-    name: 'sessionId',
+    name: 'sid', // Shorter cookie name
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
         mongoUrl: process.env.MONGODB_URI,
-        ttl: 24 * 60 * 60, // 1 day
-        autoRemove: 'native',
+        ttl: 7 * 24 * 60 * 60, // 7 days
+        autoRemove: 'interval',
+        autoRemoveInterval: 60, // Check every hour
         crypto: {
             secret: process.env.SESSION_SECRET || 'your-secret-key'
         },
         collectionName: 'sessions',
-        stringify: false
+        stringify: false,
+        touchAfter: 3600 // 1 hour - only update session if data changed
     }),
     cookie: {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 24 * 60 * 60 * 1000, // 1 day
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
-        ...(process.env.NODE_ENV === 'production' && {
-            domain: '.vercel.app'
-        })
+        domain: getCookieDomain()
     },
     rolling: true, // Reset maxAge on every request
-    proxy: process.env.NODE_ENV === 'production' // Trust the reverse proxy in production
+    proxy: true, // Always trust proxy to handle secure cookies
+    unset: 'destroy' // Delete session when unset
 };
 
 // Apply session middleware
@@ -145,12 +227,15 @@ const corsOptions = {
             'https://chdpolice-hackathon.onrender.com',
             'https://chd-police-hackathon-jku23otvi-arsh-chauhans-projects-1f436a49.vercel.app',
             'https://chd-police-hackathon.vercel.app',
+            'https://email-detection-api.onrender.com',
             'http://localhost:3000',
-            'http://localhost:5000',  // For local development with separate ports
-            'http://localhost:5500',  // Common port for live server
+            'http://localhost:5000',
+            'http://localhost:5500',
             'http://127.0.0.1:3000',
             'http://127.0.0.1:5000',
-            'http://127.0.0.1:5500'
+            'http://127.0.0.1:5500',
+            /^\.*chd-police-hackathon\.vercel\.app$/,  // All subdomains
+            /^\.*email-detection\.onrender\.com$/      // All subdomains
         ];
         
         console.log('Request origin:', origin || 'No origin (direct access)');
@@ -160,47 +245,55 @@ const corsOptions = {
             console.log('No origin, allowing request');
             return callback(null, true);
         }
-
-        // Check if the origin is in the allowed list
-        if (allowedOrigins.includes(origin)) {
+        
+        // Check if origin matches any allowed origin or pattern
+        const isAllowed = allowedOrigins.some(allowed => {
+            if (typeof allowed === 'string') {
+                return origin === allowed;
+            } else if (allowed instanceof RegExp) {
+                return allowed.test(origin);
+            }
+            return false;
+        });
+        
+        if (isAllowed || process.env.NODE_ENV === 'development') {
             console.log('Origin allowed:', origin);
-            return callback(null, origin); // Return the origin instead of true for dynamic CORS
+            callback(null, true);
+        } else {
+            console.warn('Origin not allowed by CORS:', origin);
+            callback(new Error('Not allowed by CORS'));
         }
-        
-        // For development, allow all origins but log a warning
-        if (process.env.NODE_ENV !== 'production') {
-            console.warn(`Allowing request from non-whitelisted origin in development: ${origin}`);
-            return callback(null, origin);
-        }
-        
-        // In production, block unauthorized origins
-        console.warn(`Blocked request from unauthorized origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
     },
-    credentials: true, // Required for cookies, authorization headers with HTTPS
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
     allowedHeaders: [
-        'Content-Type', 
-        'Authorization', 
+        'Content-Type',
+        'Authorization',
         'X-Requested-With',
-        'X-Access-Token',
-        'X-Forwarded-For',
-        'X-Forwarded-Proto',
         'Accept',
         'Origin',
-        'Cookie',
-        'Set-Cookie'
+        'X-CSRF-Token',
+        'X-HTTP-Method-Override',
+        'X-Forwarded-For',
+        'X-Forwarded-Proto',
+        'X-Forwarded-Port',
+        'Set-Cookie',
+        'Cookie'
     ],
     exposedHeaders: [
-        'Set-Cookie',
+        'Content-Length',
+        'Content-Type',
         'Authorization',
-        'X-Access-Token',
-        'X-Requested-With'
+        'X-Requested-With',
+        'X-CSRF-Token',
+        'X-Total-Count',
+        'Link',
+        'Set-Cookie',
+        'X-User-Id'
     ],
     maxAge: 86400,  // 24 hours
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    preflightContinue: false
 };
 
 // Apply CORS configuration with preflight continue
@@ -208,98 +301,144 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // Enable preflight for all routes
 
 // Enhanced authentication middleware with session validation
-const authenticateUser = (req, res, next) => {
+const authenticateUser = async (req, res, next) => {
     // Skip auth for static files, public routes, and health checks
-    if (req.path === '/health' || req.path === '/api/health' || 
-        req.path.startsWith('/auth/') || 
-        req.path.startsWith('/public/') ||
-        /\.[a-zA-Z0-9]+$/.test(req.path)) {
+    const publicPaths = [
+        '/health',
+        '/api/health',
+        '/auth/',
+        '/public/',
+        '/login',
+        '/signup',
+        '/favicon.ico',
+        '/manifest.json',
+        '/.well-known/'
+    ];
+
+    // Check if current path is public
+    const isPublicPath = publicPaths.some(path => 
+        req.path === path || req.path.startsWith(path)
+    );
+
+    // Skip authentication for public paths and static files
+    if (isPublicPath || /\.[a-zA-Z0-9]+$/.test(req.path)) {
         return next();
     }
 
+    console.log(`[${req.requestId}] Authenticating request to:`, req.path);
+    
     // Check for token in cookies, session, or authorization header
     const token = req.cookies?.token || 
                  req.session?.token ||
-                 req.headers.authorization?.split(' ')[1] ||
+                 (req.headers.authorization && req.headers.authorization.split(' ')[1]) ||
                  req.query?.token;
 
     if (!token) {
         console.log(`[${req.requestId}] No authentication token found`);
-        return res.status(401).json({ 
-            success: false, 
-            error: 'Authentication required',
-            code: 'AUTH_REQUIRED'
-        });
-    }
-
-    // Verify JWT token
-    jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
-        if (err) {
-            console.error(`[${req.requestId}] Token verification failed:`, err.message);
-            
-            // Clear invalid token from cookies and session
-            res.clearCookie('token', {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined,
-                path: '/'
-            });
-            
-            // Destroy session
-            if (req.session) {
-                req.session.destroy();
-            }
-            
+        // For API requests, return JSON response
+        if (req.path.startsWith('/api/')) {
             return res.status(401).json({ 
                 success: false, 
-                error: 'Invalid or expired token',
-                code: 'INVALID_TOKEN'
+                error: 'Authentication required',
+                code: 'AUTH_REQUIRED',
+                path: req.path
             });
         }
+        // For HTML requests, redirect to login
+        const redirectUrl = `/login?redirect=${encodeURIComponent(req.originalUrl)}`;
+        return res.redirect(redirectUrl);
+    }
 
-        try {
-            // Check if user exists and is active
-            const user = await User.findById(decoded.id).select('-password');
-            if (!user || user.status !== 'active') {
-                throw new Error('User not found or inactive');
-            }
-
-            // Attach user to request
-            req.user = user;
-            req.token = token;
+    try {
+        // Verify JWT token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Find user in database
+        const user = await User.findById(decoded.userId).select('-password');
+        if (!user) {
+            throw new Error('User not found');
+        }
+        
+        // Check if user is active
+        if (user.status !== 'active') {
+            throw new Error('User account is not active');
+        }
+        
+        // Attach user to request
+        req.user = user;
+        req.token = token;
+        
+        // Update session with user info
+        if (req.session) {
+            req.session.user = {
+                id: user._id,
+                email: user.email,
+                role: user.role,
+                lastActive: new Date()
+            };
+            req.session.token = token;
             
-            // Refresh token if it's about to expire (within 1 day)
-            const now = Math.floor(Date.now() / 1000);
-            if (decoded.exp - now < 86400) { // 1 day in seconds
-                const newToken = jwt.sign(
-                    { id: user._id, role: user.role },
-                    process.env.JWT_SECRET,
-                    { expiresIn: '7d' }
-                );
-                
-                // Set new token in cookie
-                res.cookie('token', newToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-                    domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
+            // Save session to ensure it's stored
+            await new Promise((resolve, reject) => {
+                req.session.save(err => {
+                    if (err) {
+                        console.error(`[${req.requestId}] Error saving session:`, err);
+                        return reject(err);
+                    }
+                    console.log(`[${req.requestId}] Session saved for user ${user._id}`);
+                    resolve();
                 });
-                
-                console.log(`[${req.requestId}] Token refreshed for user ${user._id}`);
-            }
+            });
             
+            // Set user ID in response headers for frontend
+            res.set('X-User-Id', user._id.toString());
+            
+            // Log successful authentication
+            console.log(`[${req.requestId}] Authenticated as user:`, user.email);
+            
+            // Continue to the next middleware/route
             next();
-        } catch (error) {
-            console.error(`[${req.requestId}] User validation error:`, error.message);
-            res.status(401).json({ 
-                success: false, 
-                error: 'Authentication failed',
-                code: 'AUTH_FAILED'
+        } else {
+            throw new Error('Session not available');
+        }
+    } catch (error) {
+        console.error(`[${req.requestId}] Authentication error:`, error.message);
+        
+        // Clear invalid token from cookies
+        res.clearCookie('token', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            path: '/',
+            domain: process.env.NODE_ENV === 'production' ? getCookieDomain() : undefined
+        });
+        
+        // Destroy session
+        if (req.session) {
+            await new Promise((resolve) => {
+                req.session.destroy(err => {
+                    if (err) console.error('Error destroying session:', err);
+                    resolve();
+                });
             });
         }
-    });
+        
+        const errorResponse = {
+            success: false,
+            error: 'Invalid or expired session',
+            code: 'AUTH_FAILED',
+            message: error.message
+        };
+        
+        // For API requests, return JSON response
+        if (req.path.startsWith('/api/')) {
+            return res.status(401).json(errorResponse);
+        }
+        
+        // For HTML requests, redirect to login
+        const redirectUrl = `/login?redirect=${encodeURIComponent(req.originalUrl)}&error=${encodeURIComponent(errorResponse.error)}`;
+        return res.redirect(redirectUrl);
+    }
 };
 
 // Add cache control middleware for auth routes
