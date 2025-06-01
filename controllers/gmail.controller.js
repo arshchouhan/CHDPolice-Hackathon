@@ -36,41 +36,79 @@ const oauth2Client = new google.auth.OAuth2(
 
 // Generate Gmail OAuth URL
 exports.getAuthUrl = (req, res) => {
+  const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
-    logger.info('getAuthUrl called', { userId: req.user?.id });
+    // Log the incoming request details for debugging
+    logger.info(`[${requestId}] getAuthUrl called`, { 
+      userId: req.user?.id,
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
     
-    if (!req.user || !req.user.id) {
-      logger.error('User not authenticated for Gmail auth', { 
+    // Check if user is authenticated
+    if (!req.user?.id) {
+      const errorMsg = 'User not authenticated for Gmail auth';
+      logger.error(`[${requestId}] ${errorMsg}`, { 
         headers: req.headers,
-        user: req.user 
+        session: req.session
       });
       return res.status(401).json({
         success: false,
         message: 'Authentication required',
-        code: 'AUTH_REQUIRED'
+        code: 'AUTH_REQUIRED',
+        requestId
+      });
+    }
+
+    // Validate required environment variables
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      const errorMsg = 'Missing Google OAuth configuration';
+      logger.error(`[${requestId}] ${errorMsg}`, {
+        clientId: !!process.env.GOOGLE_CLIENT_ID,
+        clientSecret: !!process.env.GOOGLE_CLIENT_SECRET
+      });
+      return res.status(500).json({
+        success: false,
+        message: 'Server configuration error',
+        code: 'SERVER_ERROR',
+        requestId
       });
     }
 
     const scopes = ['https://www.googleapis.com/auth/gmail.readonly'];
-    const state = req.user.id; // Just use user ID as state
+    const state = req.user.id;
     
     // Log the OAuth configuration for debugging
-    logger.info('OAuth Configuration:', {
+    logger.info(`[${requestId}] OAuth Configuration`, {
       clientId: process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Missing',
-      redirectUri: process.env.REDIRECT_URI,
-      state: state
+      redirectUri: getRedirectUri(),
+      state: state,
+      nodeEnv: process.env.NODE_ENV
     });
 
-    const authUrl = oauth2Client.generateAuthUrl({
-      access_type: 'offline',
-      scope: scopes,
-      prompt: 'consent',
-      state: state, // Just the user ID
-      include_granted_scopes: true
-    });
-
-    logger.info(`Generated Gmail auth URL for user ${req.user.id}`);
-    logger.debug('Auth URL:', authUrl);
+    // Generate the OAuth URL
+    let authUrl;
+    try {
+      authUrl = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        scope: scopes,
+        prompt: 'consent',
+        state: state,
+        include_granted_scopes: true
+      });
+      
+      logger.info(`[${requestId}] Successfully generated auth URL for user ${req.user.id}`);
+      logger.debug(`[${requestId}] Auth URL:`, authUrl);
+      return res.json({ success: true, authUrl, redirectUri: getRedirectUri() });
+      
+    } catch (generateError) {
+      logger.error(`[${requestId}] Error generating auth URL`, { 
+        error: generateError.message,
+        stack: generateError.stack 
+      });
+      throw new Error(`Failed to generate OAuth URL: ${generateError.message}`);
+    }
     
     res.json({ 
       success: true,
