@@ -15,8 +15,8 @@ const getRedirectUri = () => {
   const isProd = process.env.NODE_ENV === 'production';
   
   if (isProd) {
-    // Use the production URL from environment variable or default to Render domain
-    return process.env.PROD_REDIRECT_URI || 'https://email-detection-api.onrender.com/api/gmail/callback';
+    // Use the production URL from environment variable or default to new Render domain
+    return process.env.PROD_REDIRECT_URI || 'https://chdpolice-hackathon.onrender.com/api/gmail/callback';
   } else {
     // Use the development URL
     return process.env.DEV_REDIRECT_URI || 'http://localhost:3000/api/gmail/callback';

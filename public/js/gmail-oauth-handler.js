@@ -11,10 +11,19 @@
 // Function to get the base URL for API requests
 function getBaseUrl() {
     const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    // Development environment
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return `http://${hostname}:3000`;
-    } else {
-        return window.location.origin;
+        const devUrl = `http://${hostname}:3000`;
+        console.log('Using development URL:', devUrl);
+        return devUrl;
+    } 
+    // Production environment
+    else {
+        const prodUrl = window.location.origin;
+        console.log('Using production URL:', prodUrl);
+        return prodUrl;
     }
 }
 
