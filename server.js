@@ -391,13 +391,12 @@ app.use(express.static(path.join(__dirname, 'public'), {
     lastModified: true
 }));
 
-// Get MongoDB connection options based on environment
+// Minimal MongoDB connection options
 const getMongoOptions = () => {
     const isProduction = process.env.NODE_ENV === 'production';
-    const isLocal = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
     
-    // Base options for all environments
-    const baseOptions = {
+    // Base options that work across all environments
+    const options = {
         // Core connection options
         useNewUrlParser: true,
         useUnifiedTopology: true,
@@ -408,119 +407,106 @@ const getMongoOptions = () => {
         socketTimeoutMS: 30000,         // 30 seconds
         
         // Connection pool
-        maxPoolSize: isProduction ? 10 : 5,
+        maxPoolSize: 10,
         minPoolSize: 1,
-        maxIdleTimeMS: 30000,           // 30 seconds
-        waitQueueTimeoutMS: 5000,       // 5 seconds
         
         // Network
-        family: 4,                      // Force IPv4
+        family: 4,  // Force IPv4
         
-        // Query and indexing
-        autoIndex: !isProduction,       // Auto-index in development only
-        
-        // Retry logic
-        retryWrites: true,
-        retryReads: true
+        // Indexing
+        autoIndex: !isProduction
     };
     
     // Production-specific options
     if (isProduction) {
         return {
-            ...baseOptions,
-            // SSL/TLS for production
+            ...options,
             ssl: true,
             tls: true,
-            tlsAllowInvalidCertificates: false,
-            tlsAllowInvalidHostnames: false,
-            sslValidate: true,
-            // Authentication
-            authSource: 'admin',
-            authMechanism: 'DEFAULT',
-            // Replica set and read preference
-            replicaSet: process.env.MONGO_REPLICA_SET || undefined,
-            readPreference: 'primaryPreferred'
+            authSource: 'admin'
         };
     }
     
-    // Local/development options
-    if (isLocal) {
-        return {
-            ...baseOptions,
-            // Less strict SSL for local development
-            ssl: false,
-            tlsAllowInvalidCertificates: true,
-            tlsAllowInvalidHostnames: true,
-            // Direct connection for local MongoDB
-            directConnection: true
-        };
-    }
-    
-    return baseOptions;
+    // Development options
+    return {
+        ...options,
+        directConnection: true
+    };
 };
 
 const mongoOptions = getMongoOptions();
 
-// Connect to MongoDB with improved error handling and retry logic
+// Connect to MongoDB with simplified and robust error handling
 const connectDB = async (retryCount = 0) => {
+    const MAX_RETRIES = 3;
     const mongoURI = process.env.MONGODB_URI;
     
+    // Validate MongoDB URI
     if (!mongoURI) {
-        console.error('MongoDB connection string not found. Please set MONGODB_URI environment variable.');
+        const errorMsg = 'MongoDB connection string not found. Please set MONGODB_URI environment variable.';
+        console.error(errorMsg);
+        
         if (process.env.NODE_ENV === 'production') {
-            console.warn('Running without MongoDB connection in production. Some features will be unavailable.');
+            console.warn('⚠️ Running without MongoDB connection in production. Some features will be unavailable.');
             return false;
         }
+        
         throw new Error('MONGODB_URI not set');
     }
 
     try {
-        console.log(`Connecting to MongoDB (attempt ${retryCount + 1})...`);
-        
-        // Log the MongoDB URI (masked for security)
+        // Log connection attempt (masking credentials in the URI)
         const maskedURI = mongoURI.replace(/mongodb(?:\+srv)?:\/\/([^:]+):([^@]+)@/, 'mongodb://***:***@');
-        console.log(`Connecting to: ${maskedURI}`);
+        console.log(`🔌 Connecting to MongoDB (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+        console.log(`   URI: ${maskedURI}`);
         
-        // Set Mongoose options
-        mongoose.set('strictQuery', false); // Prepare for Mongoose 7
+        // Configure Mongoose
+        mongoose.set('strictQuery', false); // Suppress deprecation warning
         
-        // Connect with retry logic
+        // Attempt to connect
         await mongoose.connect(mongoURI, mongoOptions);
         
         console.log('✅ MongoDB connected successfully');
         
-        // Set up event handlers after successful connection
+        // Set up event handlers
         mongoose.connection.on('error', (err) => {
-            console.error('MongoDB connection error:', err.message);
+            console.error('❌ MongoDB connection error:', err.message);
         });
         
         mongoose.connection.on('disconnected', () => {
-            console.log('MongoDB disconnected');
+            console.log('ℹ️  MongoDB disconnected');
             if (process.env.NODE_ENV === 'production') {
-                console.log('Attempting to reconnect...');
+                console.log('🔄 Attempting to reconnect...');
                 connectDB().catch(console.error);
             }
         });
         
         return true;
-    } catch (err) {
-        console.error('MongoDB connection error:', err.message);
         
-        // In production, implement retry logic with exponential backoff
-        if (process.env.NODE_ENV === 'production' && retryCount < 3) {
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Max 10s delay
-            console.log(`Retrying connection in ${delay/1000} seconds... (attempt ${retryCount + 1})`);
+    } catch (err) {
+        console.error('❌ MongoDB connection failed:', err.message);
+        
+        // Implement retry logic in production
+        if (process.env.NODE_ENV === 'production' && retryCount < MAX_RETRIES - 1) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponential backoff, max 10s
+            console.log(`⏳ Retrying in ${delay/1000} seconds...`);
             await new Promise(resolve => setTimeout(resolve, delay));
             return connectDB(retryCount + 1);
         }
         
+        // Handle final failure
         if (process.env.NODE_ENV === 'production') {
-            console.error('Failed to connect to MongoDB after multiple attempts');
+            console.error('❌ Failed to connect to MongoDB after multiple attempts');
             return false;
         }
         
-        // In development, exit on connection failure
-        console.error('Failed to connect to MongoDB. Make sure MongoDB is running and check your connection string.');
+        // In development, provide helpful error message and exit
+        console.error('\n💡 Development Tip:');
+        console.error('1. Make sure MongoDB is running locally');
+        console.error('2. Check your MONGODB_URI in .env file');
+        console.error('3. For local development, try: mongodb://localhost:27017/your-db-name');
+        console.error('4. If using MongoDB Atlas, ensure your IP is whitelisted\n');
+        
         process.exit(1);
     }
 };
