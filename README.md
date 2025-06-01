@@ -4,20 +4,15 @@
 
 ## 📸 Application Screenshots
 
-### 1. Login Interface
-![Login Page](public/images/login-interface.png)
 
-### 2. Google Sign-in
-![Google Sign-in](public/images/google-signin.png)
+(public/images/screenshot_1.png)
+(public/images/screenshot_2.png)
 
-### 3. Gmail Connection Status
-![Gmail Connected](public/images/gmail-connected.png)
+(public/images/screenshot_3.png)
 
-### 4. Email Analysis Process
-![Email Analysis](public/images/email-analysis.png)
+(public/images/screenshot_4.png)
 
-### 5. Sandbox Analysis
-![Sandbox Analysis](public/images/sandbox-analysis.png)
+(public/images/screenshot_5.png)
 
 ## Overview
 Kavach MailGuard is an AI-powered email security solution designed to detect and prevent phishing attacks. This comprehensive tool analyzes email content, headers, and metadata to identify potential phishing attempts, helping organizations protect against email-based security threats.
