@@ -400,6 +400,11 @@
 
         // Check if user is already authenticated
         async function checkAuthStatus() {
+            // Don't redirect if we're already on the login page
+            if (window.location.pathname.endsWith('login.html')) {
+                return false;
+            }
+            
             const token = localStorage.getItem('token');
             if (!token) return false;
             
@@ -416,14 +421,28 @@
                 if (response.ok) {
                     const data = await response.json();
                     if (data.authenticated) {
-                        const redirectPath = data.user?.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
-                        window.location.href = redirectPath;
-                        return true;
+                        const isAdmin = data.user?.role === 'admin';
+                        const isOnAdminPage = window.location.pathname.includes('admin-dashboard.html');
+                        const isOnIndexPage = window.location.pathname.endsWith('/') || window.location.pathname.endsWith('index.html');
+                        
+                        // Only redirect if we're not already on the correct page
+                        if ((isAdmin && !isOnAdminPage) || (!isAdmin && !isOnIndexPage)) {
+                            const redirectPath = isAdmin ? '/admin-dashboard.html' : '/';
+                            window.location.href = redirectPath;
+                            return true;
+                        }
+                    } else {
+                        // If not authenticated, clear the token
+                        localStorage.removeItem('token');
                     }
+                } else {
+                    // If unauthorized, clear the token
+                    localStorage.removeItem('token');
                 }
                 return false;
             } catch (error) {
                 console.error('Auth check error:', error);
+                localStorage.removeItem('token');
                 return false;
             }
         }

@@ -5,8 +5,20 @@
 
 // Check if user is authenticated
 async function isAuthenticated() {
+    // Don't check if we're on the login page
+    if (window.location.pathname.endsWith('login.html')) {
+        return false;
+    }
+    
     const token = localStorage.getItem('token');
-    if (!token) return false;
+    if (!token) {
+        // If no token but we're not on login page, redirect to login
+        if (!window.location.pathname.endsWith('login.html')) {
+            const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+            window.location.href = `/login.html?returnTo=${returnTo}`;
+        }
+        return false;
+    }
     
     try {
         const response = await fetch(`${window.BASE_URL}/auth/check-auth`, {
@@ -14,7 +26,9 @@ async function isAuthenticated() {
             credentials: 'include',
             headers: {
                 'Authorization': `Bearer ${token}`,
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
             }
         });
         
@@ -22,14 +36,37 @@ async function isAuthenticated() {
             // If unauthorized, clear the invalid token
             if (response.status === 401) {
                 clearAuth();
+                // Redirect to login if not already there
+                if (!window.location.pathname.endsWith('login.html')) {
+                    const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+                    window.location.href = `/login.html?returnTo=${returnTo}`;
+                }
             }
             return false;
         }
         
         const data = await response.json();
+        
+        // If authenticated, check if we need to redirect based on role
+        if (data.authenticated && data.user) {
+            const isAdmin = data.user.role === 'admin';
+            const isOnAdminPage = window.location.pathname.includes('admin-dashboard.html');
+            const isOnIndexPage = window.location.pathname.endsWith('/') || window.location.pathname.endsWith('index.html');
+            
+            // Redirect to appropriate page if not already there
+            if ((isAdmin && !isOnAdminPage) || (!isAdmin && !isOnIndexPage)) {
+                const redirectPath = isAdmin ? '/admin-dashboard.html' : '/';
+                window.location.href = redirectPath;
+            }
+        }
+        
         return data.authenticated === true;
     } catch (error) {
         console.error('Authentication check failed:', error);
+        clearAuth();
+        if (!window.location.pathname.endsWith('login.html')) {
+            window.location.href = '/login.html';
+        }
         return false;
     }
 }

@@ -134,7 +134,19 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve index.html for the root route
 app.get('/', (req, res) => {
-    console.log('Serving root route - redirecting to login');
+    console.log('Serving root route - sending index.html');
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Serve login page
+app.get('/login', (req, res) => {
+    console.log('Serving login page');
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Serve login.html when explicitly requested
+app.get('/login.html', (req, res) => {
+    console.log('Serving login.html');
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
