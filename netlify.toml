@@ -30,13 +30,14 @@
     CI = "false"
 
 [context.deploy-preview]
-  command = "npm run build"
-  publish = "build"
+  command = "npm install && npm run netlify-build"
+  publish = "client/build"
   [context.deploy-preview.environment]
     NODE_VERSION = "18.17.0"
     NPM_VERSION = "9.0.0"
     REACT_APP_API_URL = "https://email-detection-backend-dev.onrender.com"
     CI = "false"
+    NPM_FLAGS = "--legacy-peer-deps"
 
 # Remove functions section if you're not using Netlify Functions
 # [functions]

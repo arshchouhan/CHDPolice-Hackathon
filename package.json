@@ -9,8 +9,10 @@
   },
   "scripts": {
     "start": "node server.js",
-    "build": "npm install",
-    "vercel-build": "npm install",
+    "dev": "nodemon server.js",
+    "build": "echo \"No build step required for backend\" && exit 0",
+    "netlify-build": "cd client && npm install && npm run build",
+    "vercel-build": "echo \"No build step required for Vercel\" && exit 0",
     "render-build": "npm install"
   },
   "keywords": [],
@@ -41,5 +43,8 @@
     "socket.io": "^4.8.1",
     "whois-json": "^2.0.4",
     "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }
