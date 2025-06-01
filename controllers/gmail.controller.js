@@ -4,6 +4,22 @@ const User = require('../models/Users');
 const Email = require('../models/Email');
 const logger = require('../utils/logger');
 
+// Validate required environment variables
+const requiredEnvVars = [
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'JWT_SECRET',
+  'MONGODB_URI'
+];
+
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  const errorMsg = `Missing required environment variables: ${missingVars.join(', ')}`;
+  logger.error(errorMsg);
+  throw new Error(errorMsg);
+}
+
 // Create OAuth2 client with proper redirect URI
 const getRedirectUri = () => {
   if (process.env.NODE_ENV === 'production') {
@@ -21,8 +37,13 @@ const oauth2Client = new google.auth.OAuth2(
 // Generate Gmail OAuth URL
 exports.getAuthUrl = (req, res) => {
   try {
+    logger.info('getAuthUrl called', { userId: req.user?.id });
+    
     if (!req.user || !req.user.id) {
-      logger.error('User not authenticated for Gmail auth');
+      logger.error('User not authenticated for Gmail auth', { 
+        headers: req.headers,
+        user: req.user 
+      });
       return res.status(401).json({
         success: false,
         message: 'Authentication required',
@@ -832,55 +853,154 @@ function calculateRiskLevel(score) {
   return 'Critical';
 }
 
-// Get Gmail connection status
+/**
+ * Get Gmail connection status and email statistics
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>}
+ */
 exports.getStatus = async (req, res) => {
+  let user;
+  let session;
+  const startTime = Date.now();
+  const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Log request start
+  logger.info(`[${requestId}] Gmail status check started`, {
+    userId: req.user?.id,
+    params: req.params,
+    timestamp: new Date().toISOString()
+  });
+  
   try {
+    // Start a session for atomic operations
+    session = await mongoose.startSession();
+    await session.startTransaction();
+    
     const userId = req.params.userId || req.user?.id;
     
     if (!userId) {
-      logger.warn('Missing userId parameter in getStatus');
-      return res.status(400).json({
-        success: false,
-        message: 'User ID is required',
-        code: 'MISSING_USER_ID'
-      });
+      const error = new Error('User ID is required');
+      error.code = 'MISSING_USER_ID';
+      error.status = 400;
+      throw error;
     }
 
-    // Check if user exists
-    const user = await User.findById(userId);
+    // Check if user exists with enhanced logging
+    logger.debug(`[${requestId}] Fetching user with ID: ${userId}`);
+    user = await User.findById(userId).session(session).lean();
+    
     if (!user) {
-      logger.warn(`User not found with ID: ${userId}`);
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-        code: 'USER_NOT_FOUND'
-      });
+      const error = new Error(`User not found with ID: ${userId}`);
+      error.code = 'USER_NOT_FOUND';
+      error.status = 404;
+      throw error;
     }
+    
+    logger.debug(`[${requestId}] User found: ${user.email || user._id}`, {
+      gmailConnected: !!user.gmail_connected,
+      hasAccessToken: !!user.gmail_access_token
+    });
 
     // Check if Gmail is connected
     if (!user.gmail_connected || !user.gmail_access_token) {
-      logger.info(`Gmail not connected for user: ${userId}`);
-      return res.status(200).json({
-        success: true,
-        connected: false,
-        message: 'Gmail not connected',
-        lastSync: user.last_email_sync,
-        emailCount: await Email.countDocuments({ userId: user._id })
-      });
+      logger.info(`[${requestId}] Gmail not connected for user: ${userId}`);
+      
+      try {
+        const emailCount = await Email.countDocuments({ user: user._id }).session(session);
+        
+        await session.commitTransaction();
+        
+        const response = {
+          success: true,
+          connected: false,
+          message: 'Gmail not connected',
+          lastSync: user.last_email_sync,
+          emailCount,
+          requestId,
+          responseTime: Date.now() - startTime
+        };
+        
+        logger.info(`[${requestId}] Gmail status check completed`, {
+          status: 'success',
+          connected: false,
+          responseTime: response.responseTime
+        });
+        
+        return res.status(200).json(response);
+      } catch (countError) {
+        await session.abortTransaction();
+        logger.error(`[${requestId}] Error counting emails:`, countError);
+        throw countError;
+      } finally {
+        await session.endSession();
+      }
     }
 
     // Try to get profile to verify token is still valid
     try {
+      // Configure OAuth client with current credentials
       oauth2Client.setCredentials({
         access_token: user.gmail_access_token,
         refresh_token: user.gmail_refresh_token,
         expiry_date: user.gmail_token_expiry?.getTime()
       });
+      
+      // Check if token is expired
+      const isTokenExpired = user.gmail_token_expiry && user.gmail_token_expiry < new Date();
+      
+      // If token is expired and we have a refresh token, try to refresh it
+      if (isTokenExpired && user.gmail_refresh_token) {
+        try {
+          logger.info(`Token expired for user ${userId}, attempting to refresh...`);
+          const { credentials } = await oauth2Client.refreshAccessToken();
+          
+          // Update user with new tokens
+          await User.findByIdAndUpdate(userId, {
+            gmail_access_token: credentials.access_token,
+            gmail_token_expiry: new Date(credentials.expiry_date),
+            ...(credentials.refresh_token && { gmail_refresh_token: credentials.refresh_token })
+          });
+          
+          logger.info(`Successfully refreshed token for user: ${userId}`);
+          
+          // Update local user object with new token info
+          user.gmail_access_token = credentials.access_token;
+          user.gmail_token_expiry = new Date(credentials.expiry_date);
+          if (credentials.refresh_token) {
+            user.gmail_refresh_token = credentials.refresh_token;
+          }
+        } catch (refreshError) {
+          logger.error(`Failed to refresh token for user ${userId}:`, refreshError);
+          
+          // If refresh fails, disconnect Gmail
+          await User.findByIdAndUpdate(userId, {
+            gmail_connected: false,
+            gmail_access_token: undefined,
+            gmail_refresh_token: undefined,
+            gmail_token_expiry: undefined
+          });
+          
+          return res.status(200).json({
+            success: true,
+            connected: false,
+            message: 'Gmail session expired. Please reconnect your account.',
+            code: 'TOKEN_REFRESH_FAILED',
+            lastSync: user.last_email_sync,
+            emailCount: await Email.countDocuments({ userId: user._id })
+          });
+        }
+      }
+      
       const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
       
       // Get profile to verify token
       const profile = await gmail.users.getProfile({
-        userId: 'me'
+        userId: 'me',
+        fields: 'emailAddress'
+      }).catch(profileError => {
+        logger.error(`Failed to get Gmail profile for user ${userId}:`, profileError);
+        throw new Error('Failed to fetch Gmail profile');
       });
 
       // Get unread count
@@ -888,12 +1008,18 @@ exports.getStatus = async (req, res) => {
         userId: 'me',
         q: 'is:unread',
         maxResults: 1
+      }).catch(unreadError => {
+        logger.warn(`Failed to get unread count for user ${userId}:`, unreadError);
+        return { data: { resultSizeEstimate: 0 } }; // Default to 0 if we can't get unread count
       });
 
       // Get total email count
       const allEmails = await gmail.users.messages.list({
         userId: 'me',
         maxResults: 1
+      }).catch(emailError => {
+        logger.warn(`Failed to get total email count for user ${userId}:`, emailError);
+        return { data: { resultSizeEstimate: 0 } }; // Default to 0 if we can't get total count
       });
 
       logger.info(`Successfully verified Gmail connection for user: ${userId}`);
@@ -902,55 +1028,149 @@ exports.getStatus = async (req, res) => {
         success: true,
         connected: true,
         email: profile.data.emailAddress,
-        messagesTotal: allEmails.data.resultSizeEstimate,
-        unreadCount: unread.data.resultSizeEstimate,
+        messagesTotal: allEmails.data.resultSizeEstimate || 0,
+        unreadCount: unread.data.resultSizeEstimate || 0,
         lastSync: user.last_email_sync,
         emailCount: await Email.countDocuments({ userId: user._id }),
-        tokenExpiry: user.gmail_token_expiry ? user.gmail_token_expiry.toISOString() : null,
-        tokenExpired: user.gmail_token_expiry ? user.gmail_token_expiry < new Date() : true
+        tokenExpiry: user.gmail_token_expiry?.toISOString(),
+        tokenExpired: false
       });
       
     } catch (error) {
       logger.error(`Error verifying Gmail token for user ${userId}:`, error);
       
-      // If token is invalid, update user status
-      if (error.code === 401) {
-        user.gmail_connected = false;
-        user.gmail_access_token = undefined;
-        user.gmail_refresh_token = undefined;
-        user.gmail_token_expiry = undefined;
-        await user.save();
+      // If token is invalid or expired, update user status
+      if (error.code === 401 || error.message.includes('Invalid Credentials')) {
+        logger.warn(`Invalid or expired token for user: ${userId}`);
+        
+        await User.findByIdAndUpdate(userId, {
+          gmail_connected: false,
+          gmail_access_token: undefined,
+          gmail_refresh_token: undefined,
+          gmail_token_expiry: undefined
+        });
         
         return res.status(200).json({
           success: true,
           connected: false,
-          message: 'Gmail token expired or revoked',
+          message: 'Gmail session expired. Please reconnect your account.',
           code: 'TOKEN_EXPIRED',
           lastSync: user.last_email_sync,
           emailCount: await Email.countDocuments({ userId: user._id })
         });
       }
       
-      throw error;
-    }
-    
-  } catch (error) {
-    logger.error('Error in getStatus:', error);
-    
-    // Handle specific error cases
-    if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
-      return res.status(503).json({
+      // Handle MongoDB errors
+      if (error.name === 'MongoError' || error.name === 'MongoServerError') {
+        await session.abortTransaction();
+        return res.status(503).json({
+          success: false,
+          message: 'Database service unavailable',
+          code: 'DATABASE_ERROR',
+          retryable: true,
+          error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+      }
+      
+      // Handle validation errors
+      if (error.name === 'ValidationError') {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Validation error',
+          code: 'VALIDATION_ERROR',
+          errors: error.errors
+        });
+      }
+      
+      // Default error response
+      await session.abortTransaction();
+      res.status(500).json({
         success: false,
-        message: 'Unable to connect to Gmail service',
-        code: 'SERVICE_UNAVAILABLE'
+        message: 'An unexpected error occurred while checking Gmail status',
+        code: 'INTERNAL_SERVER_ERROR',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        retryable: false
       });
     }
-    
-    res.status(500).json({
+  } catch (error) {
+    const errorId = `err_${Math.random().toString(36).substr(2, 9)}`;
+    const errorResponse = {
       success: false,
-      message: 'Failed to check Gmail status',
-      code: 'INTERNAL_ERROR',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: error.message || 'An unexpected error occurred',
+      code: error.code || 'INTERNAL_ERROR',
+      requestId,
+      errorId,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Log the error with context
+    logger.error(`[${requestId}] Error in getStatus (${errorId}):`, {
+      error: {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        name: error.name
+      },
+      userId: user?._id,
+      responseTime: Date.now() - startTime
+    });
+    
+    // Set appropriate status code
+    let statusCode = 500;
+    
+    switch (error.code) {
+      case 'MISSING_USER_ID':
+      case 'VALIDATION_ERROR':
+        statusCode = 400;
+        break;
+      case 'USER_NOT_FOUND':
+        statusCode = 404;
+        break;
+      case 'SERVICE_UNAVAILABLE':
+      case 'DATABASE_ERROR':
+        statusCode = 503;
+        errorResponse.retryable = true;
+        break;
+      case 'TOKEN_EXPIRED':
+      case 'TOKEN_REFRESH_FAILED':
+        statusCode = 401;
+        errorResponse.retryable = true;
+        break;
+      default:
+        if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+          statusCode = 503;
+          errorResponse.code = 'SERVICE_UNAVAILABLE';
+          errorResponse.retryable = true;
+        } else if (error.status) {
+          statusCode = error.status;
+        }
+    }
+    
+    // Clean up sensitive information in production
+    if (process.env.NODE_ENV !== 'development') {
+      delete errorResponse.error;
+    }
+    
+    // Send error response
+    return res.status(statusCode).json(errorResponse);
+  } finally {
+    try {
+      // Always end the session in the finally block
+      if (session) {
+        if (session.inTransaction()) {
+          await session.abortTransaction();
+        }
+        await session.endSession();
+      }
+    } catch (sessionError) {
+      logger.error(`[${requestId}] Error cleaning up session:`, sessionError);
+    }
+    
+    // Log request completion
+    logger.info(`[${requestId}] Request completed`, {
+      duration: Date.now() - startTime,
+      timestamp: new Date().toISOString()
     });
   }
 };
@@ -1003,7 +1223,14 @@ exports.disconnectGmail = async (req, res) => {
       code: 'DISCONNECT_FAILED'
     });
   } finally {
-    session.endSession();
+    try {
+      // Always end the session in the finally block
+      if (session) {
+        await session.endSession();
+      }
+    } catch (sessionError) {
+      logger.error('Error ending session:', sessionError);
+    }
   }
 };
 
