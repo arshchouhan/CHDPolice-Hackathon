@@ -234,14 +234,11 @@ app.use(express.static(path.join(__dirname, 'public'), {
 const connectDB = async () => {
     try {
         console.log('Attempting to connect to MongoDB...');
-        // Check for MONGODB_URI first, then fall back to MONGO_URI for backward compatibility
-        const mongoURI = process.env.MONGODB_URI || process.env.MONGO_URI;
+        // Use MONGODB_URI environment variable
+        const mongoURI = process.env.MONGODB_URI;
         
-        // Log which environment variable is being used
-        if (process.env.MONGODB_URI) {
+        if (mongoURI) {
             console.log('Using MONGODB_URI from environment variables');
-        } else if (process.env.MONGO_URI) {
-            console.log('Using MONGO_URI from environment variables (deprecated)');
         }
         
         if (!mongoURI) {
