@@ -1,4 +1,4 @@
-# Kavach MailGuard - Advanced Email Phishing Detection
+ Advanced Email Phishing Detection
 
 <div align="center">
   <img src="./public/images/login-interface.png" alt="Login Interface" width="45%" />
