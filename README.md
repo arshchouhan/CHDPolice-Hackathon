@@ -88,6 +88,30 @@ Kavach MailGuard is an AI-powered email security solution designed to detect and
 
 ## Features in Detail
 
+### Secure Authentication
+- **Email/Password Login**: Secure authentication for registered users
+- **Google OAuth Integration**: Easy sign-in with Google accounts
+- **Role-based Access Control**: Different permission levels for different user roles
+- **Session Management**: Secure session handling and token-based authentication
+
+### Login Interface
+
+![Login Interface](./public/images/login-interface.png)
+
+- Clean, modern UI with security indicators
+- Clear visual feedback during authentication
+- Option for password recovery
+- Secure handling of credentials
+
+### Gmail Integration
+
+![Gmail Connected](./public/images/gmail-connected.png)
+
+- Seamless Gmail account connection
+- Visual confirmation when account is linked
+- One-click scanning of emails
+- Secure OAuth token handling
+
 ### Email Analysis Dashboard
 - Clean, intuitive interface for submitting emails
 - Real-time analysis results

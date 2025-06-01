@@ -5,30 +5,21 @@
 
 // Initialize BASE_URL if not already set
 if (!window.BASE_URL) {
-    // Check localStorage first
-    const savedBaseUrl = localStorage.getItem('baseUrl');
-    if (savedBaseUrl) {
-        window.BASE_URL = savedBaseUrl;
+    const hostname = window.location.hostname;
+    
+    // For local development
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        const port = window.location.port || '3000';
+        window.BASE_URL = `http://${hostname}:${port}`;
+        console.log('Development environment detected, using local backend at:', window.BASE_URL);
     } else {
-        // For Vercel deployments
-        const isVercel = window.location.hostname.includes('vercel.app');
-        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        
-        if (isVercel) {
-            window.BASE_URL = window.location.origin;
-        } else if (isLocal) {
-            // For local development, default to port 3000 if not specified
-            const port = window.location.port || '3000';
-            window.BASE_URL = `${window.location.protocol}//${window.location.hostname}:${port}`;
-        } else {
-            window.BASE_URL = window.location.origin;
-        }
-        
-        // Ensure there's no trailing slash
-        window.BASE_URL = window.BASE_URL.replace(/\/+$/, '');
-        localStorage.setItem('baseUrl', window.BASE_URL);
+        // Always use Render backend in production
+        window.BASE_URL = 'https://chdpolice-hackathon.onrender.com';
+        console.log('Production environment detected, using Render backend at:', window.BASE_URL);
     }
-    console.log('BASE_URL initialized to:', window.BASE_URL);
+    
+    // Clear any old base URL from localStorage to prevent conflicts
+    localStorage.removeItem('baseUrl');
 }
 
 // Check if user is authenticated

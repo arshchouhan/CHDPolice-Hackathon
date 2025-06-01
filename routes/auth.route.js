@@ -52,10 +52,35 @@ const asyncHandler = (fn) => async (req, res, next) => {
 // Apply rate limiting to auth routes
 router.use(authLimiter);
 
-// Auth routes
-router.post('/login', asyncHandler(authController.login));
-router.get('/check-auth', asyncHandler(authController.checkAuth));
-router.post('/logout', asyncHandler(authController.logout));
+// Auth routes with enhanced logging
+router.post('/login', (req, res, next) => {
+    console.log('Login request received:', {
+        timestamp: new Date().toISOString(),
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        body: { ...req.body, password: req.body.password ? '[REDACTED]' : undefined }
+    });
+    next();
+}, asyncHandler(authController.login));
+
+router.get('/check-auth', (req, res, next) => {
+    console.log('Auth check request:', {
+        timestamp: new Date().toISOString(),
+        ip: req.ip,
+        cookies: req.cookies,
+        headers: req.headers
+    });
+    next();
+}, asyncHandler(authController.checkAuth));
+
+router.post('/logout', (req, res, next) => {
+    console.log('Logout request:', {
+        timestamp: new Date().toISOString(),
+        ip: req.ip,
+        userId: req.user?.id
+    });
+    next();
+}, asyncHandler(authController.logout));
 
 // Google OAuth routes (if needed)
 router.post('/google', asyncHandler(authController.googleSignIn));

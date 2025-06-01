@@ -9,11 +9,13 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "build": "echo \"No build step required for backend\" && exit 0",
-    "netlify-build": "cd client && npm install && npm run build",
-    "vercel-build": "echo \"No build step required for Vercel\" && exit 0",
-    "render-build": "npm install"
+    "dev": "nodemon --exec \"npm run build:css && node server.js\"",
+    "build": "npm run build:css",
+    "build:css": "tailwindcss -i ./src/css/tailwind.css -o ./public/css/tailwind.css --minify",
+    "watch:css": "tailwindcss -i ./src/css/tailwind.css -o ./public/css/tailwind.css --watch",
+    "netlify-build": "npm install && npm run build",
+    "vercel-build": "npm install && npm run build",
+    "render-build": "npm install && npm run build"
   },
   "keywords": [],
   "author": "CHD Police Hackathon Team",
@@ -47,6 +49,9 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "autoprefixer": "^10.4.21",
+    "nodemon": "^3.1.0",
+    "postcss": "^8.5.4",
+    "tailwindcss": "^4.1.8"
   }
 }

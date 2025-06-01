@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Email Analysis Dashboard</title>
-    <script src="https://cdn.tailwindcss.com?v=3.3.0"></script>
+    <link href="/css/tailwind.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
+    <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin">
     <!-- Force reload CSS -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
@@ -371,44 +373,11 @@
         </div>
 
     <script>
-        // Enhanced BASE_URL determination with better logging and error handling
+        // Always use the Render backend URL
         const getBaseUrl = () => {
-            try {
-                const hostname = window.location.hostname;
-                const origin = window.location.origin;
-                const port = window.location.port;
-                let baseUrl;
-                
-                console.log('Current location:', window.location.href);
-                console.log('Hostname:', hostname, 'Origin:', origin, 'Port:', port);
-                
-                // Check if we're in development mode (localhost with React dev server)
-                if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                    baseUrl = `http://${hostname}:3000`; // Always use port 3000 for API in development
-                    console.log('Development environment detected, using API at:', baseUrl);
-                } 
-                // Check for production environments
-                else if (hostname.includes('vercel.app')) {
-                    baseUrl = origin; // Use full origin for Vercel deployments
-                    console.log('Vercel environment detected, using API at:', baseUrl);
-                } else if (hostname.includes('onrender.com') || hostname.includes('email-detection')) {
-                    baseUrl = 'https://email-detection-api.onrender.com';
-                    console.log('Render environment detected, using API at:', baseUrl);
-                } else {
-                    // For any other environment, use the current origin but log a warning
-                    baseUrl = origin;
-                    console.warn('Unknown environment, falling back to current origin:', baseUrl);
-                }
-                
-                console.log('Final BASE_URL set to:', baseUrl);
-                return baseUrl;
-            } catch (error) {
-                console.error('Error determining base URL:', error);
-                // Fallback to current origin if there's an error
-                const fallbackUrl = window.location.origin;
-                console.warn('Falling back to origin:', fallbackUrl);
-                return fallbackUrl;
-            }
+            const renderBackendUrl = 'https://chdpolice-hackathon.onrender.com';
+            console.log('Using Render backend URL:', renderBackendUrl);
+            return renderBackendUrl;
         };
         
         // Initialize BASE_URL
@@ -559,10 +528,6 @@
                     return;
                 }
                 
-                // Get environment information
-                const baseUrl = getBaseUrl();
-                const platform = hostname.includes('vercel.app') ? 'vercel' : 
-                               hostname.includes('onrender.com') ? 'render' : 'other';
                 
                 console.log('Gmail status check - Environment details:');
                 console.log('- BASE_URL:', baseUrl);
@@ -1140,26 +1105,11 @@
                 console.log('- Hostname:', hostname);
                 console.log('- Origin:', origin);
                 console.log('- Return URL:', currentUrl);
+           
                 
-                // Determine platform for server-side handling
-                const platform = hostname.includes('vercel.app') ? 'vercel' : 
-                               hostname.includes('onrender.com') ? 'render' : 'other';
-                
-                // Determine the correct redirect URI based on environment
-                let redirectUri;
-                
-                if (platform === 'vercel') {
-                    redirectUri = 'https://chd-police-hackathon.vercel.app/api/gmail/callback';
-                } else if (platform === 'render') {
-                    redirectUri = 'https://email-detection-api.onrender.com/api/gmail/callback';
-                } else {
-                    // For local development or unknown environments
-                    redirectUri = `${baseUrl}/api/gmail/callback`;
-                    console.log('Using local redirect URI:', redirectUri);
-                }
-                
+                // Always use the Render backend
+                const redirectUri = 'https://chdpolice-hackathon.onrender.com/api/gmail/callback';
                 console.log('Using redirect URI:', redirectUri);
-                console.log('Platform detected:', platform);
                 
                 // Get the OAuth URL from our backend with explicit redirect_uri and platform info
                 const response = await fetch(`${baseUrl}/api/gmail/auth-url?platform=${platform}&redirect_uri=${encodeURIComponent(redirectUri)}`, {

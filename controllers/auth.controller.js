@@ -5,11 +5,21 @@ const Admin = require('../models/Admin');
 
 // Login controller
 exports.login = async (req, res) => {
+    const requestId = req.id || Date.now().toString(36);
+    
     try {
+        console.log(`[${new Date().toISOString()}] [${requestId}] Login attempt started`);
+        
         const { emailOrUsername, password } = req.body;
+        
+        console.log(`[${new Date().toISOString()}] [${requestId}] Login attempt for:`, { 
+            emailOrUsername: emailOrUsername ? 'provided' : 'missing',
+            password: password ? 'provided' : 'missing'
+        });
 
         // Input validation
         if (!emailOrUsername || !password) {
+            console.log(`[${new Date().toISOString()}] [${requestId}] Validation failed - missing credentials`);
             return res.status(400).json({ 
                 success: false,
                 message: 'Please provide both email/username and password'
@@ -17,15 +27,26 @@ exports.login = async (req, res) => {
         }
 
         // Find user by email or username
-        const user = await User.findOne({
-            $or: [
-                { email: emailOrUsername.toLowerCase() },
-                { username: emailOrUsername.toLowerCase() }
-            ]
-        });
+        let user;
+        try {
+            user = await User.findOne({
+                $or: [
+                    { email: emailOrUsername.toLowerCase() },
+                    { username: emailOrUsername.toLowerCase() }
+                ]
+            }).select('+password');
+            
+            console.log(`[${new Date().toISOString()}] [${requestId}] User lookup result:`, 
+                user ? 'User found' : 'User not found');
+                
+        } catch (dbError) {
+            console.error(`[${new Date().toISOString()}] [${requestId}] Database error:`, dbError);
+            throw new Error('Database error during user lookup');
+        }
 
         // Check if user exists
         if (!user) {
+            console.log(`[${new Date().toISOString()}] [${requestId}] Login failed - user not found`);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
@@ -33,53 +54,115 @@ exports.login = async (req, res) => {
         }
 
         // Check if password is correct
-        const isMatch = await bcrypt.compare(password, user.password);
+        let isMatch;
+        try {
+            isMatch = await bcrypt.compare(password, user.password);
+            console.log(`[${new Date().toISOString()}] [${requestId}] Password check result:`, isMatch ? 'Match' : 'No match');
+        } catch (bcryptError) {
+            console.error(`[${new Date().toISOString()}] [${requestId}] Bcrypt error:`, bcryptError);
+            throw new Error('Error during password verification');
+        }
+        
         if (!isMatch) {
+            console.log(`[${new Date().toISOString()}] [${requestId}] Login failed - invalid password`);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
             });
         }
 
-        // Create JWT token
-        const token = jwt.sign(
-            { 
-                id: user._id, 
-                email: user.email,
-                role: user.role || 'user'
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+        try {
+            console.log(`[${new Date().toISOString()}] [${requestId}] Starting token generation`);
+            
+            if (!process.env.JWT_SECRET) {
+                console.error(`[${new Date().toISOString()}] [${requestId}] JWT_SECRET is not set`);
+                throw new Error('Server configuration error');
+            }
 
-        // Set HTTP-only cookie
-        res.cookie('token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 24 * 60 * 60 * 1000 // 24 hours
-        });
+            // Create JWT token
+            const token = jwt.sign(
+                { 
+                    id: user._id, 
+                    email: user.email,
+                    role: user.role || 'user'
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: '24h' }
+            );
 
-        // Return success response
-        res.status(200).json({
-            success: true,
-            message: 'Login successful',
-            user: {
+            console.log(`[${new Date().toISOString()}] [${requestId}] Token generated successfully`);
+
+            // Set HTTP-only cookie with proper CORS settings
+            const isProduction = process.env.NODE_ENV === 'production';
+            const cookieOptions = {
+                httpOnly: true,
+                secure: isProduction,
+                sameSite: isProduction ? 'none' : 'lax',
+                maxAge: 24 * 60 * 60 * 1000, // 24 hours
+                path: '/',
+                domain: isProduction ? '.chdpolice-hackathon.vercel.app' : undefined
+            };
+
+            console.log(`[${new Date().toISOString()}] [${requestId}] Setting cookie with options:`, 
+                JSON.stringify({
+                    ...cookieOptions,
+                    domain: cookieOptions.domain || 'localhost'
+                }, null, 2));
+
+            res.cookie('token', token, cookieOptions);
+
+            // Prepare user data for response (exclude sensitive info)
+            const userData = {
                 id: user._id,
                 email: user.email,
                 username: user.username,
                 role: user.role || 'user'
-            }
-        });
+            };
+
+            console.log(`[${new Date().toISOString()}] [${requestId}] Login successful for user:`, userData.email);
+
+            // Return success response
+            return res.status(200).json({
+                success: true,
+                message: 'Login successful',
+                user: userData,
+                token: token // Also send token in response for client-side storage if needed
+            });
+            
+        } catch (tokenError) {
+            console.error(`[${new Date().toISOString()}] [${requestId}] Token generation/set error:`, tokenError);
+            throw new Error('Error during authentication: ' + tokenError.message);
+        }
 
     } catch (error) {
-        console.error('Login error:', error);
-        // Ensure we always return JSON
-        res.status(500).json({
+        const errorId = Date.now().toString(36);
+        const timestamp = new Date().toISOString();
+        
+        console.error(`[${timestamp}] [${requestId}] [Error-${errorId}] Login error:`, {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+            code: error.code,
+            body: req.body,
+            headers: req.headers,
+            url: req.originalUrl,
+            method: req.method
+        });
+        
+        // Return detailed error in development, generic in production
+        const response = {
             success: false,
             message: 'Server error during login',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
+            errorId: errorId,
+            ...(process.env.NODE_ENV === 'development' ? {
+                error: error.message,
+                stack: error.stack,
+                name: error.name,
+                code: error.code
+            } : {})
+        };
+        
+        return res.status(500).json(response);
     }
 };
 

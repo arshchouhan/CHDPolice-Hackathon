@@ -232,21 +232,17 @@ async function connectGmail() {
         console.log('- Origin:', origin);
         console.log('- Return URL:', currentUrl);
         
-        // Determine platform for server-side handling
-        const platform = hostname.includes('vercel.app') ? 'vercel' : 
-                        hostname.includes('onrender.com') ? 'render' : 'other';
-        
-        // Determine the correct redirect URI based on environment
+        // Always use the Render backend for OAuth
         let redirectUri;
         
-        if (platform === 'vercel') {
-            redirectUri = 'https://chd-police-hackathon.vercel.app/api/gmail/callback';
-        } else if (platform === 'render') {
-            redirectUri = 'https://email-detection-api.onrender.com/api/gmail/callback';
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            // For local development
+            redirectUri = `http://${hostname}:3000/api/gmail/callback`;
+            console.log('Using local development redirect URI:', redirectUri);
         } else {
-            // For local development or unknown environments
-            redirectUri = `${baseUrl}/api/gmail/callback`;
-            console.log('Using local redirect URI:', redirectUri);
+            // For all production environments, use the Render backend
+            redirectUri = 'https://chdpolice-hackathon.onrender.com/api/gmail/callback';
+            console.log('Using production redirect URI:', redirectUri);
         }
         
         console.log('Using redirect URI:', redirectUri);
