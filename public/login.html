@@ -366,6 +366,9 @@
                 if (data.token) {
                     localStorage.setItem('token', data.token);
                     console.log('Token saved to localStorage');
+                    
+                    // Also set a flag in sessionStorage to prevent immediate logout
+                    sessionStorage.setItem('auth_checked', 'true');
                 }
                 
                 if (data.user) {
@@ -379,10 +382,8 @@
                 const redirectPath = data.user?.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
                 console.log(`Redirecting to: ${redirectPath}`);
                 
-                // Add a small delay to ensure localStorage is updated
-                setTimeout(() => {
-                    window.location.href = redirectPath;
-                }, 100);
+                // Force a hard redirect to ensure cookies are properly set
+                window.location.replace(redirectPath);
                 
             } catch (error) {
                 console.error('Login error:', error);
