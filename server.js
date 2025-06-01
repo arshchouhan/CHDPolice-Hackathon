@@ -391,16 +391,16 @@ app.use(express.static(path.join(__dirname, 'public'), {
     lastModified: true
 }));
 
-// Minimal MongoDB connection options
+/**
+ * Get MongoDB connection options based on environment
+ * Handles both local and Atlas connections
+ */
 const getMongoOptions = () => {
     const isProduction = process.env.NODE_ENV === 'production';
+    const isAtlas = process.env.MONGODB_URI && process.env.MONGODB_URI.includes('mongodb+srv://');
     
     // Base options that work across all environments
     const options = {
-        // Core connection options
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        
         // Timeouts
         serverSelectionTimeoutMS: 10000, // 10 seconds
         connectTimeoutMS: 10000,        // 10 seconds
@@ -414,23 +414,30 @@ const getMongoOptions = () => {
         family: 4,  // Force IPv4
         
         // Indexing
-        autoIndex: !isProduction
+        autoIndex: !isProduction,
+        
+        // Retry settings
+        retryWrites: true,
+        retryReads: true
     };
     
-    // Production-specific options
-    if (isProduction) {
+    // SSL/TLS options for production or Atlas
+    if (isProduction || isAtlas) {
         return {
             ...options,
             ssl: true,
             tls: true,
-            authSource: 'admin'
+            authSource: 'admin',
+            // Disable directConnection for Atlas SRV URIs
+            ...(isAtlas ? { directConnection: false } : {})
         };
     }
     
-    // Development options
+    // Local development options
     return {
         ...options,
-        directConnection: true
+        directConnection: true,
+        ssl: false
     };
 };
 
