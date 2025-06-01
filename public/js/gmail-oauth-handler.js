@@ -40,9 +40,14 @@ function getBaseUrl() {
     }
 }
 
-// Make BASE_URL available globally
-const BASE_URL = getBaseUrl();
-console.log('Base URL initialized:', BASE_URL);
+// Make BASE_URL available globally if not already defined
+if (typeof window.BASE_URL === 'undefined') {
+    window.BASE_URL = getBaseUrl();
+    console.log('Base URL initialized:', window.BASE_URL);
+}
+
+// Alias for backward compatibility
+const BASE_URL = window.BASE_URL;
 
 /**
  * Check if user is authenticated
