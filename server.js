@@ -393,23 +393,35 @@ app.use(express.static(path.join(__dirname, 'public'), {
 
 // MongoDB connection configuration
 const mongoOptions = {
+    // Connection settings
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    
+    // Timeout settings
     serverSelectionTimeoutMS: 10000, // 10 seconds
     socketTimeoutMS: 45000, // 45 seconds
     connectTimeoutMS: 10000, // 10 seconds
-    maxPoolSize: 10, // Default is 100, reduced for Render's free tier
-    minPoolSize: 1, // Default is 0
+    
+    // Connection pool settings
+    maxPoolSize: 10, // Reduced for Render's free tier
+    minPoolSize: 1,
     maxIdleTimeMS: 30000, // 30 seconds
     waitQueueTimeoutMS: 5000, // 5 seconds
+    
+    // Network settings
     family: 4, // Force IPv4
+    
+    // Index and query settings
     autoIndex: process.env.NODE_ENV !== 'production',
+    
+    // Retry settings
     retryWrites: true,
     retryReads: true,
-    // Server selection and connection settings
-    serverSelectionTryOnce: false,
+    
+    // Heartbeat frequency
     heartbeatFrequencyMS: 10000, // 10 seconds
-    // TLS/SSL options for production
+    
+    // TLS/SSL settings for production
     ...(process.env.NODE_ENV === 'production' ? {
         tls: true,
         tlsAllowInvalidCertificates: false,
@@ -421,7 +433,7 @@ const mongoOptions = {
 
 // Connect to MongoDB with improved error handling and retry logic
 const connectDB = async (retryCount = 0) => {
-    const mongoURI = process.env.MONGODB_URI;
+    let mongoURI = process.env.MONGODB_URI;
     
     if (!mongoURI) {
         console.error('MongoDB connection string not found. Please set MONGODB_URI environment variable.');
@@ -442,8 +454,35 @@ const connectDB = async (retryCount = 0) => {
         // Set Mongoose options
         mongoose.set('strictQuery', false); // Prepare for Mongoose 7
         
+        // Ensure the connection string has the correct parameters
+        const url = new URL(mongoURI);
+        if (!url.searchParams.has('retryWrites')) {
+            url.searchParams.set('retryWrites', 'true');
+        }
+        if (!url.searchParams.has('w')) {
+            url.searchParams.set('w', 'majority');
+        }
+        
+        // For production, ensure TLS/SSL is properly configured
+        if (process.env.NODE_ENV === 'production') {
+            if (!url.searchParams.has('tls') && !url.searchParams.has('ssl')) {
+                url.searchParams.set('tls', 'true');
+                url.searchParams.set('ssl', 'true');
+            }
+        }
+        
+        mongoURI = url.toString();
+        
+        // Create a new connection options object to avoid reference issues
+        const connectionOptions = {
+            ...mongoOptions,
+            // Override any options that might be problematic
+            useNewUrlParser: true,
+            useUnifiedTopology: true
+        };
+        
         // Connect with retry logic
-        await mongoose.connect(mongoURI, mongoOptions);
+        await mongoose.connect(mongoURI, connectionOptions);
         
         console.log('✅ MongoDB connected successfully');
         
