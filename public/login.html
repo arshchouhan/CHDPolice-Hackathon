@@ -322,10 +322,12 @@
             e.preventDefault();
             showLoading();
             
-            const emailOrUsername = document.getElementById('emailOrUsername').value;
+            const emailOrUsername = document.getElementById('emailOrUsername').value.trim();
             const password = document.getElementById('password').value;
             const errorMessage = document.getElementById('errorMessage');
+            const loginBtn = document.querySelector('#loginForm button[type="submit"]');
 
+            // Basic validation
             if (!emailOrUsername || !password) {
                 hideLoading();
                 errorMessage.textContent = 'Username/Email and password are required';
@@ -333,19 +335,12 @@
                 return;
             }
 
+            // Disable login button to prevent multiple submissions
+            if (loginBtn) loginBtn.disabled = true;
+
             try {
                 console.log('Attempting login to:', `${BASE_URL}/auth/login`);
-                console.log('Request details:', {
-                    url: `${BASE_URL}/auth/login`,
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: { emailOrUsername }
-                });
-
+                
                 const response = await fetch(`${BASE_URL}/auth/login`, {
                     method: 'POST',
                     headers: {
@@ -359,50 +354,92 @@
                     })
                 });
 
-                console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-                const data = await response.json();
-                console.log('Login response:', data);
-
-                if (response.ok) {
-                    console.log('Login successful');
-                    // Store token in localStorage
-                    if (data.token) {
-                        localStorage.setItem('token', data.token);
-                        console.log('Token saved to localStorage');
-                    } else {
-                        // If server didn't send token in response, create one from user data
-                        // This is a fallback for when using HttpOnly cookies
-                        localStorage.setItem('token', 'authenticated-user');
-                        console.log('Authentication marker saved to localStorage');
-                    }
-                    
-                    // Check user role and redirect to appropriate dashboard
-                    if (data.user && data.user.role === 'admin') {
-                        console.log('Admin user detected, redirecting to admin dashboard');
-                        localStorage.setItem('userRole', 'admin');
-                        window.location.href = '/admin-dashboard.html';
-                    } else {
-                        console.log('Regular user detected, redirecting to user dashboard');
-                        localStorage.setItem('userRole', 'user');
-                        window.location.href = '/index.html';
-                    }
-                } else {
-                    hideLoading();
-                    const message = data.message || 'Invalid credentials';
-                    console.error('Login failed:', message);
-                    errorMessage.textContent = message;
-                    errorMessage.classList.remove('hidden');
+                const data = await response.json().catch(() => ({}));
+                
+                if (!response.ok) {
+                    throw new Error(data.message || 'Login failed. Please check your credentials.');
                 }
+
+                console.log('Login successful:', data);
+                
+                // Store user data in localStorage
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    console.log('Token saved to localStorage');
+                }
+                
+                if (data.user) {
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    if (data.user.role) {
+                        localStorage.setItem('userRole', data.user.role);
+                    }
+                }
+
+                // Redirect based on user role
+                const redirectPath = data.user?.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                console.log(`Redirecting to: ${redirectPath}`);
+                
+                // Add a small delay to ensure localStorage is updated
+                setTimeout(() => {
+                    window.location.href = redirectPath;
+                }, 100);
+                
             } catch (error) {
                 console.error('Login error:', error);
-                hideLoading();
-                errorMessage.textContent = 'Error connecting to server. Please try again.';
+                errorMessage.textContent = error.message || 'Error connecting to server. Please try again.';
                 errorMessage.classList.remove('hidden');
+                
+                // Re-enable login button
+                if (loginBtn) loginBtn.disabled = false;
+                hideLoading();
+                
+                // Clear password field
+                document.getElementById('password').value = '';
             }
         });
 
+        // Check if user is already authenticated
+        async function checkAuthStatus() {
+            const token = localStorage.getItem('token');
+            if (!token) return false;
+            
+            try {
+                const response = await fetch(`${BASE_URL}/auth/check-session`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.authenticated) {
+                        const redirectPath = data.user?.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                        window.location.href = redirectPath;
+                        return true;
+                    }
+                }
+                return false;
+            } catch (error) {
+                console.error('Auth check error:', error);
+                return false;
+            }
+        }
+        
+        // Check auth status on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Small delay to allow other scripts to initialize
+            setTimeout(async () => {
+                try {
+                    await checkAuthStatus();
+                } catch (error) {
+                    console.error('Initial auth check failed:', error);
+                }
+            }, 100);
+        });
+        
         // Password visibility toggle
         document.getElementById('togglePassword').addEventListener('click', function() {
             const password = document.getElementById('password');
