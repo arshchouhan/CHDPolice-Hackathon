@@ -56,8 +56,7 @@ function getBaseUrl() {
     // Create a local constant that won't conflict with other scripts
     const GMAIL_BASE_URL = window.BASE_URL;
     
-    // Make it available to the rest of the script
-    window.GMAIL_BASE_URL = GMAIL_BASE_URL;
+  
 })();
 
 /**
