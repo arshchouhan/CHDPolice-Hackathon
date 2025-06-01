@@ -34,6 +34,7 @@
     "mongoose": "^8.1.1",
     "node-html-parser": "^6.1.12",
     "socket.io": "^4.8.1",
-    "whois-json": "^2.0.4"
+    "whois-json": "^2.0.4",
+    "winston": "^3.17.0"
   }
 }
