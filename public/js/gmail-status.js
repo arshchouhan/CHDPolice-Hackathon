@@ -1,17 +1,110 @@
 /**
+/**
  * Gmail Status Management
  * Handles checking and displaying Gmail connection status
  */
 
-// Import the API utility
-import { gmail } from './api.js';
-
 // Global state
-let gmailStatus = {
+const gmailStatus = {
     connected: false,
     email: null,
     loading: true
 };
+
+// DOM Elements
+let statusElement, emailElement, connectButton, disconnectButton, loadingIndicator;
+
+// API utilities
+const API = {
+    async checkGmailStatus() {
+        try {
+            const response = await fetch('/api/gmail/status', {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error checking Gmail status:', error);
+            throw error;
+        }
+    },
+    
+    async connectGmail() {
+        try {
+            const response = await fetch('/api/gmail/connect', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error connecting Gmail:', error);
+            throw error;
+        }
+    },
+    
+    async disconnectGmail() {
+        try {
+            const response = await fetch('/api/gmail/disconnect', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error disconnecting Gmail:', error);
+            throw error;
+        }
+    }
+};
+
+/**
+ * Initialize the Gmail status component
+ */
+function initGmailStatus() {
+    // Cache DOM elements
+    statusElement = document.getElementById('gmailStatus');
+    emailElement = document.getElementById('gmailEmail');
+    connectButton = document.getElementById('connectGmailBtn');
+    disconnectButton = document.getElementById('disconnectGmailBtn');
+    loadingIndicator = document.getElementById('gmailLoading');
+
+    // Add event listeners
+    if (connectButton) {
+        connectButton.addEventListener('click', handleConnectGmail);
+    }
+    if (disconnectButton) {
+        disconnectButton.addEventListener('click', handleDisconnectGmail);
+    }
+
+    // Initial status check
+    checkGmailStatus();
+}
 
 /**
  * Update the UI based on Gmail connection status

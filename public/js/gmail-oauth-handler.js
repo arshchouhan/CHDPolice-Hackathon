@@ -12,18 +12,83 @@
 function getBaseUrl() {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
+    const port = window.location.port;
     
-    // Development environment
+    // Development environment (local)
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        const devUrl = `http://${hostname}:3000`;
+        const devUrl = `${protocol}//${hostname}${port ? ':' + port : ''}`;
         console.log('Using development URL:', devUrl);
         return devUrl;
     } 
     // Production environment
     else {
+        // Check if we're in a Vercel or Render deployment
+        const isVercel = window.location.hostname.endsWith('.vercel.app');
+        const isRender = window.location.hostname.endsWith('.onrender.com');
+        
+        // For Vercel and Render, use the current origin
+        if (isVercel || isRender) {
+            const prodUrl = window.location.origin;
+            console.log('Using production URL (Vercel/Render):', prodUrl);
+            return prodUrl;
+        }
+        
+        // For custom domains, use the current origin
         const prodUrl = window.location.origin;
-        console.log('Using production URL:', prodUrl);
+        console.log('Using production URL (custom domain):', prodUrl);
         return prodUrl;
+    }
+}
+
+// Make BASE_URL available globally
+const BASE_URL = getBaseUrl();
+console.log('Base URL initialized:', BASE_URL);
+
+/**
+ * Check if user is authenticated
+ * @returns {Promise<boolean>} True if authenticated, false otherwise
+ */
+async function checkAuthentication() {
+    console.log('Checking authentication status...');
+    
+    try {
+        const token = localStorage.getItem('token');
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // Add token to headers if it exists
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        console.log('Sending auth check to:', `${BASE_URL}/auth/check-auth`);
+        const response = await fetch(`${BASE_URL}/auth/check-auth`, {
+            method: 'GET',
+            credentials: 'include', // Send cookies
+            headers: headers
+        });
+        
+        console.log('Auth check response status:', response.status);
+        
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            console.error('Authentication check failed:', error);
+            return false;
+        }
+        
+        const data = await response.json();
+        console.log('Authentication response:', data);
+        
+        if (data.authenticated && data.user) {
+            console.log('User is authenticated:', data.user);
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('Error during authentication check:', error);
+        return false;
     }
 }
 
@@ -55,6 +120,14 @@ async function connectGmail() {
     
     if (connectBtn) connectBtn.disabled = true;
     if (statusText) statusText.textContent = 'Connecting to Gmail...';
+    
+    // First check if user is authenticated
+    const isAuthenticated = await checkAuthentication();
+    if (!isAuthenticated) {
+        console.log('User not authenticated, redirecting to login...');
+        window.location.href = `${BASE_URL}/login.html?redirect=${encodeURIComponent(window.location.pathname)}`;
+        return;
+    }
     
     try {
         const token = localStorage.getItem('token');
