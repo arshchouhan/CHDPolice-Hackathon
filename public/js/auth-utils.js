@@ -9,7 +9,7 @@ async function isAuthenticated() {
     if (!token) return false;
     
     try {
-        const response = await fetch(`${window.BASE_URL}/auth/check-session`, {
+        const response = await fetch(`${window.BASE_URL}/auth/check-auth`, {
             method: 'GET',
             credentials: 'include',
             headers: {

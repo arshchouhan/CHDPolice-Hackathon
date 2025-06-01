@@ -404,7 +404,7 @@
             if (!token) return false;
             
             try {
-                const response = await fetch(`${BASE_URL}/auth/check-session`, {
+                const response = await fetch(`${BASE_URL}/auth/check-auth`, {
                     method: 'GET',
                     credentials: 'include',
                     headers: {
