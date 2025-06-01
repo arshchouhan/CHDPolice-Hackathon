@@ -40,14 +40,25 @@ function getBaseUrl() {
     }
 }
 
-// Make BASE_URL available globally if not already defined
-if (typeof window.BASE_URL === 'undefined') {
-    window.BASE_URL = getBaseUrl();
-    console.log('Base URL initialized:', window.BASE_URL);
-}
-
-// Alias for backward compatibility
-const BASE_URL = window.BASE_URL;
+// Initialize BASE_URL only once
+(function() {
+    // Check if BASE_URL is already defined in the window object
+    if (!window.BASE_URL) {
+        // If not, define it
+        Object.defineProperty(window, 'BASE_URL', {
+            value: getBaseUrl(),
+            writable: false,
+            configurable: false
+        });
+        console.log('Base URL initialized:', window.BASE_URL);
+    }
+    
+    // Create a local constant that won't conflict with other scripts
+    const GMAIL_BASE_URL = window.BASE_URL;
+    
+    // Make it available to the rest of the script
+    window.GMAIL_BASE_URL = GMAIL_BASE_URL;
+})();
 
 /**
  * Check if user is authenticated
