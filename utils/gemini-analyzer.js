@@ -73,7 +73,7 @@ async function analyzeEmailWithGemini(emailData) {
  */
 function createAnalysisPrompt(emailData) {
   return `
-You are a cybersecurity expert specializing in email phishing detection. Analyze this email for phishing indicators and suspicious URLs.
+You are a senior cybersecurity analyst with expertise in email security. Your task is to thoroughly analyze this email for signs of phishing, scams, or other malicious intent.
 
 EMAIL DETAILS:
 From: ${emailData.sender}
@@ -85,36 +85,60 @@ URLs found in email:
 ${emailData.urls.map((url, index) => `${index + 1}. ${url}`).join('\n')}
 
 ANALYSIS INSTRUCTIONS:
-1. Identify any suspicious URLs based on:
-   - Domain age, reputation, or unusual TLDs (.xyz, .tk, etc.)
-   - Misspellings or lookalike domains (e.g., paypa1.com vs paypal.com)
-   - Unusual subdomains or path structures
-   - URL shorteners or redirects
+1. URL Analysis (be thorough and critical):
+   - Check for typosquatting (e.g., paypa1.com, micros0ft.com, g00gle.com)
+   - Verify if domains are recently registered (check TLDs like .xyz, .top, .gq, .tk, .ml, .ga, .cf)
+   - Look for suspicious subdomains (e.g., secure-paypal.com.login.verify.xyz)
+   - Check for URL shorteners or redirects
+   - Verify if the domain matches the claimed organization
+   - Look for IP addresses instead of domain names
+   - Check for HTTPS usage and certificate validity
 
-2. Analyze the email content for phishing indicators:
-   - Urgency or threatening language
-   - Grammar/spelling errors
-   - Requests for personal information
-   - Mismatched sender domains
-   - Generic greetings
+2. Email Content Analysis:
+   - Check for urgent or threatening language (e.g., "Your account will be suspended")
+   - Look for poor grammar or spelling mistakes
+   - Identify requests for sensitive information (passwords, SSN, credit card)
+   - Verify if sender email matches the claimed organization
+   - Check for generic greetings (e.g., "Dear Customer" instead of your name)
+   - Look for mismatched links (text shows one URL but links elsewhere)
+   - Check for suspicious attachments or requests to download files
 
-3. Assign a risk score (0-100) to each URL and the overall email
+3. Risk Assessment:
+   - Assign a risk score (0-100) to each URL based on severity of findings
+   - Calculate an overall risk score for the email
+   - Be strict with financial institutions, government agencies, and tech companies
+   - Consider the context and combination of multiple low-risk indicators
 
-4. Format your response as JSON with the following structure:
+4. Response Format (MUST be valid JSON):
 {
-  "overallRiskScore": number,
-  "phishingIndicators": [string],
+  "overallRiskScore": number,  // 0-100
+  "isSuspicious": boolean,      // true if likely phishing/scam
+  "phishingIndicators": [
+    {
+      "type": string,          // e.g., "suspicious_url", "urgent_language"
+      "severity": "low"|"medium"|"high",
+      "details": string,
+      "confidence": number    // 0-100
+    }
+  ],
   "urlAnalysis": [
     {
       "url": string,
-      "riskScore": number,
-      "reasons": [string]
+      "riskScore": number,    // 0-100
+      "isSuspicious": boolean,
+      "reasons": [string],
+      "confidence": number    // 0-100
     }
   ],
-  "summary": string
+  "summary": string,
+  "recommendation": string   // e.g., "Block", "Quarantine", "Safe to deliver"
 }
 
-Provide ONLY the JSON response with no additional text.
+IMPORTANT:
+- Be thorough and skeptical in your analysis
+- Multiple low-severity indicators can add up to a high risk
+- When in doubt, flag as suspicious
+- Only return valid JSON with no additional text or markdown formatting
 `;
 }
 
@@ -130,20 +154,42 @@ function parseGeminiResponse(response, emailData) {
     // Extract the text from the response
     const responseText = response.candidates[0].content.parts[0].text;
     
-    // Find the JSON part in the response (Gemini might include additional text)
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Could not extract JSON from Gemini response');
+    // Clean and extract JSON (handle markdown code blocks or other formatting)
+    let jsonString = responseText.trim();
+    
+    // Remove markdown code blocks if present
+    if (jsonString.startsWith('```json')) {
+      jsonString = jsonString.replace(/^```json\n|```$/g, '');
+    } else if (jsonString.startsWith('```')) {
+      jsonString = jsonString.replace(/^```\n|```$/g, '');
     }
     
     // Parse the JSON
-    const analysisResult = JSON.parse(jsonMatch[0]);
+    const analysisResult = JSON.parse(jsonString);
     
-    // Add original email data for reference
+    // Ensure required fields exist with defaults
+    analysisResult.overallRiskScore = analysisResult.overallRiskScore || 0;
+    analysisResult.isSuspicious = analysisResult.isSuspicious || false;
+    analysisResult.phishingIndicators = analysisResult.phishingIndicators || [];
+    analysisResult.urlAnalysis = analysisResult.urlAnalysis || [];
+    
+    // Process URL analysis to ensure consistent structure
+    if (Array.isArray(analysisResult.urlAnalysis)) {
+      analysisResult.urlAnalysis = analysisResult.urlAnalysis.map(urlInfo => ({
+        url: urlInfo.url || '',
+        riskScore: urlInfo.riskScore || 0,
+        isSuspicious: urlInfo.isSuspicious || false,
+        reasons: Array.isArray(urlInfo.reasons) ? urlInfo.reasons : [],
+        confidence: typeof urlInfo.confidence === 'number' ? urlInfo.confidence : 80
+      }));
+    }
+    
+    // Add original email data for reference (without the full body for privacy)
     analysisResult.originalEmail = {
       subject: emailData.subject,
       sender: emailData.sender,
-      urlCount: emailData.urls.length
+      urlCount: emailData.urls.length,
+      hasBody: !!emailData.body
     };
     
     return analysisResult;
