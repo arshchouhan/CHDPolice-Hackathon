@@ -176,7 +176,7 @@
             document.getElementById('loadingOverlay').classList.add('hidden');
         }
 
-        // Check if user is authenticated
+        // Check if user is authenticated and has proper role access
         async function checkAuth() {
             showLoading();
             
@@ -187,11 +187,12 @@
                     return;
                 }
                 
-                // Fetch user data
-                const response = await fetch(`${BASE_URL}/auth/me`, {
+                // Fetch user data with role information
+                const response = await fetch(`${BASE_URL}/auth/check-auth`, {
                     method: 'GET',
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
                 
@@ -199,10 +200,34 @@
                     throw new Error('Authentication failed');
                 }
                 
-                const userData = await response.json();
+                const authData = await response.json();
+                
+                if (!authData.authenticated || !authData.user) {
+                    throw new Error('Not authenticated');
+                }
+                
+                const user = authData.user;
+                
+                // Store user data in localStorage
+                localStorage.setItem('user', JSON.stringify(user));
                 
                 // Display username
-                document.getElementById('displayUsername').textContent = userData.username || 'User';
+                document.getElementById('displayUsername').textContent = user.username || 'User';
+                
+                // Check if user is admin and redirect if needed
+                if (user.role === 'admin') {
+                    const currentPath = window.location.pathname;
+                    if (!currentPath.includes('admin')) {
+                        window.location.href = '/admin/dashboard';
+                        return;
+                    }
+                }
+                
+                // For regular users, make sure they're not on admin pages
+                if (user.role !== 'admin' && window.location.pathname.includes('admin')) {
+                    window.location.href = '/dashboard';
+                    return;
+                }
                 
                 // Fetch dashboard data
                 fetchDashboardData();
@@ -210,6 +235,7 @@
             } catch (error) {
                 console.error('Auth check error:', error);
                 localStorage.removeItem('token');
+                localStorage.removeItem('user');
                 window.location.href = '/login';
             } finally {
                 hideLoading();

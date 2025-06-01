@@ -44,22 +44,51 @@ exports.getAuthUrl = (req, res) => {
     
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
       console.error('Missing required OAuth2 environment variables');
-      return res.status(500).json({ 
-        message: 'OAuth configuration error', 
+      const errorDetails = {
+        message: 'OAuth configuration error',
         details: 'Missing required environment variables for Google OAuth2',
         missingVars: {
           clientId: !process.env.GOOGLE_CLIENT_ID,
           clientSecret: !process.env.GOOGLE_CLIENT_SECRET
-        }
+        },
+        help: 'Please ensure you have set up the following environment variables in your deployment environment (e.g., Render, Vercel, or .env file):',
+        requiredVars: [
+          'GOOGLE_CLIENT_ID',
+          'GOOGLE_CLIENT_SECRET',
+          'JWT_SECRET',
+          'MONGODB_URI'
+        ],
+        nextSteps: [
+          '1. Go to Google Cloud Console: https://console.cloud.google.com/',
+          '2. Navigate to APIs & Services > Credentials',
+          '3. Create OAuth 2.0 credentials (OAuth client ID) if not already done',
+          '4. Add authorized redirect URIs:',
+          '   - For development: http://localhost:3000/api/gmail/callback',
+          '   - For production: https://your-production-url.com/api/gmail/callback',
+          '5. Set the environment variables in your deployment environment'
+        ]
+      };
+      
+      console.error('OAuth Configuration Error:', JSON.stringify(errorDetails, null, 2));
+      return res.status(500).json({
+        message: 'OAuth configuration error',
+        details: 'Missing required environment variables for Google OAuth2',
+        error: errorDetails
       });
     }
     
-    // Check if user exists and is authenticated
+        // Check if user exists and is authenticated
     if (!req.user || !req.user.id) {
-      console.error('User not authenticated or missing ID');
+      console.error('User not authenticated or missing ID in Gmail auth request');
+      console.log('Request user object:', req.user);
+      console.log('Request headers:', req.headers);
+      
       return res.status(401).json({
+        success: false,
         message: 'Authentication required',
-        details: 'You must be logged in to connect Gmail'
+        details: 'You must be logged in to connect Gmail',
+        code: 'AUTH_REQUIRED',
+        timestamp: new Date().toISOString()
       });
     }
     

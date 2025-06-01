@@ -53,32 +53,57 @@ const corsOptions = {
             'https://email-detection-api.onrender.com',
             'https://email-detection.onrender.com',
             'https://email-detection.public.onrender.com',
-            'http://localhost:3000'
+            'http://localhost:3000',
+            'http://localhost:5000'  // For local development with separate ports
         ];
         
         console.log('Request origin:', origin || 'No origin (direct access)');
         
-        // In production, check against allowed origins
-        if (process.env.NODE_ENV === 'production') {
-            if (!origin || allowedOrigins.includes(origin)) {
-                callback(null, true);
-            } else {
-                console.warn(`Blocked request from unauthorized origin: ${origin}`);
-                callback(null, true); // Still allow for now, but log it
-            }
-        } else {
-            // In development, allow all origins
-            callback(null, true);
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) {
+            console.log('No origin, allowing request');
+            return callback(null, true);
         }
+
+        // Check if the origin is in the allowed list
+        if (allowedOrigins.includes(origin)) {
+            console.log('Origin allowed:', origin);
+            return callback(null, true);
+        }
+        
+        // For development, allow all origins but log a warning
+        if (process.env.NODE_ENV !== 'production') {
+            console.warn(`Allowing request from non-whitelisted origin in development: ${origin}`);
+            return callback(null, true);
+        }
+        
+        // In production, block unauthorized origins
+        console.warn(`Blocked request from unauthorized origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
-    exposedHeaders: ['Set-Cookie']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'Origin', 
+        'Accept',
+        'X-Requested-With',
+        'X-Access-Token',
+        'X-Forwarded-For',
+        'X-Forwarded-Proto'
+    ],
+    exposedHeaders: [
+        'Set-Cookie',
+        'Authorization',
+        'X-Access-Token'
+    ],
+    maxAge: 86400  // 24 hours
 };
 
-// Apply CORS configuration (only once)
+// Apply CORS configuration with preflight continue
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Enable preflight for all routes
 
 // Authentication middleware - MOVED BEFORE ROUTES TO FIX RENDER DEPLOYMENT ERROR
 const authenticateUser = (req, res, next) => {
