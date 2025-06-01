@@ -233,7 +233,7 @@ async function connectGmail() {
         localStorage.setItem('gmailAuthReturnUrl', currentUrl);
         
         // Get environment information for debugging
-        const baseUrl = getBaseUrl();
+        const baseUrl = window.GMAIL_BASE_URL;
         const hostname = window.location.hostname;
         const origin = window.location.origin;
         
