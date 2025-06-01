@@ -329,7 +329,7 @@ const authenticateUser = (req, res, next) => {
 };
 
 // Add cache control middleware for auth routes
-app.use('/auth', (req, res, next) => {
+app.use('/api/auth', (req, res, next) => {
     res.header('Cache-Control', 'no-cache, private, no-store, must-revalidate');
     res.header('Expires', '-1');
     res.header('Pragma', 'no-cache');
