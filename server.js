@@ -45,16 +45,48 @@ const requireAdmin = require('./middlewares/requireAdmin');
 app.use(express.json());
 app.use(cookieParser());
 
-// Add cache control headers to API responses
+// Enhanced cache control and security headers
 app.use((req, res, next) => {
-  // Only apply to API routes
-  if (req.path.startsWith('/api/')) {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.set('Pragma', 'no-cache');
-    res.set('Expires', '0');
-    res.set('Surrogate-Control', 'no-store');
-  }
-  next();
+    // Skip cache control for static assets with hashed filenames
+    const isStaticAsset = /\.[a-f0-9]{8}\..+$/.test(req.path) || 
+                        /\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/.test(req.path);
+    
+    // Set security headers for all responses
+    const securityHeaders = {
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Resource-Policy': 'same-site'
+    };
+    
+    // Set cache control headers for non-static assets and API routes
+    if (!isStaticAsset || req.path.startsWith('/api/')) {
+        Object.assign(securityHeaders, {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'Surrogate-Control': 'no-store',
+            'ETag': false,
+            'Last-Modified': new Date().toUTCString()
+        });
+    } else {
+        // Cache static assets for 1 year
+        Object.assign(securityHeaders, {
+            'Cache-Control': 'public, max-age=31536000, immutable'
+        });
+    }
+    
+    // Apply all headers
+    res.set(securityHeaders);
+    
+    // Add request ID for tracking
+    req.requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+    
+    next();
 });
 
 // Serve static files from the public directory
@@ -127,8 +159,125 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // Enable preflight for all routes
 
-// Authentication middleware - MOVED BEFORE ROUTES TO FIX RENDER DEPLOYMENT ERROR
+// Enhanced authentication middleware with session validation
 const authenticateUser = (req, res, next) => {
+    // Skip auth for static files, public routes, and health checks
+    if (req.path === '/health' || req.path === '/api/health' || 
+        req.path.startsWith('/auth/') || 
+        req.path.startsWith('/public/') ||
+        /\.[a-zA-Z0-9]+$/.test(req.path)) {
+        return next();
+    }
+
+    // Check for token in cookies first
+    const token = req.cookies?.token || 
+                 req.headers.authorization?.split(' ')[1] ||
+                 req.query?.token;
+
+    if (!token) {
+        console.log(`[${req.requestId}] No authentication token found`);
+        return res.status(401).json({ 
+            success: false, 
+            error: 'Authentication required',
+            code: 'AUTH_REQUIRED'
+        });
+    }
+
+    // Verify JWT token
+    jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
+        if (err) {
+            console.error(`[${req.requestId}] Token verification failed:`, err.message);
+            
+            // Clear invalid token
+            res.clearCookie('token', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
+            });
+            
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Invalid or expired token',
+                code: 'INVALID_TOKEN'
+            });
+        }
+
+        try {
+            // Check if user exists and is active
+            const user = await User.findById(decoded.id).select('-password');
+            if (!user || user.status !== 'active') {
+                throw new Error('User not found or inactive');
+            }
+
+            // Attach user to request
+            req.user = user;
+            req.token = token;
+            
+            // Refresh token if it's about to expire (within 1 day)
+            const now = Math.floor(Date.now() / 1000);
+            if (decoded.exp - now < 86400) { // 1 day in seconds
+                const newToken = jwt.sign(
+                    { id: user._id, role: user.role },
+                    process.env.JWT_SECRET,
+                    { expiresIn: '7d' }
+                );
+                
+                // Set new token in cookie
+                res.cookie('token', newToken, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+                    domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
+                });
+                
+                console.log(`[${req.requestId}] Token refreshed for user ${user._id}`);
+            }
+            
+            next();
+        } catch (error) {
+            console.error(`[${req.requestId}] User validation error:`, error.message);
+            res.status(401).json({ 
+                success: false, 
+                error: 'Authentication failed',
+                code: 'AUTH_FAILED'
+            });
+        }
+    });
+};
+
+// Apply authentication middleware to protected routes
+app.use(['/api', '/dashboard', '/profile', '/settings'], authenticateUser);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(`[${req.requestId}] Error:`, err);
+    
+    const statusCode = err.statusCode || 500;
+    const errorMessage = process.env.NODE_ENV === 'production' 
+        ? 'Something went wrong' 
+        : err.message;
+    
+    res.status(statusCode).json({
+        success: false,
+        error: errorMessage,
+        code: err.code || 'INTERNAL_ERROR',
+        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        code: 'NOT_FOUND'
+    });
+});
+
+// Authentication middleware - MOVED BEFORE ROUTES TO FIX RENDER DEPLOYMENT ERROR
+const _authenticateUser = (req, res, next) => {
     // Skip auth for static files and public routes
     if (
         req.path === '/' ||
@@ -242,76 +391,71 @@ app.use(express.static(path.join(__dirname, 'public'), {
     lastModified: true
 }));
 
-// Connect to MongoDB with improved error handling
-const connectDB = async () => {
-    try {
-        console.log('Attempting to connect to MongoDB...');
-        // Use MONGODB_URI environment variable
-        const mongoURI = process.env.MONGODB_URI;
-        
-        if (mongoURI) {
-            console.log('Using MONGODB_URI from environment variables');
-        }
-        
-        if (!mongoURI) {
-            const envVars = Object.keys(process.env);
-            console.error('Available environment variables:', envVars.join(', '));
-            
-            const errorMsg = 'MongoDB connection string not found. Please set MONGODB_URI environment variable.';
-            console.error(errorMsg);
-            
-            // In production, continue without exiting but log the error
-            if (process.env.NODE_ENV === 'production') {
-                console.error('WARNING: Running without MongoDB connection. Some features will be unavailable.');
-                return false;
-            } else {
-                throw new Error(errorMsg);
-            }
-        }
-        
-        // Log a masked version of the URI for security
-        const maskedURI = mongoURI.replace(/mongodb\+srv:\/\/[^:]+:[^@]+@/, 'mongodb+srv://****:****@');
-        console.log('MongoDB URI:', maskedURI);
-        
-        const options = {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 30000, // Increased timeout for Render
-            socketTimeoutMS: 75000, // Increased timeout for Render
-            family: 4, // Force to use IPv4
-            connectTimeoutMS: 30000,
-            heartbeatFrequencyMS: 10000
-        };
+// MongoDB connection configuration
+const mongoOptions = {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    connectTimeoutMS: 10000,
+    heartbeatFrequencyMS: 10000,
+    retryWrites: true,
+    w: 'majority',
+    maxPoolSize: 20,
+    minPoolSize: 5,
+    maxIdleTimeMS: 30000,
+    waitQueueTimeoutMS: 5000,
+    family: 4, // Force IPv4
+    keepAlive: true,
+    keepAliveInitialDelay: 300000,
+    autoIndex: process.env.NODE_ENV !== 'production',
+    compressors: 'zlib',
+    zlibCompressionLevel: 7,
+    retryReads: true,
+    retryWrites: true
+};
 
-        await mongoose.connect(mongoURI, options);
+// Connect to MongoDB with improved error handling and retry logic
+const connectDB = async (retryCount = 0) => {
+    const mongoURI = process.env.MONGODB_URI;
+    
+    if (!mongoURI) {
+        console.error('MongoDB connection string not found. Please set MONGODB_URI environment variable.');
+        if (process.env.NODE_ENV === 'production') {
+            console.warn('Running without MongoDB connection in production. Some features will be unavailable.');
+            return false;
+        }
+        throw new Error('MONGODB_URI not set');
+    }
+
+    try {
+        console.log(`Connecting to MongoDB (attempt ${retryCount + 1})...`);
+        
+        // Add production-specific options
+        if (process.env.NODE_ENV === 'production') {
+            mongoOptions.tls = true;
+            mongoOptions.tlsInsecure = false;
+            mongoOptions.tlsAllowInvalidCertificates = false;
+            mongoOptions.tlsAllowInvalidHostnames = false;
+        }
+
+        await mongoose.connect(mongoURI, mongoOptions);
         console.log('✅ MongoDB connected successfully');
-        
-        // Set up connection event handlers
-        mongoose.connection.on('error', (err) => {
-            console.error('MongoDB connection error:', err);
-            // Don't exit in production, try to recover
-            if (process.env.NODE_ENV !== 'production') {
-                console.error('MongoDB error in development mode, exiting...');
-                process.exit(1);
-            }
-        });
-        
-        mongoose.connection.on('disconnected', () => {
-            console.log('MongoDB disconnected, attempting to reconnect...');
-            setTimeout(() => connectWithRetry(0), 5000);
-        });
-        
-        mongoose.connection.on('connected', () => {
-            console.log('MongoDB reconnected successfully');
-        });
         
         return true;
     } catch (err) {
-        console.error('MongoDB connection error:', err);
+        console.error('MongoDB connection error:', err.message);
         
-        // In production, log the error but allow the server to start
+        // In production, implement retry logic
+        if (process.env.NODE_ENV === 'production' && retryCount < 5) {
+            const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+            console.log(`Retrying connection in ${delay/1000} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return connectDB(retryCount + 1);
+        }
+        
         if (process.env.NODE_ENV === 'production') {
-            console.error('WARNING: Starting server without MongoDB connection. Some features will be unavailable.');
+            console.error('Failed to connect to MongoDB after multiple attempts');
             return false;
         }
         
@@ -319,28 +463,50 @@ const connectDB = async () => {
     }
 };
 
-// Retry connection with exponential backoff and Render-specific handling
-const connectWithRetry = (retryCount = 0) => {
-    // For Render, add a delay before first connection attempt to allow network to stabilize
-    if (retryCount === 0 && process.env.RENDER) {
-        console.log('Running on Render, adding initial delay before MongoDB connection attempt...');
-        setTimeout(() => {
-            connectDB().catch(err => {
-                const retryDelay = Math.min(Math.pow(2, retryCount) * 1000, 30000);
-                console.log(`Failed to connect to MongoDB, retrying in ${retryDelay/1000} seconds... (attempt ${retryCount + 1})`);
-                setTimeout(() => connectWithRetry(retryCount + 1), retryDelay);
-            });
-        }, 5000); // 5 second initial delay for Render
-    } else {
-        connectDB().catch(err => {
-            const retryDelay = Math.min(Math.pow(2, retryCount) * 1000, 30000); // Exponential backoff with max 30s
-            console.log(`Failed to connect to MongoDB, retrying in ${retryDelay/1000} seconds... (attempt ${retryCount + 1})`);
-            setTimeout(() => connectWithRetry(retryCount + 1), retryDelay);
-        });
+// Set up MongoDB connection event handlers
+const setupMongoEventHandlers = () => {
+    mongoose.connection.on('error', (err) => {
+        console.error('MongoDB connection error:', err.message);
+    });
+    
+    mongoose.connection.on('disconnected', () => {
+        console.log('MongoDB disconnected');
+        if (process.env.NODE_ENV === 'production') {
+            console.log('Attempting to reconnect...');
+            connectDB().catch(console.error);
+        }
+    });
+    
+    mongoose.connection.on('connected', () => {
+        console.log('MongoDB connected');
+    });
+};
+
+// Initialize MongoDB connection
+const initializeMongoDB = async () => {
+    try {
+        // Set up event handlers first
+        setupMongoEventHandlers();
+        
+        // Initial connection attempt
+        const connected = await connectDB();
+        
+        if (!connected && process.env.NODE_ENV === 'production') {
+            console.warn('Running without MongoDB connection in production');
+        }
+        
+        return connected;
+    } catch (error) {
+        console.error('Failed to initialize MongoDB:', error);
+        if (process.env.NODE_ENV !== 'production') {
+            process.exit(1);
+        }
+        return false;
     }
 };
 
-connectWithRetry();
+// Initialize MongoDB connection when the server starts
+initializeMongoDB().catch(console.error);
 
 // Enhanced health check endpoint for Render with detailed diagnostics
 app.get('/health', async (req, res) => {
