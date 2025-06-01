@@ -68,15 +68,10 @@ const sessionConfig = {
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 1 day
-        domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined,
         path: '/',
-        // Required for cross-site cookies
-        // Remove domain in development to avoid issues with localhost
-        ...(process.env.NODE_ENV === 'production' ? {
-            domain: '.vercel.app',
-            sameSite: 'none',
-            secure: true
-        } : {})
+        ...(process.env.NODE_ENV === 'production' && {
+            domain: '.vercel.app'
+        })
     },
     rolling: true, // Reset maxAge on every request
     proxy: process.env.NODE_ENV === 'production' // Trust the reverse proxy in production
