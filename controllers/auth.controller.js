@@ -223,19 +223,24 @@ exports.login = async (req, res) => {
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     };
 
-    // In production, set domain based on request origin
+    // In production, set secure cookies
     if (process.env.NODE_ENV === 'production') {
         const origin = req.get('origin');
         console.log('Request origin:', origin);
-        if (origin && origin.includes('vercel.app')) {
-            // Match any Vercel subdomain
-            cookieOptions.domain = '.vercel.app';
-            // For Vercel, we need to set SameSite=None and Secure=true
+        
+        // For Render deployments
+        if (origin && origin.includes('render.com')) {
+            cookieOptions.domain = '.onrender.com';
             cookieOptions.sameSite = 'none';
             cookieOptions.secure = true;
-        } else if (origin && origin.includes('render.com')) {
-            cookieOptions.domain = '.onrender.com';
+        } 
+        // For Vercel deployments
+        else if (origin && origin.includes('vercel.app')) {
+            cookieOptions.domain = '.vercel.app';
+            cookieOptions.sameSite = 'none';
+            cookieOptions.secure = true;
         }
+        
         console.log('Cookie options:', cookieOptions);
     }
 
