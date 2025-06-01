@@ -544,35 +544,7 @@ async function verifyAndLoadUserData(token) {
                 }
             }
 
-            // Check Gmail connection status
-            async function checkGmailStatus() {
-                const connectBtn = document.getElementById('connectGmailBtn');
-                const statusText = document.getElementById('gmailStatusText');
-
-                if (!connectBtn) return;
-
-                try {
-                    const response = await fetch(GMAIL_STATUS_URL, {
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to check Gmail status');
-                    }
-
-                    const data = await response.json();
-                    updateUI(data.connected);
-                } catch (error) {
-                    console.error('Error checking Gmail status:', error);
-                    if (statusText) {
-                        statusText.textContent = 'Error checking status';
-                        statusText.className = 'text-red-500 text-sm';
-                    }
-                }
-            }
+            // Check Gmail connection status - implementation is moved to the bottom of the file
 
             // Update UI based on connection status
             function updateUI(isConnected) {
@@ -599,26 +571,7 @@ async function verifyAndLoadUserData(token) {
             // Initialize when DOM is loaded
             document.addEventListener('DOMContentLoaded', initGmailOAuth);
 
-            // Check Gmail connection status
-            async function checkGmailStatus() {
-                try {
-                    const token = localStorage.getItem('token');
-                    if (!token) return;
-
-                    const response = await fetch('/api/gmail/status', {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
-
-                    if (response.ok) {
-                        const status = await response.json();
-                        updateGmailUI(status.connected);
-                    }
-                } catch (error) {
-                    console.error('Error checking Gmail status:', error);
-                }
-            }
+            // Check Gmail connection status - implementation is moved to the bottom of the file
 
             // Update UI based on Gmail connection status
             function updateGmailUI(isConnected) {
@@ -697,23 +650,75 @@ async function verifyAndLoadUserData(token) {
 
 // Check Gmail connection status
 async function checkGmailStatus() {
+    const connectBtn = document.getElementById('connectGmailBtn');
+    const statusText = document.getElementById('gmailStatusText');
+    const gmailStatusText = document.getElementById('gmailStatus');
+
+    if (!connectBtn) return;
+
     try {
         const token = localStorage.getItem('token');
-        if (!token) return;
+        if (!token) {
+            console.log('No token found');
+            if (gmailStatusText) {
+                gmailStatusText.textContent = 'Not authenticated';
+                gmailStatusText.className = 'text-red-500';
+            }
+            return;
+        }
 
         const response = await fetch('/api/gmail/status', {
             headers: {
-                'Authorization': `Bearer ${token}`
-            }
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            credentials: 'include'
         });
 
-        if (response.ok) {
-            const status = await response.json();
-            updateGmailUI(status.connected);
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || 'Failed to check Gmail status');
+        }
+
+        const data = await response.json();
+        
+        // Update the UI based on the connection status
+        if (data.connected) {
+            if (gmailStatusText) {
+                gmailStatusText.textContent = 'Connected';
+                gmailStatusText.className = 'text-green-500';
+            }
+            if (connectBtn) {
+                connectBtn.textContent = 'Disconnect Gmail';
+                connectBtn.className = connectBtn.className
+                    .replace('bg-blue-500', 'bg-red-500')
+                    .replace('hover:bg-blue-600', 'hover:bg-red-600');
+            }
+        } else {
+            if (gmailStatusText) {
+                gmailStatusText.textContent = 'Not Connected';
+                gmailStatusText.className = 'text-red-500';
+            }
+            if (connectBtn) {
+                connectBtn.textContent = 'Connect Gmail';
+                connectBtn.className = connectBtn.className
+                    .replace('bg-red-500', 'bg-blue-500')
+                    .replace('hover:bg-red-600', 'hover:bg-blue-600');
+            }
         }
     } catch (error) {
         console.error('Error checking Gmail status:', error);
+        if (statusText) {
+            statusText.textContent = error.message || 'Error checking status';
+            statusText.className = 'text-red-500 text-sm';
+        }
+        if (gmailStatusText) {
+            gmailStatusText.textContent = 'Error';
+            gmailStatusText.className = 'text-red-500';
+        }
     }
+
 }
 
 // Update UI based on Gmail connection status
