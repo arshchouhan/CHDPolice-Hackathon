@@ -234,16 +234,29 @@ app.use(express.static(path.join(__dirname, 'public'), {
 const connectDB = async () => {
     try {
         console.log('Attempting to connect to MongoDB...');
-        const mongoURI = process.env.MONGO_URI;
+        // Check for MONGODB_URI first, then fall back to MONGO_URI for backward compatibility
+        const mongoURI = process.env.MONGODB_URI || process.env.MONGO_URI;
+        
+        // Log which environment variable is being used
+        if (process.env.MONGODB_URI) {
+            console.log('Using MONGODB_URI from environment variables');
+        } else if (process.env.MONGO_URI) {
+            console.log('Using MONGO_URI from environment variables (deprecated)');
+        }
         
         if (!mongoURI) {
-            console.error('MONGO_URI environment variable is not set');
+            const envVars = Object.keys(process.env);
+            console.error('Available environment variables:', envVars.join(', '));
+            
+            const errorMsg = 'MongoDB connection string not found. Please set MONGODB_URI environment variable.';
+            console.error(errorMsg);
+            
             // In production, continue without exiting but log the error
             if (process.env.NODE_ENV === 'production') {
                 console.error('WARNING: Running without MongoDB connection. Some features will be unavailable.');
                 return false;
             } else {
-                throw new Error('MONGO_URI environment variable is not set');
+                throw new Error(errorMsg);
             }
         }
         
