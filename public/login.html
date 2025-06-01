@@ -271,8 +271,8 @@
                     throw new Error('No credential received from Google');
                 }
 
-                console.log('Attempting Google sign-in to:', getApiUrl('/auth/google'));
-                const res = await fetch(getApiUrl('/auth/google'), {
+                console.log('Attempting Google sign-in to:', `${BASE_URL}/auth/google`);
+                const res = await fetch(`${BASE_URL}/auth/google`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -341,7 +341,7 @@
             try {
                 console.log('Attempting login to:', `${BASE_URL}/auth/login`);
                 
-                const response = await fetch(getApiUrl('/auth/login'), {
+                const response = await fetch(`${BASE_URL}/auth/login`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -409,7 +409,7 @@
             if (!token) return false;
             
             try {
-                const response = await fetch(getApiUrl('/auth/check-auth'), {
+                const response = await fetch(`${window.BASE_URL || ''}/auth/check-auth`, {
                     method: 'GET',
                     credentials: 'include',
                     headers: {
@@ -447,16 +447,10 @@
             }
         };
         
-        // Set base URL at the top of the script to ensure it's available for all functions
-        window.BASE_URL = window.location.origin;
-        console.log('BASE_URL set to:', window.BASE_URL);
-        
-        // Function to get the base URL with proper trailing slash handling
-        function getApiUrl(endpoint) {
-            // Remove any trailing slash from BASE_URL and leading slash from endpoint
-            const base = window.BASE_URL.endsWith('/') ? window.BASE_URL.slice(0, -1) : window.BASE_URL;
-            const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-            return `${base}${path}`;
+        // Set base URL if not already set
+        if (!window.BASE_URL) {
+            window.BASE_URL = window.location.origin;
+            console.log('BASE_URL set to:', window.BASE_URL);
         }
 
         // Check auth status on page load
