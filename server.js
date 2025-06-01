@@ -245,6 +245,9 @@ const authenticateUser = (req, res, next) => {
     });
 };
 
+// Register authentication routes (no auth required)
+app.use('/auth', authRoutes);
+
 // Apply authentication middleware to protected routes
 app.use(['/api', '/dashboard', '/profile', '/settings'], authenticateUser);
 
@@ -267,65 +270,14 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
+    console.log(`404 - Route not found: ${req.method} ${req.originalUrl}`);
     res.status(404).json({
         success: false,
         error: 'Not Found',
-        code: 'NOT_FOUND'
+        code: 'NOT_FOUND',
+        path: req.originalUrl
     });
 });
-
-// Authentication middleware - MOVED BEFORE ROUTES TO FIX RENDER DEPLOYMENT ERROR
-const _authenticateUser = (req, res, next) => {
-    // Skip auth for static files and public routes
-    if (
-        req.path === '/' ||
-        req.path === '/login' ||
-        req.path === '/signup' ||
-        req.path.startsWith('/auth/') ||
-        req.path.endsWith('.html') ||
-        req.path.endsWith('.ico') ||
-        req.path.endsWith('.css') ||
-        req.path.endsWith('.js')
-    ) {
-        return next();
-    }
-    
-    // Try to get token from multiple sources
-    let token = null;
-    
-    // Check Authorization header first
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-        token = req.headers.authorization.split(' ')[1];
-    } 
-    // Then check cookies
-    else if (req.cookies && req.cookies.token) {
-        token = req.cookies.token;
-    }
-    
-    if (!token) {
-        console.log('No token found in request');
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(401).json({ message: 'Authentication required' });
-        }
-        return res.redirect('/login.html');
-    }
-
-    try {
-        // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (err) {
-        console.error('Token verification error:', err);
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(401).json({ message: 'Invalid or expired token' });
-        }
-        return res.redirect('/login.html');
-    }
-};
-
-// Register authentication routes (no auth required)
-app.use('/auth', authRoutes);
 
 // Basic health check endpoint
 app.get('/health', (req, res) => {
