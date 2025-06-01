@@ -49,6 +49,7 @@ app.use(cookieParser(process.env.SESSION_SECRET || 'your-secret-key'));
 
 // Session configuration
 const sessionConfig = {
+    name: 'sessionId',
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: false,
@@ -58,15 +59,27 @@ const sessionConfig = {
         autoRemove: 'native',
         crypto: {
             secret: process.env.SESSION_SECRET || 'your-secret-key'
-        }
+        },
+        collectionName: 'sessions',
+        stringify: false
     }),
     cookie: {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 1 day
-        domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
-    }
+        domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined,
+        path: '/',
+        // Required for cross-site cookies
+        // Remove domain in development to avoid issues with localhost
+        ...(process.env.NODE_ENV === 'production' ? {
+            domain: '.vercel.app',
+            sameSite: 'none',
+            secure: true
+        } : {})
+    },
+    rolling: true, // Reset maxAge on every request
+    proxy: process.env.NODE_ENV === 'production' // Trust the reverse proxy in production
 };
 
 // Apply session middleware
@@ -138,7 +151,11 @@ const corsOptions = {
             'https://chd-police-hackathon-jku23otvi-arsh-chauhans-projects-1f436a49.vercel.app',
             'https://chd-police-hackathon.vercel.app',
             'http://localhost:3000',
-            'http://localhost:5000'  // For local development with separate ports
+            'http://localhost:5000',  // For local development with separate ports
+            'http://localhost:5500',  // Common port for live server
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:5000',
+            'http://127.0.0.1:5500'
         ];
         
         console.log('Request origin:', origin || 'No origin (direct access)');
@@ -152,39 +169,43 @@ const corsOptions = {
         // Check if the origin is in the allowed list
         if (allowedOrigins.includes(origin)) {
             console.log('Origin allowed:', origin);
-            return callback(null, true);
+            return callback(null, origin); // Return the origin instead of true for dynamic CORS
         }
         
         // For development, allow all origins but log a warning
         if (process.env.NODE_ENV !== 'production') {
             console.warn(`Allowing request from non-whitelisted origin in development: ${origin}`);
-            return callback(null, true);
+            return callback(null, origin);
         }
         
         // In production, block unauthorized origins
         console.warn(`Blocked request from unauthorized origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
     },
-    credentials: true,
+    credentials: true, // Required for cookies, authorization headers with HTTPS
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
     preflightContinue: false,
     optionsSuccessStatus: 204,
     allowedHeaders: [
         'Content-Type', 
         'Authorization', 
-        'Origin', 
-        'Accept',
         'X-Requested-With',
         'X-Access-Token',
         'X-Forwarded-For',
-        'X-Forwarded-Proto'
+        'X-Forwarded-Proto',
+        'Accept',
+        'Origin',
+        'Cookie',
+        'Set-Cookie'
     ],
     exposedHeaders: [
         'Set-Cookie',
         'Authorization',
-        'X-Access-Token'
+        'X-Access-Token',
+        'X-Requested-With'
     ],
-    maxAge: 86400  // 24 hours
+    maxAge: 86400,  // 24 hours
+    optionsSuccessStatus: 200
 };
 
 // Apply CORS configuration with preflight continue
