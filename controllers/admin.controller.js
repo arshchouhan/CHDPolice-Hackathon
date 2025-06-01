@@ -4,10 +4,26 @@ const Admin = require('../models/Admin');
 const { google } = require('googleapis');
 
 // Helper function to check if user is admin
-const isAdmin = async (userId) => {
+const isAdmin = async (user) => {
   try {
-    const admin = await Admin.findById(userId);
-    return !!admin;
+    // If user is already an object with role
+    if (user && user.role === 'admin') {
+      return true;
+    }
+    
+    // If user is an ID string, look up in database
+    if (typeof user === 'string') {
+      const admin = await Admin.findById(user);
+      return !!admin;
+    }
+    
+    // If user is an object with id property
+    if (user && user.id) {
+      const admin = await Admin.findById(user.id);
+      return !!admin;
+    }
+    
+    return false;
   } catch (error) {
     console.error('Error checking admin status:', error);
     return false;
@@ -57,42 +73,116 @@ exports.dashboard = async (req, res) => {
 // Get all analyzed emails
 exports.getAllEmails = async (req, res) => {
   try {
-    // Verify admin role
-    const adminCheck = await isAdmin(req.user.id);
+    // Debug log the request object to see what's available
+    console.log('=== GET /api/admin/emails ===');
+    console.log('Request user:', JSON.stringify(req.user, null, 2));
+    console.log('Request query:', JSON.stringify(req.query, null, 2));
+    
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      console.error('User not authenticated or missing user ID');
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. Please log in.'
+      });
+    }
+
+    // Verify admin role using the complete user object
+    console.log('Verifying admin role for user:', req.user.id);
+    const adminCheck = await isAdmin(req.user);
     if (!adminCheck) {
+      console.error('Access denied - User is not an admin:', req.user.id);
       return res.status(403).json({
         success: false,
         message: 'Access denied. Admin privileges required.'
       });
     }
+    
+    console.log('Admin verification successful for user:', req.user.id);
 
     const { risk, userId, status, flagged, sort = '-analyzedAt', page = 1, limit = 20 } = req.query;
     
-    // Build query
-    const query = {};
-    
-    if (risk) query.phishingRisk = risk;
-    if (userId) query.userId = userId;
-    if (status) query.status = status;
-    if (flagged === 'true') query.flagged = true;
-    
-    // Count total documents for pagination
-    const total = await Email.countDocuments(query);
-    
-    // Get emails with pagination and sorting
-    const emails = await Email.find(query)
-      .sort(sort)
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit))
-      .populate('userId', 'username email');
-    
-    res.status(200).json({
-      success: true,
-      total,
-      page: parseInt(page),
-      pages: Math.ceil(total / limit),
-      emails
-    });
+    try {
+      // Build query
+      const query = {};
+      
+      // Add filters if provided
+      if (risk) {
+        query.phishingRisk = risk;
+        console.log('Filtering by risk level:', risk);
+      }
+      
+      if (userId) {
+        query.userId = userId;
+        console.log('Filtering by user ID:', userId);
+      }
+      
+      if (status) {
+        query.status = status;
+        console.log('Filtering by status:', status);
+      }
+      
+      if (flagged === 'true') {
+        query.flagged = true;
+        console.log('Filtering by flagged status: true');
+      }
+      
+      console.log('Final query:', JSON.stringify(query, null, 2));
+      
+      // Count total documents for pagination
+      console.log('Counting total emails matching query...');
+      const total = await Email.countDocuments(query);
+      console.log(`Found ${total} emails matching query`);
+      
+      // Calculate pagination values
+      const pageNum = parseInt(page, 10) || 1;
+      const limitNum = parseInt(limit, 10) || 20;
+      const skip = (pageNum - 1) * limitNum;
+      
+      console.log(`Fetching emails - page ${pageNum}, limit ${limitNum}, skip ${skip}`);
+      
+      // Get emails with pagination and sorting
+      const emails = await Email.find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum)
+        .populate('userId', 'username email')
+        .lean(); // Convert to plain JavaScript objects
+      
+      console.log(`Successfully fetched ${emails.length} emails`);
+      
+      // Ensure all emails have required fields
+      const processedEmails = emails.map(email => ({
+        ...email,
+        id: email._id ? email._id.toString() : null,
+        _id: email._id ? email._id.toString() : null,
+        userId: email.userId ? {
+          ...email.userId,
+          id: email.userId._id ? email.userId._id.toString() : null,
+          _id: email.userId._id ? email.userId._id.toString() : null
+        } : null
+      }));
+      
+      const response = {
+        success: true,
+        total,
+        page: pageNum,
+        pages: Math.ceil(total / limitNum) || 1,
+        limit: limitNum,
+        emails: processedEmails
+      };
+      
+      console.log('Sending response with email data');
+      return res.status(200).json(response);
+      
+    } catch (dbError) {
+      console.error('Database error in getAllEmails:', dbError);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error occurred while fetching emails',
+        error: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+      });
+    }
   } catch (error) {
     console.error('Error fetching emails:', error);
     res.status(500).json({ message: 'Failed to fetch emails' });

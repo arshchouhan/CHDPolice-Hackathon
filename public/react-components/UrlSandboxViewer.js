@@ -612,6 +612,23 @@ class UrlSandboxViewer extends React.Component {
     }
   }
   
+  // Check for phishing indicators in domain
+  checkForPhishingIndicators = async (domain) => {
+    // Check for typosquatting
+    const commonDomains = ['paypal', 'google', 'microsoft', 'apple', 'amazon', 'netflix'];
+    const isTyposquatting = commonDomains.some(common => {
+      const regex = new RegExp(common.split('').join('[^a-z0-9]*'), 'i');
+      return regex.test(domain) && !domain.includes(common + '.');
+    });
+
+    // Check for suspicious TLDs but only if the domain looks like a brand
+    const suspiciousTLDs = ['.xyz', '.tk', '.ml', '.ga', '.cf', '.top'];
+    const hasSuspiciousTLD = suspiciousTLDs.some(tld => domain.endsWith(tld));
+    
+    // Only mark as suspicious if both conditions are met
+    return isTyposquatting && hasSuspiciousTLD;
+  }
+
   // Generate DNS analysis data for the URL
   generateDnsAnalysisData = async (url) => {
     try {
@@ -629,7 +646,7 @@ class UrlSandboxViewer extends React.Component {
         }
       ];
       
-      // Add records for subdomains
+      // Add records for common subdomains
       const subdomains = [`www.${domain}`, `mail.${domain}`, `api.${domain}`];
       subdomains.forEach(subdomain => {
         dnsResults.push({
@@ -641,16 +658,15 @@ class UrlSandboxViewer extends React.Component {
           timestamp: Math.floor(Date.now() / 1000)
         });
       });
+
+      // Check for actual phishing indicators instead of just TLDs
+      const isPhishing = await this.checkForPhishingIndicators(domain);
       
-      // Add suspicious DNS entries if domain seems suspicious
-      const suspiciousTLDs = ['.xyz', '.tk', '.ml', '.ga', '.cf', '.top'];
-      const isSuspiciousDomain = suspiciousTLDs.some(tld => domain.endsWith(tld));
-      
-      if (isSuspiciousDomain) {
+      if (isPhishing) {
         dnsResults[0].is_suspicious = true;
         
         // Add some suspicious third-party domains
-        const suspiciousThirdParties = ['track.evil-analytics.xyz', 'cdn.malware-host.tk', 'stats.phishing-domain.ml'];
+        const suspiciousThirdParties = ['track.evil-analytics.xyz', 'cdn.malware-host.tk'];
         suspiciousThirdParties.forEach(suspiciousDomain => {
           dnsResults.push({
             domain: suspiciousDomain,
@@ -667,7 +683,14 @@ class UrlSandboxViewer extends React.Component {
       
     } catch (error) {
       this.addLog(`Error generating DNS analysis data: ${error.message}`, 'error');
-      return [];
+      return [{
+        domain: new URL(url).hostname,
+        a_records: [],
+        mx_records: [],
+        txt_records: [],
+        is_suspicious: false,
+        timestamp: Math.floor(Date.now() / 1000)
+      }];
     }
   }
   
@@ -676,17 +699,15 @@ class UrlSandboxViewer extends React.Component {
     const domain = new URL(url).hostname;
     const findings = [];
     
-    // Simulate different findings based on domain patterns
-    // In a real implementation, this would be based on actual analysis
+    // Check for actual phishing indicators
+    const isPhishing = await this.checkForPhishingIndicators(domain);
     
-    // Check for suspicious TLDs
-    const suspiciousTLDs = ['.xyz', '.tk', '.ml', '.ga', '.cf'];
-    if (suspiciousTLDs.some(tld => domain.endsWith(tld))) {
+    if (isPhishing) {
       findings.push({
         type: 'suspicious_domain',
-        message: 'Domain uses a suspicious TLD often associated with free domains',
-        severity: 15,
-        details: 'Free domains are commonly used in phishing attacks'
+        message: 'Domain shows signs of potential phishing',
+        severity: 25,
+        details: 'Domain appears to be impersonating a well-known brand'
       });
     }
     

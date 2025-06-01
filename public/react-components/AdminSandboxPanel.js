@@ -314,28 +314,53 @@ class AdminSandboxPanel extends React.Component {
       // Handle different API response formats
       let emails = [];
       
-      if (data.success && data.emails) {
-        // Standard format
-        emails = data.emails;
-        console.log(`Loaded ${emails.length} emails successfully (standard format)`);
-      } else if (data.emails) {
-        // Format without success field
-        emails = data.emails;
-        console.log(`Loaded ${emails.length} emails (no success field)`);
-      } else if (Array.isArray(data)) {
-        // Direct array format
-        emails = data;
-        console.log(`Loaded ${emails.length} emails (direct array)`);
-      } else if (data.data && Array.isArray(data.data)) {
-        // Nested data format
-        emails = data.data;
-        console.log(`Loaded ${emails.length} emails (nested data format)`);
-      } else if (data.results && Array.isArray(data.results)) {
-        // Results format
-        emails = data.results;
-        console.log(`Loaded ${emails.length} emails (results format)`);
-      } else {
-        console.log('No emails found in response, data format:', data);
+      try {
+        // Debug log the full response
+        console.log('API Response:', JSON.stringify(data, null, 2));
+        
+        // Check for standard API response format
+        if (data && data.success !== undefined) {
+          if (data.emails && Array.isArray(data.emails)) {
+            // Standard format: {success: true, emails: [...]}
+            emails = data.emails;
+            console.log(`Loaded ${emails.length} emails (standard format)`);
+          } else if (data.data && Array.isArray(data.data)) {
+            // Alternative format: {success: true, data: [...]}
+            emails = data.data;
+            console.log(`Loaded ${emails.length} emails (data array format)`);
+          } else {
+            console.warn('Unexpected API response format (success but no emails/data):', data);
+          }
+        } 
+        // Handle direct array response
+        else if (Array.isArray(data)) {
+          emails = data;
+          console.log(`Loaded ${emails.length} emails (direct array)`);
+        }
+        // Handle paginated response format
+        else if (data.data && data.data.emails && Array.isArray(data.data.emails)) {
+          emails = data.data.emails;
+          console.log(`Loaded ${emails.length} emails (nested paginated format)`);
+        }
+        // Handle error response
+        else if (data.error) {
+          console.error('API returned an error:', data.error);
+          throw new Error(data.error);
+        }
+        else {
+          console.warn('Unknown API response format:', data);
+          // Try to extract emails from any array property
+          const arrayKeys = Object.keys(data).filter(key => Array.isArray(data[key]));
+          if (arrayKeys.length > 0) {
+            emails = data[arrayKeys[0]];
+            console.log(`Extracted ${emails.length} emails from property '${arrayKeys[0]}'`);
+          } else {
+            console.warn('No array data found in response');
+          }
+        }
+      } catch (parseError) {
+        console.error('Error parsing API response:', parseError);
+        throw new Error('Failed to parse API response');
       }
       
       // Normalize email objects to ensure consistent structure

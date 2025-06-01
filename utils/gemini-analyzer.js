@@ -5,12 +5,30 @@
  * to identify suspicious URLs and potential phishing attempts.
  */
 
-const axios = require('axios');
-require('dotenv').config();
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Get Gemini API key from environment variables
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+// Hardcoded Gemini API key
+const GEMINI_API_KEY = 'AIzaSyDBQAr5Cn3meMcNVtF2Mj7ddGg2Erjz7Zk';
+
+// Log API key usage (masked for security)
+console.log('Using Gemini API Key:', '***' + GEMINI_API_KEY.slice(-4));
+
+// Configuration for more consistent results
+const generationConfig = {
+  temperature: 0.1,     // Lower temperature for more deterministic results
+  topP: 0.9,           // Controls diversity of responses
+  topK: 1,             // Limits to most probable tokens
+  maxOutputTokens: 2048
+};
+
+// Initialize the Gemini API with configuration
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ 
+  model: 'gemini-2.0-flash-001',
+  generationConfig
+});
+
+console.log('Initialized Gemini model: gemini-2.0-flash-001 with generation config:', generationConfig);
 
 /**
  * Analyzes an email using Gemini API to identify suspicious URLs and phishing indicators
@@ -24,46 +42,25 @@ const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/
  */
 async function analyzeEmailWithGemini(emailData) {
   if (!GEMINI_API_KEY) {
-    throw new Error('Gemini API key not found. Please add GEMINI_API_KEY to your .env file');
+    console.error('Gemini API key is not set');
+    throw new Error('Gemini API key is not configured');
   }
 
   try {
+    console.log('Starting Gemini analysis with API key:', GEMINI_API_KEY ? '*** Key is set ***' : 'Key is missing!');
+    
     // Prepare the prompt for Gemini
     const prompt = createAnalysisPrompt(emailData);
     
-    // Call Gemini API
-    const response = await axios.post(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      {
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 2048
-        }
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
+    // Generate content using the model
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
     // Parse the response
-    const analysisResult = parseGeminiResponse(response.data, emailData);
-    return analysisResult;
-
+    return parseGeminiResponse({ candidates: [{ content: { parts: [{ text }] } }] }, emailData);
   } catch (error) {
-    console.error('Error analyzing email with Gemini:', error);
+    console.error('Error in analyzeEmailWithGemini:', error);
     throw error;
   }
 }

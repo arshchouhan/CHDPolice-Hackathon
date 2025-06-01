@@ -1,29 +1,17 @@
 const { google } = require('googleapis');
+const mongoose = require('mongoose');
 const User = require('../models/Users');
 const Email = require('../models/Email');
-const Admin = require('../models/Admin');
 const logger = require('../utils/logger');
 
-// Constants
-const EMAIL_BATCH_SIZE = 50; // Number of emails to process in a single batch
-const MAX_EMAILS_PER_USER = 500; // Maximum number of emails to fetch per user
-const CONNECTION_TIMEOUT_MS = 30000; // 30 seconds timeout for Gmail API calls
-
-// Configure OAuth2 client with dynamic redirect URI based on environment
+// Create OAuth2 client with proper redirect URI
 const getRedirectUri = () => {
-  // Check if we're in production or development
-  const isProd = process.env.NODE_ENV === 'production';
-  
-  if (isProd) {
-    // Use the production URL from environment variable or default to new Render domain
-    return process.env.PROD_REDIRECT_URI || 'https://chdpolice-hackathon.onrender.com/api/gmail/callback';
-  } else {
-    // Use the development URL
-    return process.env.DEV_REDIRECT_URI || 'http://localhost:3000/api/gmail/callback';
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://email-detection-api.onrender.com/api/gmail/callback';
   }
+  return 'http://localhost:3000/api/gmail/callback';
 };
 
-// Create OAuth client with dynamic redirect URI
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
@@ -33,111 +21,104 @@ const oauth2Client = new google.auth.OAuth2(
 // Generate Gmail OAuth URL
 exports.getAuthUrl = (req, res) => {
   try {
-    // Get redirect URI from query parameters if provided
-    const redirectUriFromQuery = req.query.redirect_uri;
-    const platform = req.query.platform;
-    
-    console.log('OAuth2 Configuration Check:');
-    console.log('GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID);
-    console.log('GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET);
-    console.log('Environment:', process.env.NODE_ENV || 'development');
-    console.log('Platform from query:', platform);
-    console.log('Redirect URI from query:', redirectUriFromQuery);
-    console.log('Default Redirect URI:', getRedirectUri());
-    
-    // Use the redirect URI from query if provided, otherwise fall back to default
-    const finalRedirectUri = redirectUriFromQuery || getRedirectUri();
-    console.log('Final Redirect URI to be used:', finalRedirectUri);
-    
-    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-      console.error('Missing required OAuth2 environment variables');
-      const errorDetails = {
-        message: 'OAuth configuration error',
-        details: 'Missing required environment variables for Google OAuth2',
-        missingVars: {
-          clientId: !process.env.GOOGLE_CLIENT_ID,
-          clientSecret: !process.env.GOOGLE_CLIENT_SECRET
-        },
-        help: 'Please ensure you have set up the following environment variables in your deployment environment (e.g., Render, Vercel, or .env file):',
-        requiredVars: [
-          'GOOGLE_CLIENT_ID',
-          'GOOGLE_CLIENT_SECRET',
-          'JWT_SECRET',
-          'MONGODB_URI'
-        ],
-        nextSteps: [
-          '1. Go to Google Cloud Console: https://console.cloud.google.com/',
-          '2. Navigate to APIs & Services > Credentials',
-          '3. Create OAuth 2.0 credentials (OAuth client ID) if not already done',
-          '4. Add authorized redirect URIs:',
-          '   - For development: http://localhost:3000/api/gmail/callback',
-          '   - For production: https://your-production-url.com/api/gmail/callback',
-          '5. Set the environment variables in your deployment environment'
-        ]
-      };
-      
-      console.error('OAuth Configuration Error:', JSON.stringify(errorDetails, null, 2));
-      return res.status(500).json({
-        message: 'OAuth configuration error',
-        details: 'Missing required environment variables for Google OAuth2',
-        error: errorDetails
-      });
-    }
-    
-        // Check if user exists and is authenticated
     if (!req.user || !req.user.id) {
-      console.error('User not authenticated or missing ID in Gmail auth request');
-      console.log('Request user object:', req.user);
-      console.log('Request headers:', req.headers);
-      
+      logger.error('User not authenticated for Gmail auth');
       return res.status(401).json({
         success: false,
         message: 'Authentication required',
-        details: 'You must be logged in to connect Gmail',
-        code: 'AUTH_REQUIRED',
-        timestamp: new Date().toISOString()
+        code: 'AUTH_REQUIRED'
       });
     }
-    
+
     const scopes = ['https://www.googleapis.com/auth/gmail.readonly'];
+    const state = req.user.id; // Just use user ID as state
     
-    // Create a new OAuth client with the redirect URI from the query
-    const currentOAuth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      finalRedirectUri
-    );
-    
-    // Store the redirect URI in the state parameter along with the user ID
-    // Format: userId|redirectUri
-    const stateParam = `${req.user.id}|${finalRedirectUri}`;
-    
-    const authUrl = currentOAuth2Client.generateAuthUrl({
+    // Log the OAuth configuration for debugging
+    logger.info('OAuth Configuration:', {
+      clientId: process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Missing',
+      redirectUri: process.env.REDIRECT_URI,
+      state: state
+    });
+
+    const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
-      prompt: 'consent', // Force to get refresh token
-      state: stateParam, // Pass user ID and redirect URI as state parameter
-      include_granted_scopes: true, // Enable incremental authorization
-      redirect_uri: finalRedirectUri // Explicitly set redirect URI
+      prompt: 'consent',
+      state: state, // Just the user ID
+      include_granted_scopes: true
     });
+
+    logger.info(`Generated Gmail auth URL for user ${req.user.id}`);
+    logger.debug('Auth URL:', authUrl);
     
-    console.log('Generated Auth URL:', authUrl);
-    console.log('User ID in state:', req.user.id);
-    
-    res.status(200).json({ 
+    res.json({ 
+      success: true,
       authUrl,
-      redirectUri: getRedirectUri(),
-      environment: process.env.NODE_ENV || 'development'
+      redirectUri: process.env.REDIRECT_URI
     });
+
   } catch (error) {
-    console.error('Error generating auth URL:', error);
+    logger.error('Error generating auth URL:', error);
     res.status(500).json({ 
+      success: false,
       message: 'Failed to generate authentication URL',
-      error: error.message,
-      stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+      error: error.message
     });
   }
 };
+
+// Handle OAuth callback
+exports.handleCallback = async (req, res) => {
+  console.log('OAuth callback received with query params:', req.query);
+  
+  const { code, state: userId, error } = req.query;
+
+  if (error) {
+    console.error('OAuth error:', error);
+    return res.redirect(`/dashboard?oauth_error=${encodeURIComponent(error)}`);
+  }
+
+  if (!code) {
+    console.error('No authorization code received');
+    return res.redirect('/dashboard?oauth_error=no_code');
+  }
+
+  if (!userId) {
+    console.error('No user ID in state parameter');
+    return res.redirect('/dashboard?oauth_error=invalid_state');
+  }
+
+  try {
+    console.log('Exchanging authorization code for tokens...');
+    const { tokens } = await oauth2Client.getToken(code);
+    console.log('Tokens received, updating user record...');
+    
+    oauth2Client.setCredentials(tokens);
+
+    const updateData = {
+      gmailAccessToken: tokens.access_token,
+      gmailTokenExpiry: tokens.expiry_date,
+      gmailConnected: true,
+      lastGmailSync: new Date()
+    };
+    
+    // Only update refresh token if we got one (won't be present on subsequent authorizations)
+    if (tokens.refresh_token) {
+      updateData.gmailRefreshToken = tokens.refresh_token;
+    }
+
+    await User.findByIdAndUpdate(userId, updateData);
+
+    console.log(`Successfully connected Gmail for user ${userId}`);
+    res.redirect('/dashboard?gmail_connected=true');
+
+  } catch (error) {
+    console.error('Error in OAuth callback:', error);
+    const errorMessage = error.message || 'Unknown error during OAuth callback';
+    res.redirect(`/dashboard?oauth_error=${encodeURIComponent(errorMessage)}`);
+  }
+};
+
 
 // Handle OAuth callback
 exports.handleCallback = async (req, res) => {
@@ -877,7 +858,7 @@ exports.getStatus = async (req, res) => {
     }
 
     // Check if Gmail is connected
-    if (!user.gmail_connected || !user.gmail_token) {
+    if (!user.gmail_connected || !user.gmail_access_token) {
       logger.info(`Gmail not connected for user: ${userId}`);
       return res.status(200).json({
         success: true,
@@ -890,7 +871,11 @@ exports.getStatus = async (req, res) => {
 
     // Try to get profile to verify token is still valid
     try {
-      oauth2Client.setCredentials(user.gmail_token);
+      oauth2Client.setCredentials({
+        access_token: user.gmail_access_token,
+        refresh_token: user.gmail_refresh_token,
+        expiry_date: user.gmail_token_expiry?.getTime()
+      });
       const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
       
       // Get profile to verify token
@@ -921,8 +906,8 @@ exports.getStatus = async (req, res) => {
         unreadCount: unread.data.resultSizeEstimate,
         lastSync: user.last_email_sync,
         emailCount: await Email.countDocuments({ userId: user._id }),
-        tokenExpiry: user.gmail_token.expiry_date ? new Date(user.gmail_token.expiry_date * 1000).toISOString() : null,
-        tokenExpired: user.gmail_token.expiry_date ? (user.gmail_token.expiry_date * 1000) < Date.now() : true
+        tokenExpiry: user.gmail_token_expiry ? user.gmail_token_expiry.toISOString() : null,
+        tokenExpired: user.gmail_token_expiry ? user.gmail_token_expiry < new Date() : true
       });
       
     } catch (error) {
@@ -931,7 +916,9 @@ exports.getStatus = async (req, res) => {
       // If token is invalid, update user status
       if (error.code === 401) {
         user.gmail_connected = false;
-        user.gmail_token = undefined;
+        user.gmail_access_token = undefined;
+        user.gmail_refresh_token = undefined;
+        user.gmail_token_expiry = undefined;
         await user.save();
         
         return res.status(200).json({
@@ -968,24 +955,97 @@ exports.getStatus = async (req, res) => {
   }
 };
 
+// Disconnect Gmail account
+exports.disconnectGmail = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
+  try {
+    const userId = req.user.id;
+    logger.info(`Disconnecting Gmail for user: ${userId}`);
+
+    // Find the user and clear their Gmail credentials
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      logger.error(`User not found: ${userId}`);
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    // Clear Gmail credentials
+    user.gmail_access_token = undefined;
+    user.gmail_refresh_token = undefined;
+    user.gmail_token_expiry = undefined;
+    user.gmail_connected = false;
+    user.last_email_sync = undefined;
+
+    await user.save({ session });
+    await session.commitTransaction();
+    
+    logger.info(`Successfully disconnected Gmail for user: ${userId}`);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Gmail account disconnected successfully'
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    logger.error('Error disconnecting Gmail:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to disconnect Gmail account',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      code: 'DISCONNECT_FAILED'
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
 // Scan emails for phishing threats with admin support
 exports.scanEmails = async (req, res) => {
   let session;
   
   try {
+    console.log('Scan request received. Headers:', req.headers);
+    console.log('Request params:', req.params);
+    console.log('Request user:', req.user);
+    
+    // Start a new session and transaction
     session = await mongoose.startSession();
     await session.startTransaction();
-    const userId = req.params.userId || req.user?.id;
-    const isAdminRequest = req.user?.role === 'admin' && req.params.userId;
+    
+    // Get user ID from params or authenticated user
+    const userId = req.params.userId || (req.user && req.user.id);
+    const isAdminRequest = req.user && req.user.role === 'admin' && req.params.userId;
+    
+    console.log('Resolved userId:', userId);
+    console.log('Is admin request:', isAdminRequest);
     
     if (!userId) {
-      logger.warn('Missing userId parameter in scanEmails');
-      await session.abortTransaction();
-      session.endSession();
+      const errorMsg = 'User ID is required. User not properly authenticated or missing userId parameter';
+      logger.warn(errorMsg);
+      
+      if (session) {
+        await session.abortTransaction();
+        session.endSession();
+      }
+      
       return res.status(400).json({
         success: false,
-        message: 'User ID is required',
-        code: 'MISSING_USER_ID'
+        message: errorMsg,
+        code: 'MISSING_USER_ID',
+        debug: {
+          hasParamsUserId: !!req.params.userId,
+          hasUserInRequest: !!req.user,
+          requestMethod: req.method,
+          requestUrl: req.originalUrl
+        }
       });
     }
     
@@ -1003,14 +1063,20 @@ exports.scanEmails = async (req, res) => {
     }
     
     // Check if Gmail is connected
-    if (!user.gmail_connected || !user.gmail_token) {
+    if (!user.gmail_connected || !user.gmail_access_token) {
       logger.info(`Gmail not connected for user: ${userId}`);
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
         message: 'Gmail not connected. Please connect your Gmail account first.',
-        code: 'GMAIL_NOT_CONNECTED'
+        code: 'GMAIL_NOT_CONNECTED',
+        debug: {
+          gmail_connected: user.gmail_connected,
+          has_access_token: !!user.gmail_access_token,
+          has_refresh_token: !!user.gmail_refresh_token,
+          token_expiry: user.gmail_token_expiry
+        }
       });
     }
     
@@ -1056,8 +1122,8 @@ exports.scanEmails = async (req, res) => {
       try {
         // Check if this email has already been analyzed
         const existingEmail = await Email.findOne({ 
-          message_id: message.id,
-          user: userId
+          messageId: message.id,  // Changed from message_id to messageId to match schema
+          userId: userId         // Changed from user to userId to match schema
         });
         
         if (existingEmail) {

@@ -1,0 +1,21 @@
+[build]
+  command = "npm run build"
+  publish = "public"
+
+[dev]
+  framework = "#custom"
+  targetPort = 3000
+  port = 3000
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.environment]
+  NODE_VERSION = "18.0.0"
+  NPM_VERSION = "9.0.0"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"

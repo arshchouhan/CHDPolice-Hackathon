@@ -158,30 +158,77 @@ exports.analyzeUrl = async (req, res) => {
       });
     }
 
-    // Initialize the Gemini API
+    // Initialize the Gemini API with configuration
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    
+    // Configuration for more consistent results
+    const generationConfig = {
+      temperature: 0.1,     // Lower temperature for more deterministic results
+      topP: 0.9,           // Controls diversity of responses
+      topK: 1,             // Limits to most probable tokens
+      maxOutputTokens: 2048
+    };
+    
+    // Initialize the model with configuration
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.0-flash-001',
+      generationConfig
+    });
+    
+    console.log('Initialized Gemini model: gemini-2.0-flash-001 with generation config:', generationConfig);
+    let prompt = `You are a cybersecurity expert specializing in phishing detection. Analyze this URL carefully:
 
-    // Prepare the prompt for URL analysis
-    let prompt = `Analyze this URL for security threats: ${url}\n\n`;
-    
-    // Add network data if available
+URL: ${url}
+
+Instructions:
+1. First, verify if this is a well-known legitimate website (e.g., google.com, microsoft.com, etc.)
+2. Check for these PHISHING indicators:
+   - Slight misspellings of popular domains (e.g., go0gle.com, micros0ft.com)
+   - Suspicious subdomains (e.g., secure-paypal.com.login.verify.xyz)
+   - Unusual TLDs for the brand (e.g., .xyz, .top, .gq for banking sites)
+   - URLs with @ symbols or unusual characters
+   - IP addresses instead of domain names
+   - URLs that don't match the link text
+   - Recently registered domains (if known)
+   - Lack of HTTPS or invalid SSL certificates
+   - Requests for sensitive information
+   - Poor grammar/spelling on the page (if available)
+   - Mismatched domain and content
+
+3. Only flag as malicious if you find STRONG EVIDENCE of phishing or malicious intent.
+4. Be lenient with well-known legitimate websites.
+
+Return your analysis in this exact JSON format:
+{
+  "analysis": {
+    "url": "${url}",
+    "isLegitimate": boolean,  // true if confirmed legitimate
+    "isSuspicious": boolean,  // true if potential phishing
+    "confidence": 0-100,      // confidence in the assessment
+    "riskLevel": "none"|"low"|"medium"|"high",
+    "findings": [
+      {
+        "type": "string",  // e.g., "typosquatting", "suspicious_tld"
+        "severity": 0-100,
+        "details": "string"
+      }
+    ],
+    "explanation": "string",
+    "recommendations": ["string"]
+  }
+}
+
+IMPORTANT: Only return the JSON object, no other text.`;
+
+    // Add additional context if available
     if (networkData) {
-      prompt += `Network traffic data: ${JSON.stringify(networkData)}\n\n`;
+      prompt += `\n\nAdditional network data: ${JSON.stringify(networkData)}`;
     }
     
-    // Add DNS data if available
     if (dnsData) {
-      prompt += `DNS analysis data: ${JSON.stringify(dnsData)}\n\n`;
+      prompt += `\n\nAdditional DNS data: ${JSON.stringify(dnsData)}`;
     }
-    
-    prompt += `Please provide a detailed security analysis of this URL. Include the following:\n
-1. Is this URL suspicious or malicious?\n
-2. What is the risk level (low, medium, high)?\n
-3. What specific threats or indicators of compromise are present?\n
-4. Return the analysis in JSON format with the following structure:\n{
-  "isMalicious": boolean,\n  "riskLevel": "low"|"medium"|"high",\n  "findings": [\n    {\n      "type": string,\n      "message": string,\n      "severity": number (0-100),\n      "details": string\n    }\n  ]\n}`;
 
     // Generate content with Gemini
     const result = await model.generateContent(prompt);
@@ -191,39 +238,55 @@ exports.analyzeUrl = async (req, res) => {
     // Try to parse the JSON response
     try {
       // Extract JSON from the response (it might be wrapped in markdown code blocks)
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || 
-                       text.match(/```\n([\s\S]*?)\n```/) || 
-                       text.match(/{[\s\S]*}/);
+      const jsonMatch = text.match(/```(?:json)?\n([\s\S]*?)\n```/s) || 
+                       text.match(/\{[\s\S]*\}/s);
       
-      let jsonResponse;
-      if (jsonMatch) {
-        // If JSON is in a code block, extract it
-        jsonResponse = JSON.parse(jsonMatch[1] || jsonMatch[0]);
-      } else {
-        // Try to parse the whole response as JSON
-        jsonResponse = JSON.parse(text);
+      if (!jsonMatch) {
+        throw new Error('No valid JSON found in response');
       }
       
-      // Format the findings to match our expected structure
-      const formattedFindings = jsonResponse.findings.map(finding => ({
-        type: finding.type || 'unknown',
-        message: finding.message || 'Unknown issue detected',
-        severity: finding.severity || 50,
-        details: finding.details || ''
-      }));
+      const jsonString = jsonMatch[1] || jsonMatch[0];
+      const jsonResponse = JSON.parse(jsonString);
       
-      // Calculate overall risk score based on findings
-      const overallRiskScore = Math.min(
-        100,
-        formattedFindings.reduce((score, finding) => score + finding.severity, 0) / formattedFindings.length
-      );
+      // Validate the response structure
+      if (!jsonResponse.analysis) {
+        throw new Error('Invalid response format: missing analysis object');
+      }
+      
+      const { analysis } = jsonResponse;
+      
+      // Map the response to the expected format
+      const result = {
+        isMalicious: analysis.isSuspicious && !analysis.isLegitimate,
+        isLegitimate: analysis.isLegitimate === true,
+        riskLevel: analysis.riskLevel || 'medium',
+        confidence: analysis.confidence || 0,
+        findings: Array.isArray(analysis.findings) ? 
+          analysis.findings.map(f => ({
+            type: f.type || 'unknown',
+            message: f.details || 'No details',
+            severity: typeof f.severity === 'number' ? f.severity : 50,
+            details: f.details || 'No additional details'
+          })) : [],
+        explanation: analysis.explanation || '',
+        recommendations: Array.isArray(analysis.recommendations) ? 
+          analysis.recommendations : []
+      };
+      
+      // Calculate overall risk score
+      result.overallRiskScore = calculateRiskScore(analysis);
+      
+      console.log('URL analysis completed:', {
+        url,
+        isMalicious: result.isMalicious,
+        isLegitimate: result.isLegitimate,
+        riskLevel: result.riskLevel,
+        confidence: result.confidence
+      });
       
       return res.status(200).json({
         success: true,
-        isMalicious: jsonResponse.isMalicious,
-        riskLevel: jsonResponse.riskLevel,
-        findings: formattedFindings,
-        overallRiskScore
+        ...result
       });
     } catch (jsonError) {
       console.error('Error parsing Gemini response as JSON:', jsonError);
@@ -231,18 +294,22 @@ exports.analyzeUrl = async (req, res) => {
       
       // Fallback: Create a generic finding
       const fallbackFindings = [{
-        type: 'gemini_analysis',
-        message: 'URL analysis completed but response format was unexpected',
-        severity: 50,
-        details: text.substring(0, 500) // Include part of the raw response
+        type: 'analysis_error',
+        message: 'Analysis could not be completed',
+        severity: 10,
+        details: jsonError.message || 'Invalid response format from analysis service'
       }];
       
       return res.status(200).json({
         success: true,
-        isMalicious: text.toLowerCase().includes('malicious') || text.toLowerCase().includes('suspicious'),
-        riskLevel: 'medium',
+        isMalicious: false,
+        isLegitimate: true, // Assume legitimate on error to avoid false positives
+        riskLevel: 'low',
+        confidence: 0,
         findings: fallbackFindings,
-        overallRiskScore: 50
+        explanation: 'The URL could not be analyzed due to an error.',
+        recommendations: ['Proceed with caution', 'Verify the URL manually'],
+        overallRiskScore: 10
       });
     }
   } catch (error) {
@@ -253,6 +320,34 @@ exports.analyzeUrl = async (req, res) => {
     });
   }
 };
+
+/**
+ * Calculate risk score based on analysis results
+ * @param {Object} analysis - The analysis object from Gemini
+ * @returns {number} Risk score from 0-100
+ */
+function calculateRiskScore(analysis) {
+  // If it's a legitimate site, return low risk
+  if (analysis.isLegitimate === true) {
+    return Math.min(10, analysis.confidence || 0);
+  }
+  
+  // If we have findings, use them to calculate risk
+  if (Array.isArray(analysis.findings) && analysis.findings.length > 0) {
+    const totalSeverity = analysis.findings.reduce((sum, finding) => {
+      return sum + (finding.severity || 0);
+    }, 0);
+    
+    const avgSeverity = totalSeverity / analysis.findings.length;
+    
+    // Adjust based on confidence
+    const confidenceFactor = (analysis.confidence || 50) / 100;
+    return Math.min(100, Math.max(0, Math.round(avgSeverity * confidenceFactor)));
+  }
+  
+  // Default to medium risk if we can't determine
+  return 50;
+}
 
 exports.submitUrlsToSandbox = async (req, res) => {
   try {

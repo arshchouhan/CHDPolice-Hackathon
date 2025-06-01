@@ -3,19 +3,25 @@ const router = express.Router();
 const gmailController = require('../controllers/gmail.controller');
 const { authenticateToken } = require('../middlewares/requireRole');
 
-// Get Gmail OAuth URL
-router.get('/auth-url', authenticateToken, gmailController.getAuthUrl);
-
-// Handle OAuth callback
+// Public route for OAuth callback
 router.get('/callback', gmailController.handleCallback);
 
-// Check Gmail connection status
+// Protected routes (require authentication)
+router.get('/auth-url', authenticateToken, gmailController.getAuthUrl);
 router.get('/status', authenticateToken, gmailController.getStatus);
-
-// Fetch emails from Gmail
-router.get('/fetch-emails', authenticateToken, gmailController.fetchEmails);
-
-// Scan emails for phishing threats
+router.get('/emails', authenticateToken, gmailController.fetchEmails);
 router.post('/scan', authenticateToken, gmailController.scanEmails);
+router.post('/scan/:userId', authenticateToken, gmailController.scanEmails); // Admin endpoint
+router.post('/disconnect', authenticateToken, gmailController.disconnectGmail);
+
+// Error handling middleware
+router.use((err, req, res, next) => {
+  console.error('Gmail route error:', err);
+  res.status(500).json({ 
+    success: false, 
+    message: 'An error occurred while processing your request',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
 
 module.exports = router;

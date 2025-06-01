@@ -372,27 +372,42 @@
     <script>
         // Enhanced BASE_URL determination with better logging and error handling
         const getBaseUrl = () => {
-            const hostname = window.location.hostname;
-            const origin = window.location.origin;
-            let baseUrl;
-            
-            // Determine base URL based on hostname
-            if (hostname.includes('vercel.app')) {
-                baseUrl = origin; // Use full origin for Vercel deployments
-                console.log('Detected Vercel environment');
-            } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                baseUrl = 'http://localhost:3000';
-                console.log('Detected local development environment');
-            } else if (hostname.includes('onrender.com')) {
-                baseUrl = 'https://email-detection-api.onrender.com';
-                console.log('Detected Render environment');
-            } else {
-                baseUrl = origin; // Default to current origin for unknown environments
-                console.log('Using default environment detection, origin:', origin);
+            try {
+                const hostname = window.location.hostname;
+                const origin = window.location.origin;
+                const port = window.location.port;
+                let baseUrl;
+                
+                console.log('Current location:', window.location.href);
+                console.log('Hostname:', hostname, 'Origin:', origin, 'Port:', port);
+                
+                // Check if we're in development mode (localhost with React dev server)
+                if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                    baseUrl = `http://${hostname}:3000`; // Always use port 3000 for API in development
+                    console.log('Development environment detected, using API at:', baseUrl);
+                } 
+                // Check for production environments
+                else if (hostname.includes('vercel.app')) {
+                    baseUrl = origin; // Use full origin for Vercel deployments
+                    console.log('Vercel environment detected, using API at:', baseUrl);
+                } else if (hostname.includes('onrender.com') || hostname.includes('email-detection')) {
+                    baseUrl = 'https://email-detection-api.onrender.com';
+                    console.log('Render environment detected, using API at:', baseUrl);
+                } else {
+                    // For any other environment, use the current origin but log a warning
+                    baseUrl = origin;
+                    console.warn('Unknown environment, falling back to current origin:', baseUrl);
+                }
+                
+                console.log('Final BASE_URL set to:', baseUrl);
+                return baseUrl;
+            } catch (error) {
+                console.error('Error determining base URL:', error);
+                // Fallback to current origin if there's an error
+                const fallbackUrl = window.location.origin;
+                console.warn('Falling back to origin:', fallbackUrl);
+                return fallbackUrl;
             }
-            
-            console.log('BASE_URL set to:', baseUrl);
-            return baseUrl;
         };
         
         // Initialize BASE_URL
@@ -966,6 +981,7 @@
                 // Call the API to scan emails
                 const baseUrl = getBaseUrl();
                 console.log('Scanning emails using endpoint:', `${baseUrl}/api/gmail/scan`);
+                console.log('Using token:', token ? 'Token exists' : 'No token');
                 
                 const response = await fetch(`${baseUrl}/api/gmail/scan`, {
                     method: 'POST',
@@ -973,50 +989,95 @@
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
-                    // Add empty body to ensure proper POST request
                     body: JSON.stringify({})
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    // Try to get more detailed error information
+                    let errorMessage = `Error ${response.status}: ${response.statusText}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.message || errorMessage;
+                        if (errorData.debug) {
+                            console.error('Server debug info:', errorData.debug);
+                        }
+                    } catch (e) {
+                        console.warn('Could not parse error response as JSON');
+                    }
+                    throw new Error(errorMessage);
                 }
                 
                 const data = await response.json();
                 
                 // Wait a moment to allow the sandbox UI to show the process
-                // This improves user experience by showing the analysis steps
                 setTimeout(() => {
-                    // If we have scanned emails with results, update the UI
-                    if (data.success) {
-                        if (data.emails && data.emails.length > 0) {
-                            // Refresh the emails list to show all scanned emails
-                            loadUserEmails();
-                            
-                            // The sandbox UI will show the success state
-                            // We don't need to close it immediately
+                    try {
+                        // If we have scanned emails with results, update the UI
+                        if (data.success) {
+                            if (data.emails && data.emails.length > 0) {
+                                console.log(`Successfully scanned ${data.emails.length} emails`);
+                                // Refresh the emails list to show all scanned emails
+                                loadUserEmails();
+                                
+                                // Show success notification
+                                showSuccessNotification(
+                                    'Scan Complete',
+                                    `Successfully scanned ${data.emails.length} emails for phishing threats.`
+                                );
+                            } else {
+                                console.log('No new emails found to scan');
+                                showSuccessNotification(
+                                    'Scan Complete',
+                                    'No new emails found to scan.'
+                                );
+                            }
                         } else {
-                            // If no emails were found or processed
-                            // The sandbox UI will still show the process completed
+                            throw new Error(data.message || 'Failed to scan emails');
                         }
-                    } else {
-                        throw new Error(data.message || 'Failed to scan emails');
+                    } catch (innerError) {
+                        console.error('Error processing scan results:', innerError);
+                        showError('Error Processing Results', innerError.message);
                     }
                 }, 2000); // 2 second delay for better UX
                 
             } catch (error) {
                 console.error('Email scan error:', error);
                 
-                // Hide the sandbox UI if it exists
-                const sandboxRoot = document.getElementById('sandboxFeedbackRoot');
-                if (sandboxRoot) {
-                    sandboxRoot.classList.add('hidden');
+                // Handle specific error cases
+                if (error.message.includes('401')) {
+                    showError(
+                        'Session Expired', 
+                        'Your session has expired. Please log in again.',
+                        {
+                            onRetry: () => {
+                                window.location.href = '/login.html';
+                            },
+                            retryText: 'Go to Login'
+                        }
+                    );
+                } else if (error.message.includes('400')) {
+                    showError(
+                        'Invalid Request', 
+                        'There was a problem with the scan request. Please try again or contact support.',
+                        {
+                            showRetry: true
+                        }
+                    );
+                } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+                    showError(
+                        'Connection Error', 
+                        'Unable to connect to the server. Please check your internet connection and try again.',
+                        {
+                            showRetry: true
+                        }
+                    );
+                } else {
+                    // Generic error handler
+                    showError('Email Scan Failed', error.message);
                 }
                 
-                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                    showError('Network Error', 'Cannot connect to the server. Please check your internet connection.');
-                } else {
-                    showError('Email Scan Error', error.message);
-                }
+                // Log the full error for debugging
+                console.error('Full error details:', error);
             }
         }
         
@@ -2219,6 +2280,9 @@
           }
         });
     </script>
+    
+    <!-- Gmail Status Check -->
+    <script src="/js/gmail-status.js"></script>
     
     <!-- Email Analysis Components -->
     <script type="text/babel" src="/react-components/EmailAnalysisDetails.js"></script>

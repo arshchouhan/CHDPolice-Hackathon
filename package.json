@@ -17,7 +17,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google/generative-ai": "^0.2.1",
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.9.0",
     "bcrypt": "^5.1.1",
     "cheerio": "^1.0.0-rc.12",
@@ -32,6 +32,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.16.0",
     "mongoose": "^8.1.1",
+    "node-cache": "^5.1.2",
     "node-html-parser": "^6.1.12",
     "socket.io": "^4.8.1",
     "whois-json": "^2.0.4",

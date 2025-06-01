@@ -30,8 +30,24 @@ const requireAdmin = async (req, res, next) => {
             });
         }
 
-        // Add admin to request object
+        // Add admin to request object for both admin and user properties
         req.admin = admin;
+        // Also set req.user for compatibility with existing code
+        req.user = {
+          id: admin._id,
+          _id: admin._id,
+          email: admin.email,
+          username: admin.username,
+          role: 'admin',
+          ...admin._doc // Include all other admin properties
+        };
+        
+        console.log('Admin authenticated:', {
+          id: admin._id,
+          email: admin.email,
+          role: 'admin'
+        });
+        
         next();
     } catch (error) {
         console.error('Admin auth error:', error);

@@ -1,3 +1,17 @@
+// Load environment variables first
+require('dotenv').config();
+
+// Load configuration
+const config = require('./config/config');
+
+// Log important environment variables
+console.log('Server starting with configuration:', {
+  NODE_ENV: process.env.NODE_ENV,
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY ? '***' + process.env.GEMINI_API_KEY.slice(-4) : 'Not set',
+  MONGO_URI: process.env.MONGO_URI ? '***' + process.env.MONGO_URI.split('@').pop() : 'Not set',
+  JWT_SECRET: process.env.JWT_SECRET ? '***' + process.env.JWT_SECRET.slice(-4) : 'Not set'
+});
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -6,7 +20,6 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const Admin = require('./models/Admin');
 const User = require('./models/Users');
-require('dotenv').config();
 
 // Detect deployment platform
 const isRender = process.env.RENDER || process.env.IS_RENDER || false;
@@ -37,6 +50,8 @@ const authRoutes = require('./routes/auth.route');
 const gmailRoutes = require('./routes/gmail.route');
 const emailAnalysisRoutes = require('./routes/emailAnalysis.route');
 const geminiAnalysisRoutes = require('./routes/geminiAnalysis.route');
+const testRoutes = require('./routes/test.route');
+const envTestRoutes = require('./routes/env-test.route');
 
 // Import middleware
 const requireAdmin = require('./middlewares/requireAdmin');
@@ -44,6 +59,15 @@ const requireAdmin = require('./middlewares/requireAdmin');
 // Essential middleware
 app.use(express.json());
 app.use(cookieParser());
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve index.html for the root route
+app.get('/', (req, res) => {
+    console.log('Serving root route - redirecting to login');
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
 
 // Consolidated CORS configuration
 const corsOptions = {
@@ -159,6 +183,9 @@ const authenticateUser = (req, res, next) => {
 // Register authentication routes (no auth required)
 app.use('/auth', authRoutes);
 
+// Register Gmail OAuth routes
+app.use('/api/gmail', gmailRoutes);
+
 // Basic health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -176,8 +203,10 @@ app.get('/health', (req, res) => {
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/gmail', gmailRoutes);
-app.use('/api/email-analysis', emailAnalysisRoutes);
+app.use('/api/emails', emailAnalysisRoutes);
 app.use('/api/gemini', geminiAnalysisRoutes);
+app.use('/test', testRoutes);
+app.use('/env-test', envTestRoutes);
 
 // Health check endpoint for Render deployment
 app.get('/health', (req, res) => {
