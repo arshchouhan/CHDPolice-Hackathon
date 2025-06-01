@@ -4,6 +4,8 @@ const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const Admin = require('./models/Admin');
 const User = require('./models/Users');
 require('dotenv').config();
@@ -43,7 +45,37 @@ const requireAdmin = require('./middlewares/requireAdmin');
 
 // Essential middleware
 app.use(express.json());
-app.use(cookieParser());
+app.use(cookieParser(process.env.SESSION_SECRET || 'your-secret-key'));
+
+// Session configuration
+const sessionConfig = {
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGODB_URI,
+        ttl: 24 * 60 * 60, // 1 day
+        autoRemove: 'native',
+        crypto: {
+            secret: process.env.SESSION_SECRET || 'your-secret-key'
+        }
+    }),
+    cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 24 * 60 * 60 * 1000, // 1 day
+        domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
+    }
+};
+
+// Apply session middleware
+app.use(session(sessionConfig));
+
+// Trust first proxy (important for secure cookies in production)
+if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+}
 
 // Enhanced cache control and security headers
 app.use((req, res, next) => {
@@ -134,7 +166,9 @@ const corsOptions = {
         callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
     allowedHeaders: [
         'Content-Type', 
         'Authorization', 
@@ -167,8 +201,9 @@ const authenticateUser = (req, res, next) => {
         return next();
     }
 
-    // Check for token in cookies first
+    // Check for token in cookies, session, or authorization header
     const token = req.cookies?.token || 
+                 req.session?.token ||
                  req.headers.authorization?.split(' ')[1] ||
                  req.query?.token;
 
@@ -186,13 +221,19 @@ const authenticateUser = (req, res, next) => {
         if (err) {
             console.error(`[${req.requestId}] Token verification failed:`, err.message);
             
-            // Clear invalid token
+            // Clear invalid token from cookies and session
             res.clearCookie('token', {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
+                domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined,
+                path: '/'
             });
+            
+            // Destroy session
+            if (req.session) {
+                req.session.destroy();
+            }
             
             return res.status(401).json({ 
                 success: false, 

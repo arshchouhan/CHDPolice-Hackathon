@@ -3,6 +3,7 @@ const User = require('../models/Users');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
+const logger = require('../utils/logger');
 
 // Login controller (shared for both Admin and User)
 // Google OAuth client
@@ -94,55 +95,53 @@ exports.googleSignIn = async (req, res) => {
 
         // Create JWT token
         const token = jwt.sign(
-            { id: user._id, email: user.email },
+            { 
+                id: user._id, 
+                email: user.email,
+                role: user.role || 'user'
+            },
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );
-
-        // Set token in cookie
-        const cookieOptions = {
+        
+        // Set token in session
+        req.session.token = token;
+        req.session.userId = user._id;
+        req.session.save(err => {
+            if (err) {
+                logger.error('Error saving session:', err);
+                // Continue even if session save fails
+            }
+        });
+        
+        // Set secure, httpOnly cookie
+        res.cookie('token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 24 * 60 * 60 * 1000, // 1 day
+            domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined,
+            path: '/'
+        });
+
+        // Return success response without token in body (it's in cookie and session)
+        const userResponse = {
+            id: user._id,
+            email: user.email,
+            username: user.username,
+            role: user.role || 'user',
+            profilePicture: user.profilePicture
         };
-
-        // In production, set domain based on request origin
-        if (process.env.NODE_ENV === 'production') {
-            const origin = req.get('origin');
-            if (origin && origin.includes('vercel.app')) {
-                cookieOptions.domain = '.email-detection-eight.vercel.app';
-            } else if (origin && origin.includes('render.com')) {
-                cookieOptions.domain = '.onrender.com';
-            }
-        }
-
-        res.cookie('token', token, cookieOptions);
         
-        // Set token in localStorage via client-side script that runs automatically after redirect
-        const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Redirecting...</title>
-            <script>
-            // Store the token in localStorage
-            localStorage.setItem('token', '${token}');
-            console.log('Token saved to localStorage');
-            // Store user role
-            localStorage.setItem('userRole', 'user');
-            console.log('User role saved to localStorage');
-            // Redirect to dashboard using relative URL
-            window.location.href = '/index.html';
-            </script>
-        </head>
-        <body>
-            <p>Signing you in... Please wait.</p>
-        </body>
-        </html>
-        `;
+        logger.info(`User ${user.email} logged in successfully`, {
+            userId: user._id,
+            role: user.role
+        });
         
-        return res.send(html);
+        return res.json({
+            success: true,
+            user: userResponse
+        });
 
     } catch (error) {
         console.error('Google sign in error:', error);
@@ -340,32 +339,45 @@ exports.signup = async (req, res) => {
 };
 
 // Logout function
-exports.logout = (req, res) => {
+exports.logout = async (req, res) => {
     try {
         // Clear the token cookie
-        const cookieOptions = {
+        res.clearCookie('token', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            expires: new Date(0)
-        };
-
-        // In production, set domain based on request origin
-        if (process.env.NODE_ENV === 'production') {
-            const origin = req.get('origin');
-            if (origin && origin.includes('vercel.app')) {
-                cookieOptions.domain = '.email-detection-eight.vercel.app';
-            } else if (origin && origin.includes('render.com')) {
-                cookieOptions.domain = '.onrender.com';
-            }
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined,
+            path: '/'
+        });
+        
+        // Destroy the session
+        if (req.session) {
+            req.session.destroy(err => {
+                if (err) {
+                    logger.error('Error destroying session:', err);
+                }
+                // Clear the session cookie
+                res.clearCookie('connect.sid', {
+                    path: '/',
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
+                });
+                
+                logger.info('User logged out successfully', { userId: req.user?.id });
+                res.json({ success: true, message: 'Logged out successfully' });
+            });
+        } else {
+            res.json({ success: true, message: 'Logged out successfully' });
         }
-
-        res.cookie('token', '', cookieOptions);
-
-        return res.status(200).json({ message: 'Logged out successfully' });
     } catch (error) {
-        console.error('Logout error:', error);
-        return res.status(500).json({ message: 'Error logging out' });
+        logger.error('Logout error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Logout failed',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 };
 
