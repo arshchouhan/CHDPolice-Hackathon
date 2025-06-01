@@ -391,33 +391,75 @@ app.use(express.static(path.join(__dirname, 'public'), {
     lastModified: true
 }));
 
-// MongoDB connection configuration
-const mongoOptions = {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 10000, // 10 seconds
-    socketTimeoutMS: 45000, // 45 seconds
-    connectTimeoutMS: 10000, // 10 seconds
-    maxPoolSize: 10, // Default is 100, reduced for Render's free tier
-    minPoolSize: 1, // Default is 0
-    maxIdleTimeMS: 30000, // 30 seconds
-    waitQueueTimeoutMS: 5000, // 5 seconds
-    family: 4, // Force IPv4
-    autoIndex: process.env.NODE_ENV !== 'production',
-    retryWrites: true,
-    retryReads: true,
-    // Server selection and connection settings
-    serverSelectionTryOnce: false,
-    heartbeatFrequencyMS: 10000, // 10 seconds
-    // TLS/SSL options for production
-    ...(process.env.NODE_ENV === 'production' ? {
-        tls: true,
-        tlsAllowInvalidCertificates: false,
-        tlsAllowInvalidHostnames: false,
-        ssl: true,
-        sslValidate: true
-    } : {})
+// Get MongoDB connection options based on environment
+const getMongoOptions = () => {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isLocal = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+    
+    // Base options for all environments
+    const baseOptions = {
+        // Core connection options
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        
+        // Timeouts
+        serverSelectionTimeoutMS: 10000, // 10 seconds
+        connectTimeoutMS: 10000,        // 10 seconds
+        socketTimeoutMS: 30000,         // 30 seconds
+        
+        // Connection pool
+        maxPoolSize: isProduction ? 10 : 5,
+        minPoolSize: 1,
+        maxIdleTimeMS: 30000,           // 30 seconds
+        waitQueueTimeoutMS: 5000,       // 5 seconds
+        
+        // Network
+        family: 4,                      // Force IPv4
+        
+        // Query and indexing
+        autoIndex: !isProduction,       // Auto-index in development only
+        
+        // Retry logic
+        retryWrites: true,
+        retryReads: true
+    };
+    
+    // Production-specific options
+    if (isProduction) {
+        return {
+            ...baseOptions,
+            // SSL/TLS for production
+            ssl: true,
+            tls: true,
+            tlsAllowInvalidCertificates: false,
+            tlsAllowInvalidHostnames: false,
+            sslValidate: true,
+            // Authentication
+            authSource: 'admin',
+            authMechanism: 'DEFAULT',
+            // Replica set and read preference
+            replicaSet: process.env.MONGO_REPLICA_SET || undefined,
+            readPreference: 'primaryPreferred'
+        };
+    }
+    
+    // Local/development options
+    if (isLocal) {
+        return {
+            ...baseOptions,
+            // Less strict SSL for local development
+            ssl: false,
+            tlsAllowInvalidCertificates: true,
+            tlsAllowInvalidHostnames: true,
+            // Direct connection for local MongoDB
+            directConnection: true
+        };
+    }
+    
+    return baseOptions;
 };
+
+const mongoOptions = getMongoOptions();
 
 // Connect to MongoDB with improved error handling and retry logic
 const connectDB = async (retryCount = 0) => {
