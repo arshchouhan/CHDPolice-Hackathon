@@ -32,13 +32,18 @@ class EmailAnalysisDetails extends React.Component {
         throw new Error('Authentication required');
       }
       
-      // Fetch analysis results
-      const response = await fetch(`${this.getBaseUrl()}/api/email-analysis/results/${this.state.emailId}`, {
+      // Fetch analysis results with cache-busting
+      const timestamp = new Date().getTime();
+      const response = await fetch(`${this.getBaseUrl()}/api/email-analysis/results/${this.state.emailId}?_=${timestamp}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       });
       
       if (!response.ok) {
@@ -76,13 +81,18 @@ class EmailAnalysisDetails extends React.Component {
         throw new Error('Authentication required');
       }
       
-      // Run email analysis
-      const response = await fetch(`${this.getBaseUrl()}/api/email-analysis/analyze/${this.state.emailId}`, {
+      // Run email analysis with cache-busting
+      const timestamp = new Date().getTime();
+      const response = await fetch(`${this.getBaseUrl()}/api/email-analysis/analyze/${this.state.emailId}?_=${timestamp}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       });
       
       if (!response.ok) {

@@ -45,6 +45,18 @@ const requireAdmin = require('./middlewares/requireAdmin');
 app.use(express.json());
 app.use(cookieParser());
 
+// Add cache control headers to API responses
+app.use((req, res, next) => {
+  // Only apply to API routes
+  if (req.path.startsWith('/api/')) {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.set('Surrogate-Control', 'no-store');
+  }
+  next();
+});
+
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, 'public')));
 

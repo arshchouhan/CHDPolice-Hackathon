@@ -117,13 +117,18 @@ class SandboxFeedback extends React.Component {
         throw new Error('Authentication required');
       }
       
-      // Call the API to analyze the email
-      await fetch(`${this.getBaseUrl()}/api/email-analysis/analyze/${this.state.emailId}`, {
+      // Call the API to analyze the email with cache-busting
+      const timestamp = new Date().getTime();
+      await fetch(`${this.getBaseUrl()}/api/email-analysis/analyze/${this.state.emailId}?_=${timestamp}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       });
       
       // Note: We don't wait for the response here as we're simulating the steps
@@ -142,13 +147,18 @@ class SandboxFeedback extends React.Component {
         throw new Error('Authentication required');
       }
       
-      // Fetch the actual analysis results
-      const response = await fetch(`${this.getBaseUrl()}/api/email-analysis/results/${this.state.emailId}`, {
+      // Fetch the actual analysis results with cache-busting
+      const timestamp = new Date().getTime();
+      const response = await fetch(`${this.getBaseUrl()}/api/email-analysis/results/${this.state.emailId}?_=${timestamp}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       });
       
       if (!response.ok) {
