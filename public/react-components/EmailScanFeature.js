@@ -1,7 +1,6 @@
 // EmailScanFeature.js
 import React, { useState } from 'react';
 import PhishingScoreOverview from './PhishingScoreOverview';
-import { API_ENDPOINTS } from '../config';
 
 const EmailScanFeature = ({ onScanComplete }) => {
   const [isScanning, setIsScanning] = useState(false);
@@ -28,10 +27,14 @@ const EmailScanFeature = ({ onScanComplete }) => {
         throw new Error('Authentication required. Please log in again.');
       }
       
-      console.log('Attempting scan with token:', token ? 'Token exists' : 'No token');
-      console.log('Using endpoint:', API_ENDPOINTS.GMAIL.SCAN);
+      // Get base URL
+      const hostname = window.location.hostname;
+      const BASE_URL = hostname === 'localhost' || hostname === '127.0.0.1' 
+        ? `http://${hostname}:3000` 
+        : window.location.origin;
       
-      const response = await fetch(API_ENDPOINTS.GMAIL.SCAN, {
+      // Call the API to scan emails
+      const response = await fetch(`${BASE_URL}/api/gmail/scan`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

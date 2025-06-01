@@ -198,26 +198,20 @@
         </div>
     </div>
 
-    <!-- Include the config file first -->
-    <script src="/config.js"></script>
     <script>
-        // DOM elements
-        const loginForm = document.getElementById('loginForm');
-        const passwordInput = document.getElementById('password');
-        const togglePasswordBtn = document.getElementById('togglePassword');
-        const loadingOverlay = document.getElementById('loadingOverlay');
+        // Use relative URLs for all API calls to work with any deployment
+        const BASE_URL = 'https://chdpolice-hackathon.onrender.com';
         
-        // Log the API endpoints for debugging
-        console.log('API Endpoints:', API_ENDPOINTS);
+        console.log('Using relative URLs for API calls');
 
         // Show loading overlay
         function showLoading() {
-            loadingOverlay.classList.remove('hidden');
+            document.getElementById('loadingOverlay').classList.remove('hidden');
         }
 
         // Hide loading overlay
         function hideLoading() {
-            loadingOverlay.classList.add('hidden');
+            document.getElementById('loadingOverlay').classList.add('hidden');
         }
 
         // Check URL parameters for messages or errors
