@@ -200,6 +200,161 @@
     </div>
 
     <script>
+        // Base URL helper function
+        function getBaseUrl() {
+            // If we're in development or on localhost
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                return 'http://localhost:3000';
+            }
+            // For production, use the current origin
+            return window.location.origin;
+        }
+
+        // Show error message
+        function showError(message, isFatal = false) {
+            const errorElement = document.getElementById('error-message');
+            if (errorElement) {
+                errorElement.textContent = message;
+                errorElement.classList.remove('hidden');
+                
+                if (isFatal) {
+                    errorElement.classList.add('bg-red-900', 'text-white', 'p-3', 'rounded', 'mb-4');
+                } else {
+                    errorElement.classList.add('text-red-400', 'text-sm', 'mt-2');
+                }
+            }
+            
+            // Hide after 5 seconds if not fatal
+            if (!isFatal) {
+                setTimeout(() => {
+                    if (errorElement) {
+                        errorElement.classList.add('hidden');
+                    }
+                }, 5000);
+            }
+        }
+
+        // Show loading state
+        function showLoading() {
+            const loader = document.getElementById('loadingOverlay');
+            if (loader) loader.classList.remove('hidden');
+        }
+
+        // Hide loading state
+        function hideLoading() {
+            const loader = document.getElementById('loadingOverlay');
+            if (loader) loader.classList.add('hidden');
+        }
+
+        // Check if user is already logged in
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/auth/check-auth`, {
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (data.isAuthenticated) {
+                    // Store user data in localStorage
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    // Redirect to dashboard if on login page
+                    if (window.location.pathname === '/login.html' || 
+                        window.location.pathname === '/login' ||
+                        window.location.pathname === '/') {
+                        window.location.href = '/dashboard.html';
+                    }
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                // If not on login page, redirect to login
+                if (window.location.pathname !== '/login.html' && 
+                    window.location.pathname !== '/login' &&
+                    window.location.pathname !== '/') {
+                    window.location.href = '/login.html';
+                }
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            showLoading();
+            
+            const emailOrUsername = document.getElementById('emailOrUsername').value.trim();
+            const password = document.getElementById('password').value;
+            const errorElement = document.getElementById('error-message');
+            const loginBtn = document.querySelector('button[type="submit"]');
+            
+            try {
+                // Disable login button
+                if (loginBtn) loginBtn.disabled = true;
+                
+                // Make login request
+                const response = await fetch(`${getBaseUrl()}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include', // Important for cookies
+                    body: JSON.stringify({ emailOrUsername, password })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.message || 'Login failed');
+                }
+                
+                // Store user data in localStorage (excluding sensitive info)
+                if (data.user) {
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                }
+                
+                // Redirect to dashboard
+                window.location.href = '/dashboard.html';
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                showError(error.message || 'Login failed. Please try again.');
+            } finally {
+                hideLoading();
+                if (loginBtn) loginBtn.disabled = false;
+                document.getElementById('password').value = '';
+            }
+        });
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check auth status
+            checkAuthStatus();
+            
+            // Add password visibility toggle
+            const togglePassword = document.getElementById('togglePassword');
+            const passwordInput = document.getElementById('password');
+            
+            if (togglePassword && passwordInput) {
+                togglePassword.addEventListener('click', () => {
+                    const type = passwordInput.type === 'password' ? 'text' : 'password';
+                    passwordInput.type = type;
+                    togglePassword.innerHTML = type === 'password' ? 
+                        '<i class="fas fa-eye"></i>' : 
+                        '<i class="fas fa-eye-slash"></i>';
+                });
+            }
+            
+            // Check for URL parameters (for error messages, etc.)
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            const message = urlParams.get('message');
+            
+            if (error) {
+                showError(decodeURIComponent(error), true);
+            } else if (message) {
+                showError(decodeURIComponent(message), false);
+            }
+        });
         // Enhanced base URL detection for all environments
         function getBaseUrl() {
             // If we're in development

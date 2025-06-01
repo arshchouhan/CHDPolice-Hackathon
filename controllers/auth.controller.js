@@ -1,27 +1,159 @@
-const Admin = require('../models/Admin');
-const User = require('../models/Users');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { OAuth2Client } = require('google-auth-library');
-const logger = require('../utils/logger');
+const User = require('../models/Users');
+const Admin = require('../models/Admin');
 
-// Login controller (shared for both Admin and User)
-// Google OAuth client
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
-// Verify Google token
-async function verifyGoogleToken(token) {
+// Login controller
+exports.login = async (req, res) => {
     try {
-        const ticket = await client.verifyIdToken({
-            idToken: token,
-            audience: process.env.GOOGLE_CLIENT_ID
+        const { emailOrUsername, password } = req.body;
+
+        // Input validation
+        if (!emailOrUsername || !password) {
+            return res.status(400).json({ 
+                success: false,
+                message: 'Please provide both email/username and password'
+            });
+        }
+
+        // Find user by email or username
+        const user = await User.findOne({
+            $or: [
+                { email: emailOrUsername.toLowerCase() },
+                { username: emailOrUsername.toLowerCase() }
+            ]
         });
-        return ticket.getPayload();
+
+        // Check if user exists
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials'
+            });
+        }
+
+        // Check if password is correct
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials'
+            });
+        }
+
+        // Create JWT token
+        const token = jwt.sign(
+            { 
+                id: user._id, 
+                email: user.email,
+                role: user.role || 'user'
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Set HTTP-only cookie
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        });
+
+        // Return success response
+        res.status(200).json({
+            success: true,
+            message: 'Login successful',
+            user: {
+                id: user._id,
+                email: user.email,
+                username: user.username,
+                role: user.role || 'user'
+            }
+        });
+
     } catch (error) {
-        console.error('Error verifying Google token:', error);
-        return null;
+        console.error('Login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error during login'
+        });
     }
-}
+};
+
+// Check authentication status
+exports.checkAuth = async (req, res) => {
+    try {
+        // Get token from cookies or Authorization header
+        const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({
+                isAuthenticated: false,
+                message: 'No authentication token found'
+            });
+        }
+
+        // Verify token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Find user
+        const user = await User.findById(decoded.id).select('-password');
+        if (!user) {
+            return res.status(401).json({
+                isAuthenticated: false,
+                message: 'User not found'
+            });
+        }
+
+        // Return user data
+        res.status(200).json({
+            isAuthenticated: true,
+            user: {
+                id: user._id,
+                email: user.email,
+                username: user.username,
+                role: user.role || 'user'
+            }
+        });
+
+    } catch (error) {
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({
+                isAuthenticated: false,
+                message: 'Invalid token'
+            });
+        }
+        console.error('Auth check error:', error);
+        res.status(500).json({
+            isAuthenticated: false,
+            message: 'Error checking authentication status'
+        });
+    }
+};
+
+// Logout controller
+exports.logout = (req, res) => {
+    try {
+        // Clear the token cookie
+        res.clearCookie('token', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Logout successful'
+        });
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error during logout'
+        });
+    }
+};
 
 // Handle Google Sign In
 exports.googleSignIn = async (req, res) => {

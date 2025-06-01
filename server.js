@@ -1,12 +1,18 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
+const cookieParser = require('cookie-parser');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
+// Initialize Express app
 const app = express();
 
-// Import your existing routes
+// Import routes
 const userRoutes = require('./routes/user.route');
 const adminRoutes = require('./routes/admin.route');
 const authRoutes = require('./routes/auth.route');
@@ -14,21 +20,91 @@ const gmailRoutes = require('./routes/gmail.route');
 const emailAnalysisRoutes = require('./routes/emailAnalysis.route');
 const geminiAnalysisRoutes = require('./routes/geminiAnalysis.route');
 
-// Simple CORS setup
+// Security middleware
+app.use(helmet());
+
+// CORS configuration
+const allowedOrigins = [
+    'https://chd-police-hackathon.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5000',
+    'https://email-detection-api.onrender.com'
+];
+
 app.use(cors({
-    origin: [
-        'https://chd-police-hackathon.vercel.app',
-        'http://localhost:3000'
-    ],
-    credentials: true
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
-// Basic middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Trust first proxy (important for secure cookies in production)
+app.set('trust proxy', 1);
 
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
+// Rate limiting for API routes
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { 
+        success: false, 
+        message: 'Too many requests, please try again later.' 
+    }
+});
+
+// Apply rate limiting to API routes
+app.use('/api/', apiLimiter);
+
+// Body parsing middleware
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Cookie parser
+app.use(cookieParser(process.env.SESSION_SECRET));
+
+// Session configuration
+const sessionConfig = {
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGODB_URI,
+        ttl: 24 * 60 * 60, // 1 day
+        autoRemove: 'native',
+        crypto: {
+            secret: process.env.SESSION_SECRET || 'your-secret-key'
+        },
+        collectionName: 'sessions'
+    }),
+    cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 24 * 60 * 60 * 1000, // 1 day
+        domain: process.env.NODE_ENV === 'production' ? '.onrender.com' : undefined
+    }
+};
+
+// Session middleware
+app.use(session(sessionConfig));
+
+// Serve static files with cache control
+app.use(express.static(path.join(__dirname, 'public'), {
+    maxAge: process.env.NODE_ENV === 'production' ? '1d' : '0',
+    etag: true,
+    lastModified: true
+}));
 
 // Health check
 app.get('/health', (req, res) => {
