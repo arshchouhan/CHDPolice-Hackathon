@@ -200,10 +200,18 @@
     </div>
 
     <script>
-        // Use relative URLs for all API calls to work with any deployment
-        const BASE_URL = 'https://chdpolice-hackathon.onrender.com';
+        // Dynamically determine the base URL based on the current environment
+        function getBaseUrl() {
+            // If we're running on localhost, use the local server
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                return window.location.origin;
+            }
+            // For production, use the current origin
+            return window.location.origin;
+        }
         
-        console.log('Using relative URLs for API calls');
+        const BASE_URL = getBaseUrl();
+        console.log('Using BASE_URL:', BASE_URL);
 
         // Show loading overlay
         function showLoading() {
@@ -271,8 +279,9 @@
                     throw new Error('No credential received from Google');
                 }
 
-                console.log('Attempting Google sign-in to:', `${BASE_URL}/auth/google`);
-                const res = await fetch(`${BASE_URL}/auth/google`, {
+                const googleAuthUrl = `${BASE_URL}/api/auth/google`;
+                console.log('Attempting Google sign-in to:', googleAuthUrl);
+                const res = await fetch(googleAuthUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
