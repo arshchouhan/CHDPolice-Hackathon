@@ -16,22 +16,22 @@
 
 ![](public/images/Screenshot%202025-06-01%20155633.png)
 
-![Dashboard](public/images/Screenshot%202025-06-01%20155646.png)
 
-![Dashboard](public/images/Screenshot%202025-06-01%20155652.png)
+![](public/images/Screenshot%202025-06-01%20155649.png)
 
-![Dashboard](public/images/Screenshot%202025-06-01%20155658.png)
+![](public/images/Screenshot%202025-06-01%20155655.png)
 
-![Dashboard](public/images/Screenshot%202025-06-01%20155705.png)
+![](public/images/Screenshot%202025-06-01%20155658.png)
 
-![Dashboard](public/images/Screenshot%202025-06-01%20155711.png)
+![](public/images/Screenshot%202025-06-01%20155705.png)
 
-![Dashboard](public/images/Screenshot%202025-06-01%20155716.png)
+![](public/images/Screenshot%202025-06-01%20155711.png)
 
-![Dashboard](public/images/Screenshot%202025-06-01%20155722.png)
+![](public/images/Screenshot%202025-06-01%20155716.png)
 
-![Dashboard](public/images/Screenshot%202025-06-01%20155728.png)
+![](public/images/Screenshot%202025-06-01%20155722.png)
 
+![](public/images/Screenshot%202025-06-01%20155728.png)
 
 ## Overview
 Kavach MailGuard is an AI-powered email security solution designed to detect and prevent phishing attacks. This comprehensive tool analyzes email content, headers, and metadata to identify potential phishing attempts, helping organizations protect against email-based security threats.
