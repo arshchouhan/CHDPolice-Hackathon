@@ -245,8 +245,13 @@ const authenticateUser = (req, res, next) => {
     });
 };
 
-// Register authentication routes (no auth required)
-app.use('/auth', authRoutes);
+// Add cache control middleware for auth routes
+app.use('/auth', (req, res, next) => {
+    res.header('Cache-Control', 'no-cache, private, no-store, must-revalidate');
+    res.header('Expires', '-1');
+    res.header('Pragma', 'no-cache');
+    next();
+}, authRoutes);
 
 // Apply authentication middleware to protected routes
 app.use(['/api', '/dashboard', '/profile', '/settings'], authenticateUser);
