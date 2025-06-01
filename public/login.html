@@ -7,7 +7,7 @@
     <title>Login - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -120,8 +120,8 @@
                     <div id="g_id_onload"
                         data-client_id="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
                         data-context="signin"
-                        data-ux_mode="redirect"
-                        data-login_uri="https://chd-police-hackathon.vercel.app/auth/google"
+                        data-ux_mode="popup"
+                        data-callback="handleGoogleSignIn"
                         data-auto_prompt="false">
                     </div>
 
@@ -132,7 +132,8 @@
                         data-text="signin_with"
                         data-size="large"
                         data-logo_alignment="center"
-                        data-width="100%">
+                        data-width="100%"
+                        data-locale="en">
                     </div>
                 </div>
 
@@ -263,45 +264,56 @@
         // Handle Google Sign In
         async function handleGoogleSignIn(response) {
             showLoading();
+            const errorMessage = document.getElementById('errorMessage');
+            
             try {
-                if (response.credential) {
-                    console.log('Attempting Google sign-in to:', `${BASE_URL}/auth/google`);
-                    const res = await fetch(`${BASE_URL}/auth/google`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        credentials: 'include',
-                        body: JSON.stringify({
-                            credential: response.credential
-                        })
-                    });
-
-                    const data = await res.json();
-                    console.log('Google sign-in response:', data);
-
-                    if (res.ok) {
-                        // No need to store token in localStorage as it's in the cookie
-                        window.location.href = '/dashboard';
-                    } else {
-                        hideLoading();
-                        const errorMessage = document.getElementById('errorMessage');
-                        errorMessage.textContent = data.message || 'Google sign in failed';
-                        errorMessage.classList.remove('hidden');
-                    }
-                } else {
-                    hideLoading();
-                    const errorMessage = document.getElementById('errorMessage');
-                    errorMessage.textContent = 'No credential received from Google';
-                    errorMessage.classList.remove('hidden');
+                if (!response || !response.credential) {
+                    throw new Error('No credential received from Google');
                 }
+
+                console.log('Attempting Google sign-in to:', `${BASE_URL}/auth/google`);
+                const res = await fetch(`${BASE_URL}/auth/google`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        credential: response.credential,
+                        clientId: '317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com'
+                    })
+                });
+
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
+                }
+
+                const data = await res.json();
+                console.log('Google sign-in successful:', data);
+
+                // Store user data in localStorage if needed
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                }
+                if (data.user) {
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    if (data.user.role) {
+                        localStorage.setItem('userRole', data.user.role);
+                    }
+                }
+
+                // Redirect based on user role
+                const redirectPath = data.user?.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                window.location.href = redirectPath;
+
             } catch (error) {
                 console.error('Google sign-in error:', error);
-                hideLoading();
-                const errorMessage = document.getElementById('errorMessage');
-                errorMessage.textContent = 'Error connecting to server. Please try again.';
+                errorMessage.textContent = error.message || 'Failed to sign in with Google. Please try again.';
                 errorMessage.classList.remove('hidden');
+            } finally {
+                hideLoading();
             }
         }
 
