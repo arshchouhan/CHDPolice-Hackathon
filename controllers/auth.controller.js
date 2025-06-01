@@ -199,9 +199,14 @@ exports.login = async (req, res) => {
 
     // Compare password
     const isMatch = await bcrypt.compare(password, account.password);
+
     if (!isMatch) {
-      console.log('Invalid password for:', { emailOrUsername });
-      return res.status(401).json({ message: 'Invalid credentials.' });
+        console.log('Password mismatch for:', emailOrUsername);
+        return res.status(401).json({
+            success: false,
+            error: 'Invalid credentials',
+            code: 'INVALID_CREDENTIALS'
+        });
     }
 
     // Create JWT token

@@ -715,6 +715,12 @@ const startServer = () => {
             
             // Log important URLs
             if (process.env.NODE_ENV === 'production') {
+                const origin = req.get('origin');
+                if (origin && origin.includes('chd-police-hackathon.vercel.app')) {
+                    cookieOptions.domain = '.chd-police-hackathon.vercel.app';
+                } else if (origin && origin.includes('render.com')) {
+                    cookieOptions.domain = '.onrender.com';
+                }
                 if (process.env.RENDER) {
                     console.log('Render deployment URL: https://email-detection-api.onrender.com');
                 } else if (process.env.VERCEL) {
