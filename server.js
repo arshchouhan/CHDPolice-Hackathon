@@ -153,30 +153,44 @@ app.get('/login.html', (req, res) => {
 // Consolidated CORS configuration
 const corsOptions = {
     origin: function(origin, callback) {
-        const allowedOrigins = [
-            'https://chdpolice-hackathon.onrender.com',
-            'https://chd-police-hackathon-jku23otvi-arsh-chauhans-projects-1f436a49.vercel.app',
-            'https://chd-police-hackathon.vercel.app',
-            'http://localhost:3000',
-            'http://localhost:5000',  // For local development with separate ports
-            'http://localhost:5500',  // Common port for live server
-            'http://127.0.0.1:3000',
-            'http://127.0.0.1:5000',
-            'http://127.0.0.1:5500'
-        ];
-        
-        console.log('Request origin:', origin || 'No origin (direct access)');
-        
-        // Allow requests with no origin (like mobile apps or curl requests)
+        // Always allow requests with no origin (like mobile apps or curl requests)
         if (!origin) {
             console.log('No origin, allowing request');
             return callback(null, true);
         }
-
-        // Check if the origin is in the allowed list
-        if (allowedOrigins.includes(origin)) {
+        
+        console.log('Request origin:', origin);
+        
+        // Parse the origin to get the hostname
+        let hostname;
+        try {
+            hostname = new URL(origin).hostname;
+        } catch (e) {
+            console.log('Invalid origin URL:', origin);
+            return callback(new Error('Invalid origin'));
+        }
+        
+        // Define allowed domains (without protocol)
+        const allowedDomains = [
+            'chdpolice-hackathon.onrender.com',
+            'chd-police-hackathon.vercel.app',
+            'chd-police-hackathon-git-main-arshchouhan.vercel.app',
+            'localhost',
+            '127.0.0.1'
+        ];
+        
+        // Check if the origin's hostname matches any allowed domain or is a subdomain
+        const isAllowed = allowedDomains.some(domain => {
+            return (
+                hostname === domain || 
+                hostname.endsWith(`.${domain}`) ||
+                (process.env.NODE_ENV === 'development' && hostname.includes('localhost'))
+            );
+        });
+        
+        if (isAllowed) {
             console.log('Origin allowed:', origin);
-            return callback(null, origin); // Return the origin instead of true for dynamic CORS
+            return callback(null, origin);
         }
         
         // For development, allow all origins but log a warning

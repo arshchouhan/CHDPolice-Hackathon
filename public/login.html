@@ -449,8 +449,28 @@
         
         // Set base URL if not already set
         if (!window.BASE_URL) {
-            window.BASE_URL = window.location.origin;
+            // For Vercel deployments, we need to ensure we're using the correct base URL
+            const isVercel = window.location.hostname.includes('vercel.app');
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            
+            if (isVercel) {
+                // For Vercel, use the current origin
+                window.BASE_URL = window.location.origin;
+            } else if (isLocal) {
+                // For local development, default to port 3000 if not specified
+                const port = window.location.port || '3000';
+                window.BASE_URL = `${window.location.protocol}//${window.location.hostname}:${port}`;
+            } else {
+                // For other deployments, use the current origin
+                window.BASE_URL = window.location.origin;
+            }
+            
+            // Ensure there's no trailing slash
+            window.BASE_URL = window.BASE_URL.replace(/\/+$/, '');
             console.log('BASE_URL set to:', window.BASE_URL);
+            
+            // Also set it in localStorage for other pages
+            localStorage.setItem('baseUrl', window.BASE_URL);
         }
 
         // Check auth status on page load

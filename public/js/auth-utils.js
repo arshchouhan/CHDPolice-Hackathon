@@ -3,6 +3,34 @@
  * Handles authentication state, token management, and protected routes
  */
 
+// Initialize BASE_URL if not already set
+if (!window.BASE_URL) {
+    // Check localStorage first
+    const savedBaseUrl = localStorage.getItem('baseUrl');
+    if (savedBaseUrl) {
+        window.BASE_URL = savedBaseUrl;
+    } else {
+        // For Vercel deployments
+        const isVercel = window.location.hostname.includes('vercel.app');
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        if (isVercel) {
+            window.BASE_URL = window.location.origin;
+        } else if (isLocal) {
+            // For local development, default to port 3000 if not specified
+            const port = window.location.port || '3000';
+            window.BASE_URL = `${window.location.protocol}//${window.location.hostname}:${port}`;
+        } else {
+            window.BASE_URL = window.location.origin;
+        }
+        
+        // Ensure there's no trailing slash
+        window.BASE_URL = window.BASE_URL.replace(/\/+$/, '');
+        localStorage.setItem('baseUrl', window.BASE_URL);
+    }
+    console.log('BASE_URL initialized to:', window.BASE_URL);
+}
+
 // Check if user is authenticated
 async function isAuthenticated() {
     // Don't check if we're on the login page
@@ -50,6 +78,7 @@ async function isAuthenticated() {
         // If authenticated, check if we need to redirect based on role
         if (data.authenticated && data.user) {
             const isAdmin = data.user.role === 'admin';
+            
             const isOnAdminPage = window.location.pathname.includes('admin-dashboard.html');
             const isOnIndexPage = window.location.pathname.endsWith('/') || window.location.pathname.endsWith('index.html');
             
