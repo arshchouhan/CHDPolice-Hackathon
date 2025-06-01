@@ -395,24 +395,28 @@ app.use(express.static(path.join(__dirname, 'public'), {
 const mongoOptions = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 10000,
-    socketTimeoutMS: 45000,
-    connectTimeoutMS: 10000,
-    heartbeatFrequencyMS: 10000,
-    retryWrites: true,
-    w: 'majority',
-    maxPoolSize: 20,
-    minPoolSize: 5,
-    maxIdleTimeMS: 30000,
-    waitQueueTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 10000, // 10 seconds
+    socketTimeoutMS: 45000, // 45 seconds
+    connectTimeoutMS: 10000, // 10 seconds
+    maxPoolSize: 10, // Default is 100, reduced for Render's free tier
+    minPoolSize: 1, // Default is 0
+    maxIdleTimeMS: 30000, // 30 seconds
+    waitQueueTimeoutMS: 5000, // 5 seconds
     family: 4, // Force IPv4
-    keepAlive: true,
-    keepAliveInitialDelay: 300000,
     autoIndex: process.env.NODE_ENV !== 'production',
-    compressors: 'zlib',
-    zlibCompressionLevel: 7,
+    retryWrites: true,
     retryReads: true,
-    retryWrites: true
+    // Server selection and connection settings
+    serverSelectionTryOnce: false,
+    heartbeatFrequencyMS: 10000, // 10 seconds
+    // TLS/SSL options for production
+    ...(process.env.NODE_ENV === 'production' ? {
+        tls: true,
+        tlsAllowInvalidCertificates: false,
+        tlsAllowInvalidHostnames: false,
+        ssl: true,
+        sslValidate: true
+    } : {})
 };
 
 // Connect to MongoDB with improved error handling and retry logic
@@ -431,25 +435,39 @@ const connectDB = async (retryCount = 0) => {
     try {
         console.log(`Connecting to MongoDB (attempt ${retryCount + 1})...`);
         
-        // Add production-specific options
-        if (process.env.NODE_ENV === 'production') {
-            mongoOptions.tls = true;
-            mongoOptions.tlsInsecure = false;
-            mongoOptions.tlsAllowInvalidCertificates = false;
-            mongoOptions.tlsAllowInvalidHostnames = false;
-        }
-
+        // Log the MongoDB URI (masked for security)
+        const maskedURI = mongoURI.replace(/mongodb(?:\+srv)?:\/\/([^:]+):([^@]+)@/, 'mongodb://***:***@');
+        console.log(`Connecting to: ${maskedURI}`);
+        
+        // Set Mongoose options
+        mongoose.set('strictQuery', false); // Prepare for Mongoose 7
+        
+        // Connect with retry logic
         await mongoose.connect(mongoURI, mongoOptions);
+        
         console.log('✅ MongoDB connected successfully');
+        
+        // Set up event handlers after successful connection
+        mongoose.connection.on('error', (err) => {
+            console.error('MongoDB connection error:', err.message);
+        });
+        
+        mongoose.connection.on('disconnected', () => {
+            console.log('MongoDB disconnected');
+            if (process.env.NODE_ENV === 'production') {
+                console.log('Attempting to reconnect...');
+                connectDB().catch(console.error);
+            }
+        });
         
         return true;
     } catch (err) {
         console.error('MongoDB connection error:', err.message);
         
-        // In production, implement retry logic
-        if (process.env.NODE_ENV === 'production' && retryCount < 5) {
-            const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
-            console.log(`Retrying connection in ${delay/1000} seconds...`);
+        // In production, implement retry logic with exponential backoff
+        if (process.env.NODE_ENV === 'production' && retryCount < 3) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Max 10s delay
+            console.log(`Retrying connection in ${delay/1000} seconds... (attempt ${retryCount + 1})`);
             await new Promise(resolve => setTimeout(resolve, delay));
             return connectDB(retryCount + 1);
         }
@@ -459,7 +477,9 @@ const connectDB = async (retryCount = 0) => {
             return false;
         }
         
-        throw err;
+        // In development, exit on connection failure
+        console.error('Failed to connect to MongoDB. Make sure MongoDB is running and check your connection string.');
+        process.exit(1);
     }
 };
 
@@ -485,28 +505,56 @@ const setupMongoEventHandlers = () => {
 // Initialize MongoDB connection
 const initializeMongoDB = async () => {
     try {
-        // Set up event handlers first
-        setupMongoEventHandlers();
+        console.log('Initializing MongoDB connection...');
+        
+        // Set up Mongoose debug mode in development
+        if (process.env.NODE_ENV !== 'production') {
+            mongoose.set('debug', (collectionName, method, query, doc) => {
+                console.log(`Mongoose: ${collectionName}.${method}`, JSON.stringify(query));
+            });
+        }
         
         // Initial connection attempt
         const connected = await connectDB();
         
-        if (!connected && process.env.NODE_ENV === 'production') {
-            console.warn('Running without MongoDB connection in production');
+        if (!connected) {
+            if (process.env.NODE_ENV === 'production') {
+                console.warn('⚠️ Running without MongoDB connection in production. Some features may be unavailable.');
+                return false;
+            }
+            throw new Error('Failed to connect to MongoDB');
         }
         
-        return connected;
+        console.log('✅ MongoDB initialized successfully');
+        return true;
     } catch (error) {
-        console.error('Failed to initialize MongoDB:', error);
+        console.error('❌ Failed to initialize MongoDB:', error.message);
+        
         if (process.env.NODE_ENV !== 'production') {
+            // In development, we want to fail fast
+            console.error('Exiting process due to MongoDB connection failure in development');
             process.exit(1);
         }
+        
+        // In production, we want the server to keep running even if MongoDB is down
+        console.warn('⚠️ Continuing without MongoDB connection in production mode');
         return false;
     }
 };
 
 // Initialize MongoDB connection when the server starts
-initializeMongoDB().catch(console.error);
+initializeMongoDB()
+    .then(connected => {
+        if (connected) {
+            console.log('MongoDB connection is ready');
+        }
+    })
+    .catch(err => {
+        console.error('Fatal error initializing MongoDB:', err);
+        if (process.env.NODE_ENV !== 'production') {
+            process.exit(1);
+        }
+    });
 
 // Enhanced health check endpoint for Render with detailed diagnostics
 app.get('/health', async (req, res) => {
