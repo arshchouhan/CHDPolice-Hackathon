@@ -2,14 +2,6 @@
   "version": 2,
   "builds": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "public",
-        "installCommand": "npm install --production=false"
-      }
-    },
-    {
       "src": "server.js",
       "use": "@vercel/node"
     }
@@ -22,18 +14,6 @@
     {
       "src": "^/auth/(.*)",
       "dest": "/server.js"
-    },
-    {
-      "src": "^/css/(.*)",
-      "dest": "/public/css/$1"
-    },
-    {
-      "src": "^/js/(.*)",
-      "dest": "/public/js/$1"
-    },
-    {
-      "src": "^/images/(.*)",
-      "dest": "/public/images/$1"
     },
     {
       "src": "/",
