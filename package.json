@@ -14,7 +14,7 @@
     "build:css": "npx tailwindcss -i ./src/css/tailwind.css -o ./public/css/tailwind.css --minify",
     "watch:css": "npx tailwindcss -i ./src/css/tailwind.css -o ./public/css/tailwind.css --watch",
     "netlify-build": "npm install && npm run build",
-    "vercel-build": "npm install && npm run build",
+    "vercel-build": "npm install && npm install -D tailwindcss postcss autoprefixer && npm run build",
     "render-build": "npm install && npm run build"
   },
   "keywords": [],
