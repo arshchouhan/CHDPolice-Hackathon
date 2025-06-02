@@ -14,7 +14,7 @@ if (!window.BASE_URL) {
         console.log('Development environment detected, using local backend at:', window.BASE_URL);
     } else {
         // Always use Render backend in production
-        window.BASE_URL = 'https://chdpolice-hackathon.onrender.com';
+        window.BASE_URL = 'https://email-detection-api.onrender.com';
         console.log('Production environment detected, using Render backend at:', window.BASE_URL);
     }
     
