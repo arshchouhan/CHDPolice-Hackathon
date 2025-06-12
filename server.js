@@ -441,7 +441,7 @@ app.use((err, req, res, next) => {
 });
 
 // Server start - Always listen on 0.0.0.0 for Render compatibility
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0'; // Always use 0.0.0.0 for Render
 
 const startServer = () => {
