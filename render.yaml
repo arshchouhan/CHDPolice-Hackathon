@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: email-detection
+    name: chdpolice-hackathon
     env: node
     runtime: node
     region: singapore
@@ -25,7 +25,7 @@ services:
       - key: PROD_REDIRECT_URI
         value: "https://chdpolice-hackathon.onrender.com/api/gmail/callback"
       - key: PORT
-        value: 3000
+        value: 10000
       - key: HOST
         value: 0.0.0.0
       - key: NODE_OPTIONS
@@ -33,7 +33,16 @@ services:
     headers:
       - path: /*
         name: Access-Control-Allow-Origin
-        value: "*"
+        value: "https://chd-police-hackathon.vercel.app"
+      - path: /*
+        name: Access-Control-Allow-Credentials
+        value: "true"
+      - path: /*
+        name: Access-Control-Allow-Methods
+        value: "GET,POST,PUT,DELETE,OPTIONS"
+      - path: /*
+        name: Access-Control-Allow-Headers
+        value: "Content-Type,Authorization"
     # Static file handling
     staticPublishPath: ./public
     # Routes configuration

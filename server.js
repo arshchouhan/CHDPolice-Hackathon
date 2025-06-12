@@ -58,13 +58,10 @@ app.get('/', (req, res) => {
 const corsOptions = {
     origin: function(origin, callback) {
         const allowedOrigins = [
-            'https://chd-police-hackathon.onrender.com',
+            'https://chdpolice-hackathon.onrender.com',
             'https://chd-police-hackathon.vercel.app',
             'http://localhost:3000',
-            'http://localhost:5000',
-            'https://chd-police-hackathon.onrender.com/api',
-            'https://chd-police-hackathon.onrender.com/api/auth',
-            'https://chd-police-hackathon.onrender.com/api/auth/login'
+            'http://localhost:5000'
         ];
         
         console.log('Request origin:', origin || 'No origin (direct access)');
