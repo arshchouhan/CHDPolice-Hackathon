@@ -7,7 +7,8 @@
     <title>Login - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="/js/base-url.js"></script>
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -115,30 +116,23 @@
                     </div>
                 </div>
 
-                <!-- Google Sign In button and status -->
+                <!-- Google Sign In button -->
                 <div class="mt-4">
                     <div id="g_id_onload"
                         data-client_id="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
                         data-context="signin"
-                        data-callback="handleGoogleSignIn"
+                        data-ux_mode="redirect"
+                        data-login_uri="https://chd-police-hackathon.onrender.com/api/auth/google"
                         data-auto_prompt="false">
                     </div>
-
+                    
                     <div class="g_id_signin"
                         data-type="standard"
                         data-shape="rectangular"
                         data-theme="outline"
                         data-text="signin_with"
                         data-size="large"
-                        data-logo_alignment="center"
-                        data-width="100%">
-                    </div>
-                    
-                    <div id="gmailStatus" class="mt-2 text-center hidden">
-                        <p class="text-green-400 text-sm flex items-center justify-center">
-                            <i class="fas fa-check-circle mr-1"></i>
-                            <span>Gmail connected successfully</span>
-                        </p>
+                        data-logo_alignment="center">
                     </div>
                 </div>
 
@@ -205,184 +199,20 @@
     </div>
 
     <script>
-        // Use relative URLs for all API calls to work with any deployment
-        const BASE_URL = 'https://chdpolice-hackathon.onrender.com';
-        
-        console.log('Using relative URLs for API calls');
-
-        // Show loading overlay
-        function showLoading() {
-            document.getElementById('loadingOverlay').classList.remove('hidden');
-        }
-
-        // Hide loading overlay
-        function hideLoading() {
-            document.getElementById('loadingOverlay').classList.add('hidden');
-        }
-
-        // Check URL parameters for messages or errors
-        function checkUrlParams() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const error = urlParams.get('error');
-            const message = urlParams.get('message');
-            
-            if (error) {
-                console.log('Error parameter found:', error);
-                const errorMessage = document.getElementById('errorMessage');
-                if (error === 'unsupported_flow') {
-                    errorMessage.textContent = 'Google sign-in failed. Please try using the Google button below.';
-                } else {
-                    errorMessage.textContent = 'Authentication error: ' + error;
-                }
-                errorMessage.classList.remove('hidden');
-            }
-            
-            if (message) {
-                console.log('Message parameter found:', message);
-                const errorMessage = document.getElementById('errorMessage');
-                if (message === 'please_use_google_button') {
-                    errorMessage.textContent = 'Please use the Google sign-in button below.';
-                } else {
-                    errorMessage.textContent = message;
-                }
-                errorMessage.classList.remove('hidden');
-            }
-        }
-        
-        // Check if user is already logged in
-        function checkAuthStatus() {
-            const token = localStorage.getItem('token');
-            if (token) {
-                // Already logged in, redirect to proper dashboard based on role
-                const userRole = localStorage.getItem('userRole');
-                if (userRole === 'admin') {
-                    window.location.href = '/admin-dashboard.html';
-                } else {
-                    window.location.href = '/index.html';
-                }
-            } else {
-                // Not logged in, check for URL parameters
-                checkUrlParams();
-            }
-        }
-
-        // Handle Google Sign In
-        async function handleGoogleSignIn(response) {
-            showLoading();
-            const errorMessage = document.getElementById('errorMessage');
-            const gmailStatus = document.getElementById('gmailStatus');
-            
-            try {
-                if (response.credential) {
-                    console.log('Attempting Google sign-in with credential');
-                    
-                    // Show connecting status
-                    gmailStatus.innerHTML = `
-                        <p class="text-blue-400 text-sm flex items-center justify-center">
-                            <i class="fas fa-sync-alt fa-spin mr-1"></i>
-                            <span>Connecting to Gmail...</span>
-                        </p>`;
-                    gmailStatus.classList.remove('hidden');
-                    
-                    const res = await fetch(`${BASE_URL}/auth/google`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        credentials: 'include',
-                        body: JSON.stringify({
-                            credential: response.credential
-                        })
-                    });
-
-                    const data = await res.json();
-                    console.log('Google sign-in response:', data);
-
-                    if (res.ok) {
-                        // Show success status
-                        gmailStatus.innerHTML = `
-                            <p class="text-green-400 text-sm flex items-center justify-center">
-                                <i class="fas fa-check-circle mr-1"></i>
-                                <span>Gmail connected successfully! Redirecting...</span>
-                            </p>`;
-                        
-                        // Store user data if available
-                        if (data.user) {
-                            localStorage.setItem('user', JSON.stringify(data.user));
-                            if (data.user.role) {
-                                localStorage.setItem('userRole', data.user.role);
-                            }
-                        }
-                        
-                        // Redirect after a short delay to show success message
-                        setTimeout(() => {
-                            window.location.href = data.redirectUrl || '/';
-                        }, 1500);
-                        
-                    } else {
-                        throw new Error(data.message || 'Google sign in failed');
-                    }
-                } else {
-                    throw new Error('No credential received from Google');
-                }
-            } catch (error) {
-                console.error('Google sign-in error:', error);
-                // Show error status
-                gmailStatus.innerHTML = `
-                    <p class="text-red-400 text-sm flex items-center justify-center">
-                        <i class="fas fa-exclamation-circle mr-1"></i>
-                        <span>${error.message || 'Connection failed. Please try again.'}</span>
-                    </p>`;
-                gmailStatus.classList.remove('hidden');
-                
-                // Also show in error message area
-                errorMessage.textContent = error.message || 'Failed to connect to Gmail. Please try again.';
-                errorMessage.classList.remove('hidden');
-                
-                // Hide the error message after 5 seconds
-                setTimeout(() => {
-                    errorMessage.classList.add('hidden');
-                }, 5000);
-            } finally {
-                hideLoading();
-            }
-        }
-
-        // Handle form submission
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            showLoading();
-            
+        // Use the centralized getBaseUrl function
+        const BASE_URL = getBaseUrl();
+    
+        // Update all fetch requests to use BASE_URL
+        async function handleLogin(event) {
+            event.preventDefault();
             const emailOrUsername = document.getElementById('emailOrUsername').value;
             const password = document.getElementById('password').value;
-            const errorMessage = document.getElementById('errorMessage');
-
-            if (!emailOrUsername || !password) {
-                hideLoading();
-                errorMessage.textContent = 'Username/Email and password are required';
-                errorMessage.classList.remove('hidden');
-                return;
-            }
-
+    
             try {
-                console.log('Attempting login to:', `${BASE_URL}/auth/login`);
-                console.log('Request details:', {
-                    url: `${BASE_URL}/auth/login`,
+                const response = await fetch(BASE_URL + '/api/auth/login', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: { emailOrUsername }
-                });
-
-                const response = await fetch(`${BASE_URL}/auth/login`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Content-Type': 'application/json'
                     },
                     credentials: 'include',
                     body: JSON.stringify({
@@ -390,69 +220,39 @@
                         password: password
                     })
                 });
-
-                console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
+    
                 const data = await response.json();
                 console.log('Login response:', data);
-
-                if (response.ok) {
-                    console.log('Login successful');
-                    // Store token in localStorage
-                    if (data.token) {
-                        localStorage.setItem('token', data.token);
-                        console.log('Token saved to localStorage');
-                    } else {
-                        // If server didn't send token in response, create one from user data
-                        // This is a fallback for when using HttpOnly cookies
-                        localStorage.setItem('token', 'authenticated-user');
-                        console.log('Authentication marker saved to localStorage');
-                    }
+    
+                if (!response.ok) {
+                    throw new Error(data.message || 'Login failed');
+                }
+    
+                // Show loading overlay
+                document.getElementById('loadingOverlay').classList.remove('hidden');
+    
+                // Store token in localStorage
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('userRole', data.user.role);
                     
-                    // Check user role and redirect to appropriate dashboard
-                    if (data.user && data.user.role === 'admin') {
-                        console.log('Admin user detected, redirecting to admin dashboard');
-                        localStorage.setItem('userRole', 'admin');
+                    // Redirect based on role
+                    if (data.user.role === 'admin') {
                         window.location.href = '/admin-dashboard.html';
                     } else {
-                        console.log('Regular user detected, redirecting to user dashboard');
-                        localStorage.setItem('userRole', 'user');
                         window.location.href = '/index.html';
                     }
-                } else {
-                    hideLoading();
-                    const message = data.message || 'Invalid credentials';
-                    console.error('Login failed:', message);
-                    errorMessage.textContent = message;
-                    errorMessage.classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                hideLoading();
-                errorMessage.textContent = 'Error connecting to server. Please try again.';
+                const errorMessage = document.getElementById('errorMessage');
+                errorMessage.textContent = error.message || 'An error occurred during login';
                 errorMessage.classList.remove('hidden');
             }
-        });
-
-        // Password visibility toggle
-        document.getElementById('togglePassword').addEventListener('click', function() {
-            const password = document.getElementById('password');
-            const icon = this.querySelector('i');
-            
-            if (password.type === 'password') {
-                password.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                password.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
-            }
-        });
-
-        // Check auth status on page load
-        checkAuthStatus();
+        }
+    
+        // Attach form submit handler
+        document.getElementById('loginForm').addEventListener('submit', handleLogin);
     </script>
 </body>
 </html>

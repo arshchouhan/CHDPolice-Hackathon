@@ -111,10 +111,11 @@ exports.googleSignIn = async (req, res) => {
         if (process.env.NODE_ENV === 'production') {
             const origin = req.get('origin');
             if (origin && origin.includes('vercel.app')) {
-                cookieOptions.domain = '.email-detection-eight.vercel.app';
-            } else if (origin && origin.includes('render.com')) {
+                cookieOptions.domain = '.vercel.app';
+            } else if (origin && origin.includes('onrender.com')) {
                 cookieOptions.domain = '.onrender.com';
             }
+            console.log('Cookie options:', cookieOptions);
         }
 
         res.cookie('token', token, cookieOptions);
