@@ -51,6 +51,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Serve index.html for the root route
 app.get('/', (req, res) => {
     console.log('Serving root route - redirecting to login');
+    res.redirect('/login.html');
+});
+
+app.get('/login.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
