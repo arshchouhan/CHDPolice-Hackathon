@@ -61,7 +61,10 @@ const corsOptions = {
             'https://chd-police-hackathon.onrender.com',
             'https://chd-police-hackathon.vercel.app',
             'http://localhost:3000',
-            'http://localhost:5000'
+            'http://localhost:5000',
+            'https://chd-police-hackathon.onrender.com/api',
+            'https://chd-police-hackathon.onrender.com/api/auth',
+            'https://chd-police-hackathon.onrender.com/api/auth/login'
         ];
         
         console.log('Request origin:', origin || 'No origin (direct access)');
@@ -69,6 +72,7 @@ const corsOptions = {
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
+            console.log('CORS blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -79,7 +83,9 @@ const corsOptions = {
         'Authorization', 
         'Origin', 
         'Accept',
-        'X-Requested-With'
+        'X-Requested-With',
+        'Access-Control-Allow-Origin',
+        'Access-Control-Allow-Credentials'
     ],
     exposedHeaders: ['Set-Cookie'],
     maxAge: 86400
