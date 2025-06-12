@@ -143,7 +143,7 @@ const authenticateUser = (req, res, next) => {
 };
 
 // Register authentication routes (no auth required)
-app.use('/auth', authRoutes);
+app.use('/api/auth', authRoutes);
 
 // Basic health check endpoint
 app.get('/health', (req, res) => {
