@@ -25,7 +25,7 @@ services:
       - key: PROD_REDIRECT_URI
         value: "https://chdpolice-hackathon.onrender.com/api/gmail/callback"
       - key: PORT
-        value: 10000
+        value: 3000
       - key: HOST
         value: 0.0.0.0
       - key: NODE_OPTIONS
