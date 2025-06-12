@@ -33,7 +33,7 @@ services:
     headers:
       - path: /*
         name: Access-Control-Allow-Origin
-        value: "https://chd-police-hackathon.vercel.app"
+        value: "https://email-detection-api.onrender.com"
       - path: /*
         name: Access-Control-Allow-Credentials
         value: "true"
