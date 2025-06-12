@@ -115,13 +115,12 @@
                     </div>
                 </div>
 
-                <!-- Google Sign In button -->
+                <!-- Google Sign In button and status -->
                 <div class="mt-4">
                     <div id="g_id_onload"
                         data-client_id="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
                         data-context="signin"
-                        data-ux_mode="redirect"
-                        data-login_uri="https://chd-police-hackathon.vercel.app/auth/google"
+                        data-callback="handleGoogleSignIn"
                         data-auto_prompt="false">
                     </div>
 
@@ -133,6 +132,13 @@
                         data-size="large"
                         data-logo_alignment="center"
                         data-width="100%">
+                    </div>
+                    
+                    <div id="gmailStatus" class="mt-2 text-center hidden">
+                        <p class="text-green-400 text-sm flex items-center justify-center">
+                            <i class="fas fa-check-circle mr-1"></i>
+                            <span>Gmail connected successfully</span>
+                        </p>
                     </div>
                 </div>
 
@@ -263,9 +269,21 @@
         // Handle Google Sign In
         async function handleGoogleSignIn(response) {
             showLoading();
+            const errorMessage = document.getElementById('errorMessage');
+            const gmailStatus = document.getElementById('gmailStatus');
+            
             try {
                 if (response.credential) {
-                    console.log('Attempting Google sign-in to:', `${BASE_URL}/auth/google`);
+                    console.log('Attempting Google sign-in with credential');
+                    
+                    // Show connecting status
+                    gmailStatus.innerHTML = `
+                        <p class="text-blue-400 text-sm flex items-center justify-center">
+                            <i class="fas fa-sync-alt fa-spin mr-1"></i>
+                            <span>Connecting to Gmail...</span>
+                        </p>`;
+                    gmailStatus.classList.remove('hidden');
+                    
                     const res = await fetch(`${BASE_URL}/auth/google`, {
                         method: 'POST',
                         headers: {
@@ -282,26 +300,52 @@
                     console.log('Google sign-in response:', data);
 
                     if (res.ok) {
-                        // No need to store token in localStorage as it's in the cookie
-                        window.location.href = '/dashboard';
+                        // Show success status
+                        gmailStatus.innerHTML = `
+                            <p class="text-green-400 text-sm flex items-center justify-center">
+                                <i class="fas fa-check-circle mr-1"></i>
+                                <span>Gmail connected successfully! Redirecting...</span>
+                            </p>`;
+                        
+                        // Store user data if available
+                        if (data.user) {
+                            localStorage.setItem('user', JSON.stringify(data.user));
+                            if (data.user.role) {
+                                localStorage.setItem('userRole', data.user.role);
+                            }
+                        }
+                        
+                        // Redirect after a short delay to show success message
+                        setTimeout(() => {
+                            window.location.href = data.redirectUrl || '/';
+                        }, 1500);
+                        
                     } else {
-                        hideLoading();
-                        const errorMessage = document.getElementById('errorMessage');
-                        errorMessage.textContent = data.message || 'Google sign in failed';
-                        errorMessage.classList.remove('hidden');
+                        throw new Error(data.message || 'Google sign in failed');
                     }
                 } else {
-                    hideLoading();
-                    const errorMessage = document.getElementById('errorMessage');
-                    errorMessage.textContent = 'No credential received from Google';
-                    errorMessage.classList.remove('hidden');
+                    throw new Error('No credential received from Google');
                 }
             } catch (error) {
                 console.error('Google sign-in error:', error);
-                hideLoading();
-                const errorMessage = document.getElementById('errorMessage');
-                errorMessage.textContent = 'Error connecting to server. Please try again.';
+                // Show error status
+                gmailStatus.innerHTML = `
+                    <p class="text-red-400 text-sm flex items-center justify-center">
+                        <i class="fas fa-exclamation-circle mr-1"></i>
+                        <span>${error.message || 'Connection failed. Please try again.'}</span>
+                    </p>`;
+                gmailStatus.classList.remove('hidden');
+                
+                // Also show in error message area
+                errorMessage.textContent = error.message || 'Failed to connect to Gmail. Please try again.';
                 errorMessage.classList.remove('hidden');
+                
+                // Hide the error message after 5 seconds
+                setTimeout(() => {
+                    errorMessage.classList.add('hidden');
+                }, 5000);
+            } finally {
+                hideLoading();
             }
         }
 
