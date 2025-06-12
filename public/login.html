@@ -8,6 +8,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <meta name="google-signin-client_id" content="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com">
+    <meta name="google-signin-scope" content="profile email">
+    <meta name="google-signin-hosted_domain" content="chd-police-hackathon.vercel.app chd-police-hackathon.onrender.com">
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -120,9 +123,10 @@
                     <div id="g_id_onload"
                         data-client_id="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
                         data-context="signin"
-                        data-ux_mode="redirect"
-                        data-login_uri="https://chd-police-hackathon.onrender.com/api/auth/google"
-                        data-auto_prompt="false">
+                        data-ux_mode="popup"
+                        data-callback="handleGoogleSignIn"
+                        data-auto_select="true"
+                        data-close_on_tap_outside="false">
                     </div>
                     
                     <div class="g_id_signin"
@@ -131,9 +135,40 @@
                         data-theme="outline"
                         data-text="signin_with"
                         data-size="large"
-                        data-logo_alignment="center">
+                        data-logo_alignment="center"
+                        data-width="240">
                     </div>
                 </div>
+                
+                <script>
+                    function handleGoogleSignIn(response) {
+                        const credential = response.credential;
+                        document.getElementById('loadingOverlay').classList.remove('hidden');
+                        
+                        fetch('https://chd-police-hackathon.onrender.com/api/auth/google', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ credential }),
+                            credentials: 'include'
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                window.location.href = data.redirectUrl || '/dashboard.html';
+                            } else {
+                                throw new Error(data.message || 'Google sign-in failed');
+                            }
+                        })
+                        .catch(error => {
+                            document.getElementById('loadingOverlay').classList.add('hidden');
+                            document.getElementById('errorMessage').textContent = error.message;
+                            document.getElementById('errorMessage').classList.remove('hidden');
+                            console.error('Google sign-in error:', error);
+                        });
+                    }
+                </script>
 
                 <div class="text-center text-sm mt-6">
                     <p class="text-gray-400">
