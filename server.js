@@ -59,7 +59,9 @@ const corsOptions = {
     origin: function(origin, callback) {
         const allowedOrigins = [
             'https://chdpolice-hackathon.onrender.com',
-            'https://chd-police-hackathon.onrender.com',
+            'https://email-detection-eight.vercel.app',
+            'https://email-detection-git-main-arshchouhan.vercel.app',
+            'https://email-detection-arshchouhan.vercel.app',
             'https://chd-police-hackathon.vercel.app',
             'http://localhost:3000',
             'http://localhost:5000'  // For local development with separate ports

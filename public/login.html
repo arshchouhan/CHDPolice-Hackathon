@@ -8,7 +8,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="/js/base-url.js"></script>
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -199,8 +198,14 @@
     </div>
 
     <script>
-        // Use the centralized getBaseUrl function
-        const BASE_URL = getBaseUrl();
+        // Get base URL based on environment
+        const BASE_URL = window.location.hostname === 'localhost'
+        ? 'http://localhost:3000' // Local development URL
+        : window.location.hostname.includes('vercel.app')
+        ? 'https://chd-police-hackathon.onrender.com' // Production backend URL
+        : window.location.hostname.includes('onrender.com')
+        ? '' // When frontend and backend are on same domain
+        : ''; // Fallback to relative URLs
     
         // Update all fetch requests to use BASE_URL
         async function handleLogin(event) {
@@ -209,39 +214,28 @@
             const password = document.getElementById('password').value;
     
             try {
-                const response = await fetch(BASE_URL + '/api/auth/login', {
+                const response = await fetch(`${BASE_URL}/api/auth/login`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     credentials: 'include',
-                    body: JSON.stringify({
-                        emailOrUsername: emailOrUsername,
-                        password: password
-                    })
+                    body: JSON.stringify({ emailOrUsername, password })
                 });
     
                 const data = await response.json();
-                console.log('Login response:', data);
     
-                if (!response.ok) {
-                    throw new Error(data.message || 'Login failed');
-                }
-    
-                // Show loading overlay
-                document.getElementById('loadingOverlay').classList.remove('hidden');
-    
-                // Store token in localStorage
-                if (data.token) {
-                    localStorage.setItem('token', data.token);
-                    localStorage.setItem('userRole', data.user.role);
-                    
-                    // Redirect based on role
-                    if (data.user.role === 'admin') {
-                        window.location.href = '/admin-dashboard.html';
+                if (response.ok) {
+                    // Show loading overlay
+                    document.getElementById('loadingOverlay').classList.remove('hidden');
+                    // Redirect to dashboard based on user role
+                    if (data.user && data.user.role === 'admin') {
+                        window.location.href = `${BASE_URL}/admin-dashboard.html`;
                     } else {
-                        window.location.href = '/index.html';
+                        window.location.href = `${BASE_URL}/index.html`;
                     }
+                } else {
+                    throw new Error(data.message || 'Login failed');
                 }
             } catch (error) {
                 console.error('Login error:', error);
