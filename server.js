@@ -58,38 +58,19 @@ app.get('/', (req, res) => {
 const corsOptions = {
     origin: function(origin, callback) {
         const allowedOrigins = [
-            'https://chdpolice-hackathon.onrender.com',
-            'https://email-detection-eight.vercel.app',
-            'https://email-detection-git-main-arshchouhan.vercel.app',
-            'https://email-detection-arshchouhan.vercel.app',
+            'https://chd-police-hackathon.onrender.com',
             'https://chd-police-hackathon.vercel.app',
             'http://localhost:3000',
-            'http://localhost:5000'  // For local development with separate ports
+            'http://localhost:5000'
         ];
         
         console.log('Request origin:', origin || 'No origin (direct access)');
         
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) {
-            console.log('No origin, allowing request');
-            return callback(null, true);
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
         }
-
-        // Check if the origin is in the allowed list
-        if (allowedOrigins.includes(origin)) {
-            console.log('Origin allowed:', origin);
-            return callback(null, true);
-        }
-        
-        // For development, allow all origins but log a warning
-        if (process.env.NODE_ENV !== 'production') {
-            console.warn(`Allowing request from non-whitelisted origin in development: ${origin}`);
-            return callback(null, true);
-        }
-        
-        // In production, block unauthorized origins
-        console.warn(`Blocked request from unauthorized origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -98,22 +79,15 @@ const corsOptions = {
         'Authorization', 
         'Origin', 
         'Accept',
-        'X-Requested-With',
-        'X-Access-Token',
-        'X-Forwarded-For',
-        'X-Forwarded-Proto'
+        'X-Requested-With'
     ],
-    exposedHeaders: [
-        'Set-Cookie',
-        'Authorization',
-        'X-Access-Token'
-    ],
-    maxAge: 86400  // 24 hours
+    exposedHeaders: ['Set-Cookie'],
+    maxAge: 86400
 };
 
-// Apply CORS configuration with preflight continue
+// Apply CORS configuration
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Enable preflight for all routes
+app.options('*', cors(corsOptions));
 
 // Authentication middleware - MOVED BEFORE ROUTES TO FIX RENDER DEPLOYMENT ERROR
 const authenticateUser = (req, res, next) => {
