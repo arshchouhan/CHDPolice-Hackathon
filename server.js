@@ -45,8 +45,11 @@ const requireAdmin = require('./middlewares/requireAdmin');
 app.use(express.json());
 app.use(cookieParser());
 
-// Serve static files from the public directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files from the public directory with explicit root path
+app.use('/public', express.static(path.join(__dirname, 'public'), {
+    index: false,
+    redirect: false
+}));
 
 // Serve index.html for the root route
 app.get('/', (req, res) => {
@@ -55,7 +58,9 @@ app.get('/', (req, res) => {
 });
 
 app.get('/login.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    res.sendFile(path.join(__dirname, 'public', 'login.html'), {
+        root: '/'
+    });
 });
 
 // Consolidated CORS configuration
