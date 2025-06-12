@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: chdpolice-hackathon
+    name: email-detection-api
     env: node
     runtime: node
     region: singapore
@@ -23,7 +23,7 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: PROD_REDIRECT_URI
-        value: "https://chdpolice-hackathon.onrender.com/api/gmail/callback"
+        value: "https://email-detection-api.onrender.com/api/gmail/callback"
       - key: PORT
         value: 3000
       - key: HOST
