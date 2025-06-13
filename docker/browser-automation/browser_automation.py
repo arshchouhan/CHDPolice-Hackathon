@@ -16,6 +16,10 @@ Browser Automation System for Email Phishing Detection
 - Checks for data being sent via POST requests
 - Detects file downloads and their types
 - Records timing of network activities
+- Resolves domain names to IP addresses
+- Provides geolocation data for IP addresses
+- Detects cloud/data center providers
+- Maps ASNs to known hosting services
 """
 
 import os
@@ -41,8 +45,9 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from pyvirtualdisplay import Display
 
-# Import the network analyzer
+# Import the network analyzer and IP geolocation modules
 from network_analyzer import NetworkAnalyzer
+from ip_geolocation import IPGeolocation
 
 # Configure logging
 logging.basicConfig(
@@ -76,8 +81,9 @@ class BrowserAutomation:
         self.display = Display(visible=0, size=(1920, 1080))
         self.display.start()
         
-        # Initialize the network analyzer
+        # Initialize the network analyzer and IP geolocation modules
         self.network_analyzer = NetworkAnalyzer()
+        self.ip_geolocation = IPGeolocation()
         
         logger.info("Setting up Chrome options...")
         self.chrome_options = Options()
@@ -183,6 +189,7 @@ class BrowserAutomation:
             'html_content': '',
             'network_traffic': {},
             'dns_analysis': {},
+            'ip_geolocation': {},
             'status': 'success'
         }
         
@@ -227,12 +234,17 @@ class BrowserAutomation:
             logger.info("Performing DNS analysis...")
             dns_results = self.network_analyzer.perform_dns_lookups(all_urls)
             
-            # Add network analysis results to the overall result
+            # Perform IP geolocation analysis
+            logger.info("Performing IP geolocation analysis...")
+            ip_geo_results = self.ip_geolocation.analyze_url(url)
+            
+            # Add network analysis and IP geolocation results to the overall result
             result['network_traffic'] = self.network_analyzer.get_network_analysis_results()
             result['dns_analysis'] = {
                 'results': dns_results,
                 'suspicious_domains': self.network_analyzer.suspicious_domains
             }
+            result['ip_geolocation'] = ip_geo_results
             
             # Add security indicators based on network analysis
             result['security_indicators']['suspicious_domains_count'] = len(self.network_analyzer.suspicious_domains)
@@ -392,6 +404,9 @@ class BrowserAutomation:
         # Reset network analyzer
         if hasattr(self, 'network_analyzer'):
             self.network_analyzer.reset()
+        
+        # Nothing to clean up for IP geolocation, but log completion
+        logger.info("IP geolocation resources cleaned up")
 
 
 def process_url_queue():

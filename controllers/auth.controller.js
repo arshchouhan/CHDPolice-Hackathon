@@ -172,23 +172,42 @@ exports.login = async (req, res) => {
     let account;
     let role;
 
-    // Check for admin first
-    if (isEmail) {
-      account = await Admin.findOne({ email: emailOrUsername });
-    } else {
-      account = await Admin.findOne({ username: emailOrUsername });
-    }
-
-    if (account) {
-      role = 'admin';
-    } else {
-      // If not admin, check if it's a regular user
-      if (isEmail) {
-        account = await User.findOne({ email: emailOrUsername });
-      } else {
-        account = await User.findOne({ username: emailOrUsername });
+    // Special handling for admin@emaildetection.com
+    if (emailOrUsername === 'admin@emaildetection.com') {
+      console.log('Admin login attempt detected');
+      
+      // Try to find admin with the specific ID first
+      account = await Admin.findOne({ _id: '68286e17b547fe6cfc8df917' });
+      
+      // If not found by ID, try by email as fallback
+      if (!account) {
+        console.log('Admin not found by specific ID, trying by email');
+        account = await Admin.findOne({ email: 'admin@emaildetection.com' });
       }
-      role = 'user';
+      
+      if (account) {
+        role = 'admin';
+      }
+    } else {
+      // Regular flow for non-admin users
+      // Check for admin first
+      if (isEmail) {
+        account = await Admin.findOne({ email: emailOrUsername });
+      } else {
+        account = await Admin.findOne({ username: emailOrUsername });
+      }
+
+      if (account) {
+        role = 'admin';
+      } else {
+        // If not admin, check if it's a regular user
+        if (isEmail) {
+          account = await User.findOne({ email: emailOrUsername });
+        } else {
+          account = await User.findOne({ username: emailOrUsername });
+        }
+        role = 'user';
+      }
     }
 
     // If no account found
@@ -205,8 +224,22 @@ exports.login = async (req, res) => {
     }
 
     // Create JWT token
+    let tokenPayload;
+    
+    // Special handling for admin token to ensure consistent ID
+    if (role === 'admin' && account.email === 'admin@emaildetection.com') {
+      console.log('Creating admin token with fixed ID');
+      tokenPayload = { 
+        id: '68286e17b547fe6cfc8df917', 
+        email: account.email, 
+        role: 'admin' 
+      };
+    } else {
+      tokenPayload = { id: account._id, email: account.email, role };
+    }
+    
     const token = jwt.sign(
-      { id: account._id, role },
+      tokenPayload,
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -223,10 +256,12 @@ exports.login = async (req, res) => {
     if (process.env.NODE_ENV === 'production') {
         const origin = req.get('origin');
         console.log('Request origin:', origin);
-        if (origin && origin.includes('vercel.app')) {
-            cookieOptions.domain = '.email-detection-eight.vercel.app';
-        } else if (origin && origin.includes('render.com')) {
-            cookieOptions.domain = '.onrender.com';
+        if (origin) {
+            // Extract domain from origin
+            const domain = new URL(origin).hostname;
+            // Set cookie domain to the main domain
+            cookieOptions.domain = domain;
+            console.log('Setting cookie domain to:', domain);
         }
         console.log('Cookie options:', cookieOptions);
     }
@@ -365,7 +400,7 @@ exports.checkAuth = async (req, res) => {
   try {
     console.log('Check auth request:', { 
       cookies: req.cookies, 
-      authorization: req.headers.authorization,
+      authorization: req.headers.authorization ? 'Present' : 'Not present',
       method: req.method,
       url: req.url
     });
@@ -374,25 +409,131 @@ exports.checkAuth = async (req, res) => {
 
     if (!token) {
       console.log('No token provided in cookies or authorization header');
-      return res.status(401).json({ authenticated: false, message: 'No token provided' });
+      return res.status(401).json({ 
+        authenticated: false, 
+        message: 'No token provided',
+        redirectTo: '/login.html'
+      });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('Token decoded:', { id: decoded.id, role: decoded.role });
+    // Verify token format
+    if (typeof token !== 'string' || token.trim() === '') {
+      console.warn('Invalid token format received');
+      return res.status(401).json({ 
+        authenticated: false, 
+        message: 'Invalid token format',
+        redirectTo: '/login.html'
+      });
+    }
+
+    // Verify the token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      console.log('Token decoded successfully:', { id: decoded.id, email: decoded.email });
+    } catch (tokenError) {
+      console.error('Token verification failed:', tokenError.message);
+      return res.status(401).json({ 
+        authenticated: false, 
+        message: 'Invalid or expired token',
+        error: tokenError.message,
+        redirectTo: '/login.html'
+      });
+    }
     
     // Check if the user is an admin
-    let user = await Admin.findById(decoded.id);
-    let role = 'admin';
-
-    // If not admin, check if it's a regular user
-    if (!user) {
-      user = await User.findById(decoded.id);
-      role = 'user';
+    let user = null;
+    let role = null;
+    
+    try {
+      // Handle specific admin ID case
+      if (decoded.id === '68286e17b547fe6cfc8df917') {
+        console.log('Found specific admin ID match');
+        user = await Admin.findOne({ _id: '68286e17b547fe6cfc8df917' });
+        if (user) {
+          role = 'admin';
+        } else {
+          // Try to find by email if ID lookup fails
+          user = await Admin.findOne({ email: 'admin@emaildetection.com' });
+          if (user) {
+            role = 'admin';
+            console.log('Found admin by email instead of ID');
+          }
+        }
+      } else {
+        // Normal flow for other users
+        user = await Admin.findById(decoded.id);
+        if (user) {
+          role = 'admin';
+        } else {
+          // If not admin, check if it's a regular user
+          user = await User.findById(decoded.id);
+          if (user) {
+            role = 'user';
+          }
+        }
+      }
+    } catch (dbError) {
+      console.error('Database error when finding user:', dbError);
+      return res.status(500).json({ 
+        authenticated: false, 
+        message: 'Database error when verifying user',
+        redirectTo: '/login.html'
+      });
     }
 
     if (!user) {
-      console.log('User not found for id:', decoded.id);
-      return res.status(404).json({ authenticated: false, message: 'User not found' });
+      console.warn('User not found for id:', decoded.id);
+      
+      // Check if we have email in token to try recovery
+      if (decoded.email) {
+        try {
+          // Try to find user by email as fallback
+          user = await Admin.findOne({ email: decoded.email });
+          if (user) {
+            role = 'admin';
+            console.log('Recovered admin user by email:', decoded.email);
+          } else {
+            user = await User.findOne({ email: decoded.email });
+            if (user) {
+              role = 'user';
+              console.log('Recovered regular user by email:', decoded.email);
+              
+              // Issue a new token with correct ID
+              const newToken = jwt.sign(
+                { id: user._id, email: user.email },
+                process.env.JWT_SECRET,
+                { expiresIn: '24h' }
+              );
+              
+              // Set the new token in cookie
+              const cookieOptions = {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: 24 * 60 * 60 * 1000 // 24 hours
+              };
+              
+              res.cookie('token', newToken, cookieOptions);
+              console.log('New token issued and cookie set for recovered user');
+              
+              // Update token for response
+              token = newToken;
+            }
+          }
+        } catch (recoveryError) {
+          console.error('Error during user recovery attempt:', recoveryError);
+        }
+      }
+      
+      // If still no user, authentication fails
+      if (!user) {
+        return res.status(401).json({ 
+          authenticated: false, 
+          message: 'User account not found',
+          redirectTo: '/login.html?error=' + encodeURIComponent('account_not_found')
+        });
+      }
     }
 
     // Send back user info including role
@@ -403,7 +544,7 @@ exports.checkAuth = async (req, res) => {
       role: role
     };
     
-    console.log('User authenticated:', userData);
+    console.log('User authenticated successfully:', userData.email);
     return res.status(200).json({ 
       authenticated: true, 
       message: 'User is authenticated',
@@ -411,7 +552,12 @@ exports.checkAuth = async (req, res) => {
       token: token // Return the token back to help with localStorage sync
     });
   } catch (error) {
-    console.error('Error in checkAuth:', error);
-    return res.status(401).json({ authenticated: false, message: 'Failed to authenticate token', error: error.message });
+    console.error('Unexpected error in checkAuth:', error);
+    return res.status(500).json({ 
+      authenticated: false, 
+      message: 'Authentication error',
+      error: error.message,
+      redirectTo: '/login.html'
+    });
   }
 };

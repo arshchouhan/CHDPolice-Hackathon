@@ -355,7 +355,7 @@ exports.handleCallback = async (req, res) => {
           gmail_refresh_token: tokens.refresh_token,
           gmail_token_expiry: new Date(Date.now() + (tokens.expiry_date || 3600000)), // Default 1hr if missing
           gmail_connected: true,
-          last_email_sync: null
+          last_email_sync: new Date() // Set initial sync time to now
         });
         console.log('User updated with Gmail tokens');
       } catch (dbError) {
@@ -523,6 +523,18 @@ exports.fetchEmails = async (req, res) => {
       getRedirectUri()
     );
     
+    // Check if we have valid tokens before proceeding
+    if (!user.gmail_access_token || !user.gmail_refresh_token) {
+      console.error('Missing Gmail tokens for user:', userId);
+      user.gmail_connected = false;
+      await user.save();
+      return res.status(401).json({ 
+        message: 'Gmail authentication missing or incomplete', 
+        error: 'Missing required tokens',
+        action: 'reconnect'
+      });
+    }
+    
     // Set up auth client with user's tokens
     emailClient.setCredentials({
       access_token: user.gmail_access_token,
@@ -531,33 +543,78 @@ exports.fetchEmails = async (req, res) => {
     
     // Check if token is expired and refresh if needed
     try {
-      if (user.gmail_token_expiry && new Date(user.gmail_token_expiry) < new Date()) {
-        console.log('Token expired, refreshing...');
-        const { credentials } = await emailClient.refreshAccessToken();
+      // Always try to refresh if token is expired or about to expire (within 5 minutes)
+      const tokenExpiryTime = user.gmail_token_expiry ? new Date(user.gmail_token_expiry) : new Date(0);
+      const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
+      
+      if (!user.gmail_token_expiry || tokenExpiryTime < fiveMinutesFromNow) {
+        console.log('Token expired or about to expire, refreshing...');
         
-        console.log('Token refreshed successfully');
-        
-        // Update user with new tokens
-        user.gmail_access_token = credentials.access_token;
-        if (credentials.refresh_token) {
-          user.gmail_refresh_token = credentials.refresh_token;
+        try {
+          const { credentials } = await emailClient.refreshAccessToken();
+          console.log('Token refreshed successfully');
+          
+          // Update user with new tokens
+          user.gmail_access_token = credentials.access_token;
+          if (credentials.refresh_token) {
+            user.gmail_refresh_token = credentials.refresh_token;
+          }
+          
+          // Calculate expiry time from the response or default to 1 hour
+          const expiresIn = credentials.expiry_date ? 
+            (credentials.expiry_date - Date.now()) : 
+            (credentials.expires_in ? credentials.expires_in * 1000 : 3600000);
+          
+          user.gmail_token_expiry = new Date(Date.now() + expiresIn);
+          await user.save();
+          
+          // Update client credentials with refreshed tokens
+          emailClient.setCredentials({
+            access_token: credentials.access_token,
+            refresh_token: user.gmail_refresh_token
+          });
+        } catch (innerRefreshError) {
+          // Log the full error object for debugging
+          console.error('Token refresh failed with error:', JSON.stringify(innerRefreshError, null, 2));
+          
+          // Check for invalid_grant error which means token is permanently invalid
+          if (innerRefreshError.response && innerRefreshError.response.data && 
+              innerRefreshError.response.data.error === 'invalid_grant') {
+            console.log('Invalid grant error detected - token is permanently invalid');
+            
+            // Clear token data and mark as disconnected
+            user.gmail_connected = false;
+            user.gmail_access_token = null;
+            user.gmail_refresh_token = null;
+            user.gmail_token_expiry = null;
+            await user.save();
+            
+            return res.status(401).json({
+              message: 'Gmail authorization has been revoked or is invalid',
+              error: 'invalid_grant',
+              action: 'reconnect_required'
+            });
+          }
+          
+          // Handle the error here instead of propagating
+          console.error('Token refresh error details:', innerRefreshError.message);
+          user.gmail_connected = false;
+          await user.save();
+          
+          return res.status(401).json({ 
+            message: 'Failed to refresh Gmail authentication', 
+            error: innerRefreshError.message || 'Token refresh failed',
+            action: 'reconnect_required'
+          });
         }
-        user.gmail_token_expiry = new Date(Date.now() + (credentials.expiry_date || 3600000));
-        await user.save();
-        
-        // Update client credentials with refreshed tokens
-        emailClient.setCredentials({
-          access_token: credentials.access_token,
-          refresh_token: user.gmail_refresh_token
-        });
       }
     } catch (refreshError) {
-      console.error('Error refreshing token:', refreshError);
+      console.error('Error in token refresh process:', refreshError);
       // If refresh fails, mark Gmail as disconnected
       user.gmail_connected = false;
       await user.save();
       return res.status(401).json({ 
-        message: 'Gmail authentication expired', 
+        message: 'Gmail authentication expired or invalid', 
         error: refreshError.message,
         action: 'reconnect'
       });
@@ -638,13 +695,16 @@ exports.fetchEmails = async (req, res) => {
       user.last_email_sync = new Date();
       await user.save();
       
+      console.log(`Updated last sync time for user: ${userId}`);
+      
       // Return the processed emails
       return res.status(200).json({
         success: true,
+        message: `${processedEmails.length} emails processed`,
         emails: processedEmails,
+        emailCount: processedEmails.length,
         connected: true
       });
-      console.log(`Updated last sync time for user: ${userId}`);
     } catch (apiError) {
       console.error('Error fetching emails from Gmail API:', apiError);
       return res.status(500).json({ 
@@ -653,14 +713,6 @@ exports.fetchEmails = async (req, res) => {
         details: apiError.response?.data || 'No additional details'
       });
     }
-    
-    // Return the processed emails
-    res.status(200).json({ 
-      success: true, 
-      message: `${processedEmails.length} emails processed`,
-      emails: processedEmails,
-      connected: true
-    });
   } catch (error) {
     console.error('Error fetching emails:', error);
     
@@ -771,16 +823,321 @@ function analyzeEmail(emailData) {
     text: 0,
     metadata: 0,
     attachments: 0,
-    total: 0
+    total: 0,
+    headerDetails: {
+      routingPath: { score: 0, findings: [], suspicious: false },
+      serverReputation: { score: 0, findings: [], suspicious: false },
+      geoConsistency: { score: 0, findings: [], suspicious: false },
+      timestampSequence: { score: 0, findings: [], suspicious: false }
+    }
   };
   
-  // Header analysis
-  if (emailData.from.includes('noreply') || emailData.from.includes('no-reply')) {
-    scores.header += 5;
+  // Advanced Header Analysis
+  if (emailData.rawHeaders) {
+    const headerAnalysisResults = analyzeEmailHeaders(emailData.rawHeaders, emailData.from);
+    
+    // Update header score based on the comprehensive analysis
+    scores.header = headerAnalysisResults.totalScore;
+    scores.headerDetails = headerAnalysisResults.details;
   }
   
-  if (emailData.from.includes('security') || emailData.from.includes('account')) {
-    scores.header += 10;
+  // Helper function for advanced header analysis
+  function analyzeEmailHeaders(rawHeaders, fromAddress) {
+    // Parse headers if they're in string format
+    let parsedHeaders;
+    try {
+      if (typeof rawHeaders === 'string') {
+        try {
+          parsedHeaders = JSON.parse(rawHeaders);
+        } catch (e) {
+          // If not valid JSON, assume it's a raw header string
+          parsedHeaders = rawHeaders.split('\n').map(line => {
+            const [name, ...valueParts] = line.split(':');
+            const value = valueParts.join(':').trim();
+            return { name, value };
+          });
+        }
+      } else {
+        parsedHeaders = rawHeaders;
+      }
+    } catch (error) {
+      console.error('Error parsing email headers:', error);
+      return { totalScore: 0, details: {} };
+    }
+    
+    // Initialize analysis results
+    const results = {
+      totalScore: 0,
+      details: {
+        routingPath: { score: 0, findings: [], suspicious: false },
+        serverReputation: { score: 0, findings: [], suspicious: false },
+        geoConsistency: { score: 0, findings: [], suspicious: false },
+        timestampSequence: { score: 0, findings: [], suspicious: false }
+      }
+    };
+    
+    // 1. Complete Email Routing Path Verification
+    try {
+      const receivedHeaders = Array.isArray(parsedHeaders) 
+        ? parsedHeaders.filter(h => h.name === 'Received').map(h => h.value)
+        : [];
+      
+      if (receivedHeaders.length === 0) {
+        results.details.routingPath.findings.push('No Received headers found - highly suspicious');
+        results.details.routingPath.score += 25;
+        results.details.routingPath.suspicious = true;
+      } else {
+        // Extract domain from sender
+        const senderDomain = fromAddress ? extractDomain(fromAddress) : null;
+        
+        // Check if routing path includes servers from the sender's domain
+        let foundSenderDomain = false;
+        const routingServers = [];
+        
+        receivedHeaders.forEach(header => {
+          // Extract server info from received header
+          const fromMatch = header.match(/from\s+([^\s]+)/);
+          const byMatch = header.match(/by\s+([^\s]+)/);
+          
+          if (fromMatch && fromMatch[1]) {
+            routingServers.push(fromMatch[1]);
+            if (senderDomain && fromMatch[1].includes(senderDomain)) {
+              foundSenderDomain = true;
+            }
+          }
+          
+          if (byMatch && byMatch[1]) {
+            routingServers.push(byMatch[1]);
+            if (senderDomain && byMatch[1].includes(senderDomain)) {
+              foundSenderDomain = true;
+            }
+          }
+        });
+        
+        results.details.routingPath.findings.push(`Routing path: ${routingServers.join(' → ')}`);
+        
+        // Check if sender domain appears in routing path
+        if (senderDomain && !foundSenderDomain) {
+          results.details.routingPath.findings.push(`Sender domain ${senderDomain} not found in routing path`);
+          results.details.routingPath.score += 20;
+          results.details.routingPath.suspicious = true;
+        }
+        
+        // Check for suspicious routing patterns
+        const suspiciousPatterns = [
+          { pattern: /unknown/i, score: 15, message: 'Unknown server in routing path' },
+          { pattern: /helo/i, score: 10, message: 'HELO command with suspicious domain' }
+        ];
+        
+        suspiciousPatterns.forEach(({ pattern, score, message }) => {
+          receivedHeaders.forEach(header => {
+            if (pattern.test(header)) {
+              results.details.routingPath.findings.push(message);
+              results.details.routingPath.score += score;
+              results.details.routingPath.suspicious = true;
+            }
+          });
+        });
+      }
+    } catch (error) {
+      console.error('Error in routing path analysis:', error);
+    }
+    
+    // 2. Server Reputation Checking
+    try {
+      // This would typically use an external API or database
+      // For demonstration, we'll check against a small list of known bad domains/IPs
+      const knownBadServers = [
+        '185.122.58.14', 'spamdomain.com', '58.64.100.42',
+        'mail.suspiciousdomain.com', 'relay.sketchy.net'
+      ];
+      
+      // Extract all server names and IPs from headers
+      const serverMatches = [];
+      if (Array.isArray(parsedHeaders)) {
+        parsedHeaders.forEach(header => {
+          if (typeof header.value === 'string') {
+            // Match IP addresses
+            const ipMatches = header.value.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g);
+            if (ipMatches) serverMatches.push(...ipMatches);
+            
+            // Match domain names
+            const domainMatches = header.value.match(/\b[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g);
+            if (domainMatches) serverMatches.push(...domainMatches);
+          }
+        });
+      }
+      
+      // Check against known bad servers
+      const foundBadServers = serverMatches.filter(server => 
+        knownBadServers.some(badServer => server.includes(badServer))
+      );
+      
+      if (foundBadServers.length > 0) {
+        results.details.serverReputation.findings.push(
+          `Found ${foundBadServers.length} suspicious servers: ${foundBadServers.join(', ')}`
+        );
+        results.details.serverReputation.score += 25 * foundBadServers.length;
+        results.details.serverReputation.suspicious = true;
+      }
+    } catch (error) {
+      console.error('Error in server reputation analysis:', error);
+    }
+    
+    // 3. Geographic Consistency Validation
+    // In a real implementation, this would use a geolocation API
+    // For demonstration, we'll simulate with some basic checks
+    try {
+      // Extract country codes from headers (simulated)
+      const countryCodesInPath = [];
+      const senderCountry = extractSenderCountry(fromAddress);
+      
+      // Simulate finding country codes in the headers
+      if (Array.isArray(parsedHeaders)) {
+        parsedHeaders.forEach(header => {
+          if (typeof header.value === 'string') {
+            // This is a simplified simulation - in reality would use IP geolocation
+            if (header.value.includes('185.122.58')) countryCodesInPath.push('RU');
+            if (header.value.includes('58.64.100')) countryCodesInPath.push('CN');
+            if (header.value.includes('google.com')) countryCodesInPath.push('US');
+          }
+        });
+      }
+      
+      // Check for geographic inconsistencies
+      if (senderCountry && countryCodesInPath.length > 0) {
+        const suspiciousCountries = ['RU', 'CN', 'NG', 'KP']; // Example list
+        const foundSuspiciousCountries = countryCodesInPath.filter(cc => 
+          suspiciousCountries.includes(cc) && cc !== senderCountry
+        );
+        
+        if (foundSuspiciousCountries.length > 0) {
+          results.details.geoConsistency.findings.push(
+            `Email routed through suspicious countries: ${foundSuspiciousCountries.join(', ')}`
+          );
+          results.details.geoConsistency.score += 15 * foundSuspiciousCountries.length;
+          results.details.geoConsistency.suspicious = true;
+        }
+      }
+    } catch (error) {
+      console.error('Error in geographic consistency analysis:', error);
+    }
+    
+    // 4. Timestamp Sequence Verification
+    try {
+      const receivedHeaders = Array.isArray(parsedHeaders) 
+        ? parsedHeaders.filter(h => h.name === 'Received').map(h => h.value)
+        : [];
+      
+      if (receivedHeaders.length > 1) {
+        const timestamps = [];
+        
+        receivedHeaders.forEach(header => {
+          // Extract timestamp from received header
+          const dateMatch = header.match(/;\s*([^;\n]+)$/);
+          if (dateMatch && dateMatch[1]) {
+            try {
+              const timestamp = new Date(dateMatch[1].trim());
+              if (!isNaN(timestamp)) {
+                timestamps.push(timestamp);
+              }
+            } catch (e) {
+              // Invalid date format
+            }
+          }
+        });
+        
+        // Check if timestamps are in reverse chronological order (newest first)
+        let outOfSequence = false;
+        for (let i = 0; i < timestamps.length - 1; i++) {
+          if (timestamps[i] < timestamps[i + 1]) {
+            outOfSequence = true;
+            break;
+          }
+        }
+        
+        if (outOfSequence) {
+          results.details.timestampSequence.findings.push('Email timestamps are out of sequence - possible header forgery');
+          results.details.timestampSequence.score += 30;
+          results.details.timestampSequence.suspicious = true;
+        }
+        
+        // Check for unreasonable time gaps
+        if (timestamps.length >= 2) {
+          const firstTime = timestamps[timestamps.length - 1]; // Oldest
+          const lastTime = timestamps[0]; // Newest
+          const timeDiff = lastTime - firstTime;
+          
+          // Flag if delivery took more than 24 hours
+          if (timeDiff > 24 * 60 * 60 * 1000) {
+            results.details.timestampSequence.findings.push(
+              `Unusually long delivery time: ${Math.round(timeDiff / (60 * 60 * 1000))} hours`
+            );
+            results.details.timestampSequence.score += 10;
+            results.details.timestampSequence.suspicious = true;
+          }
+          
+          // Flag if timestamps are in the future
+          const now = new Date();
+          if (timestamps.some(ts => ts > now)) {
+            results.details.timestampSequence.findings.push('Found timestamps in the future - likely forged');
+            results.details.timestampSequence.score += 25;
+            results.details.timestampSequence.suspicious = true;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in timestamp sequence analysis:', error);
+    }
+    
+    // Calculate total header score
+    results.totalScore = [
+      results.details.routingPath.score,
+      results.details.serverReputation.score,
+      results.details.geoConsistency.score,
+      results.details.timestampSequence.score
+    ].reduce((sum, score) => sum + score, 0);
+    
+    // Cap the score at 100
+    results.totalScore = Math.min(results.totalScore, 100);
+    
+    return results;
+  }
+  
+  // Helper function to extract domain from email address
+  function extractDomain(email) {
+    try {
+      const match = email.match(/@([^@]+)$/);
+      return match ? match[1].toLowerCase() : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  // Helper function to extract country from email address (simplified simulation)
+  function extractSenderCountry(email) {
+    if (!email) return null;
+    
+    const domain = extractDomain(email);
+    if (!domain) return null;
+    
+    // Simplified mapping - in reality would use a proper database
+    const tldCountryMap = {
+      'com': 'US', // Default for .com
+      'uk': 'GB',
+      'ca': 'CA',
+      'au': 'AU',
+      'de': 'DE',
+      'fr': 'FR',
+      'ru': 'RU',
+      'cn': 'CN',
+      'jp': 'JP',
+      'in': 'IN'
+    };
+    
+    // Check for country-specific domains
+    const tld = domain.split('.').pop().toLowerCase();
+    return tldCountryMap[tld] || null;
   }
   
   // Text analysis

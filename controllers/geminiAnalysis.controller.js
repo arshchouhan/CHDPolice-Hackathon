@@ -16,7 +16,7 @@ const UrlAnalysis = require('../models/UrlAnalysis');
  */
 exports.analyzeEmail = async (req, res) => {
   try {
-    const { emailId, emailContent, subject, sender } = req.body;
+    const { emailId, emailContent, subject, sender, headers } = req.body;
 
     if (!emailContent) {
       return res.status(400).json({
@@ -33,7 +33,8 @@ exports.analyzeEmail = async (req, res) => {
       subject: subject || 'No Subject',
       body: emailContent,
       sender: sender || 'unknown@sender.com',
-      urls: urls
+      urls: urls,
+      headers: headers || null
     };
 
     // Analyze email with Gemini API

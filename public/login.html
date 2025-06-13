@@ -7,10 +7,13 @@
     <title>Login - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <link rel="stylesheet" href="/css/auth.css">
+    <!-- Load the unified base URL handler first -->
+    <script src="/js/base-url.js"></script>
+    <!-- Updated Google Sign-In configuration with improved error handling -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <meta name="google-signin-client_id" content="317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com">
     <meta name="google-signin-scope" content="profile email">
-    <meta name="google-signin-hosted_domain" content="chd-police-hackathon.vercel.app chd-police-hackathon.onrender.com">
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -125,8 +128,9 @@
                         data-context="signin"
                         data-ux_mode="popup"
                         data-callback="handleGoogleSignIn"
-                        data-auto_select="true"
-                        data-close_on_tap_outside="false">
+                        data-auto_prompt="false"
+                        data-itp_support="true"
+                        data-error_callback="handleGoogleError">
                     </div>
                     
                     <div class="g_id_signin"
@@ -141,32 +145,97 @@
                 </div>
                 
                 <script>
-                    function handleGoogleSignIn(response) {
-                        const credential = response.credential;
-                        document.getElementById('loadingOverlay').classList.remove('hidden');
-                        
-                        fetch('https://chdpolice-hackathon.onrender.com/api/auth/google', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ credential }),
-                            credentials: 'include'
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                window.location.href = data.redirectUrl || '/dashboard.html';
-                            } else {
-                                throw new Error(data.message || 'Google sign-in failed');
+                    // Handle Google Sign-In errors
+                    function handleGoogleError(error) {
+                        console.error('Google Sign-In error:', error);
+                        const errorMessage = document.getElementById('errorMessage');
+                        if (error.error === 'popup_closed_by_user') {
+                            errorMessage.textContent = 'Sign-in was cancelled. Please try again.';
+                        } else if (error.error === 'invalid_client') {
+                            errorMessage.textContent = 'Authentication configuration error. Please contact support.';
+                        } else {
+                            errorMessage.textContent = 'An error occurred during Google Sign-In. Please try again.';
+                        }
+                        errorMessage.classList.remove('hidden');
+                    }
+
+                    // Initialize Google Sign-In with current domain
+                    window.onload = function() {
+                        const currentDomain = window.location.origin;
+                        console.log('Initializing Google Sign-In for domain:', currentDomain);
+                    };
+                </script>
+                
+                <script>
+                    async function handleGoogleSignIn(response) {
+                        try {
+                            if (!response || !response.credential) {
+                                throw new Error('Invalid response from Google Sign-In');
                             }
-                        })
-                        .catch(error => {
+                            
+                            // Get the current domain
+                            const currentDomain = window.location.origin;
+                            console.log('Current domain:', currentDomain);
+                            
+                            // Use the global getBaseUrl function for consistent API endpoint resolution
+                            const apiUrl = window.getBaseUrl ? `${window.getBaseUrl()}/api/auth/google` : '/api/auth/google';
+                            console.log('Google auth endpoint:', apiUrl);
+                            
+                            // Show loading overlay
+                            document.getElementById('loadingOverlay').classList.remove('hidden');
+                            
+                            // Send the credential to your backend
+                            const authResponse = await fetch(apiUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json'
+                                },
+                                credentials: 'include',
+                                mode: 'cors',
+                                body: JSON.stringify({ 
+                                    credential: response.credential,
+                                    origin: currentDomain
+                                })
+                            });
+                            console.log('Auth response status:', authResponse.status);
+                            
+                            if (!authResponse.ok) {
+                                const errorData = await authResponse.json();
+                                throw new Error(errorData.message || 'Google Sign-In failed');
+                            }
+                            
+                            const data = await authResponse.json();
+                            console.log('Auth success, storing credentials...');
+                            
+                            // Store token if provided
+                            if (data.token) {
+                                localStorage.setItem('token', data.token);
+                                console.log('Token stored in localStorage');
+                            }
+                            
+                            // Store user role if available
+                            if (data.user && data.user.role) {
+                                localStorage.setItem('userRole', data.user.role);
+                                console.log('User role stored:', data.user.role);
+                            }
+                            
+                            // Redirect based on role
+                            if (data.user && data.user.role === 'admin') {
+                                console.log('Redirecting to admin dashboard...');
+                                window.location.href = '/admin-dashboard.html';
+                            } else {
+                                console.log('Redirecting to user dashboard...');
+                                window.location.href = '/index.html';
+                            }
+                            
+                        } catch (error) {
+                            console.error('Google Sign-In error:', error);
                             document.getElementById('loadingOverlay').classList.add('hidden');
-                            document.getElementById('errorMessage').textContent = error.message;
-                            document.getElementById('errorMessage').classList.remove('hidden');
-                            console.error('Google sign-in error:', error);
-                        });
+                            const errorMessage = document.getElementById('errorMessage');
+                            errorMessage.textContent = error.message || 'An error occurred during Google Sign-In';
+                            errorMessage.classList.remove('hidden');
+                        }
                     }
                 </script>
 
@@ -233,30 +302,84 @@
     </div>
 
     <script>
-        // Get base URL based on environment
-        const BASE_URL = window.location.hostname === 'localhost'
-        ? 'http://localhost:3000' // Local development URL
-        : window.location.hostname.includes('vercel.app')
-        ? 'https://chd-police-hackathon.onrender.com' // Production backend URL
-        : window.location.hostname.includes('onrender.com')
-        ? '' // When frontend and backend are on same domain
-        : ''; // Fallback to relative URLs
+        // Use the global getBaseUrl function from base-url.js
+        function getApiBaseUrl() {
+            return window.getBaseUrl ? window.getBaseUrl() : '';
+        }
+        console.log('Using global getBaseUrl function for API calls:', getApiBaseUrl());
+        
+        // Handle URL parameters on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Check for logout parameter
+            if (urlParams.get('logout') === 'success') {
+                // Create success message element
+                const successMessage = document.createElement('div');
+                successMessage.className = 'bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4';
+                successMessage.innerHTML = '<strong class="font-bold">Success!</strong><span class="block sm:inline"> You have been successfully logged out.</span>';
+                
+                // Insert before the form
+                const form = document.querySelector('form');
+                form.parentNode.insertBefore(successMessage, form);
+                
+                // Remove after 5 seconds
+                setTimeout(() => {
+                    successMessage.remove();
+                }, 5000);
+            }
+            
+            // Check for error parameter
+            if (urlParams.get('error')) {
+                let errorText = '';
+                switch(urlParams.get('error')) {
+                    case 'not_authenticated':
+                        errorText = 'You need to log in to access that page.';
+                        break;
+                    case 'session_expired':
+                        errorText = 'Your session has expired. Please log in again.';
+                        break;
+                    default:
+                        errorText = 'An error occurred. Please log in again.';
+                }
+                
+                errorMessage.textContent = errorText;
+                errorMessage.classList.remove('hidden');
+            }
+            
+            // Clear any existing tokens that might be invalid
+            localStorage.removeItem('token');
+            localStorage.removeItem('userRole');
+        });
     
         // Update all fetch requests to use BASE_URL
         async function handleLogin(event) {
             event.preventDefault();
             const emailOrUsername = document.getElementById('emailOrUsername').value;
             const password = document.getElementById('password').value;
+
+            // Check if we have a redirect parameter in the URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const redirectParam = urlParams.get('redirect');
+            console.log('Redirect parameter:', redirectParam);
     
             try {
-                const response = await fetch(`${BASE_URL}/api/auth/login`, {
+                const apiUrl = getApiBaseUrl() + '/api/auth/login';
+                console.log('Attempting login to:', apiUrl);
+                
+                console.log('Login request to:', apiUrl);
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
                     credentials: 'include',
+                    mode: 'cors',
                     body: JSON.stringify({ emailOrUsername, password })
                 });
+                console.log('Login response status:', response.status);
     
                 const data = await response.json();
     
@@ -264,10 +387,24 @@
                     // Show loading overlay
                     document.getElementById('loadingOverlay').classList.remove('hidden');
                     // Redirect to dashboard based on user role
+                    // Store token in localStorage for client-side auth checks
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                        console.log('Token saved to localStorage');
+                    }
+                    
+                    // Store user role if available
+                    if (data.user && data.user.role) {
+                        localStorage.setItem('userRole', data.user.role);
+                    }
+                    
+                    // Redirect based on role and redirect parameter
                     if (data.user && data.user.role === 'admin') {
-                        window.location.href = `${BASE_URL}/admin-dashboard.html`;
+                        // Admin users go to the admin dashboard
+                        window.location.href = '/admin-dashboard.html';
                     } else {
-                        window.location.href = `${BASE_URL}/index.html`;
+                        // Regular users always go to the user dashboard
+                        window.location.href = '/index.html';
                     }
                 } else {
                     throw new Error(data.message || 'Login failed');

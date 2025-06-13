@@ -81,11 +81,23 @@ Subject: ${emailData.subject}
 Body:
 ${emailData.body}
 
+${emailData.headers ? `Email Headers:
+${typeof emailData.headers === 'string' ? emailData.headers : JSON.stringify(emailData.headers, null, 2)}
+` : ''}
+
 URLs found in email:
 ${emailData.urls.map((url, index) => `${index + 1}. ${url}`).join('\n')}
 
 ANALYSIS INSTRUCTIONS:
-1. URL Analysis (be thorough and critical):
+1. Email Header Analysis (be thorough and critical):
+   - Complete Email Routing Path Verification: Extract all "Received" headers and analyze the routing path
+   - Server Reputation Checking: Check if any servers in the routing path are suspicious or blacklisted
+   - Geographic Consistency Validation: Check if the email was routed through suspicious countries
+   - Timestamp Sequence Verification: Check if timestamps in headers are in chronological order
+   - Look for mismatches between Reply-To, Return-Path, and From headers
+   - Check for spoofed sender domains and suspicious HELO/EHLO commands
+
+2. URL Analysis (be thorough and critical):
    - Check for typosquatting (e.g., paypa1.com, micros0ft.com, g00gle.com)
    - Verify if domains are recently registered (check TLDs like .xyz, .top, .gq, .tk, .ml, .ga, .cf)
    - Look for suspicious subdomains (e.g., secure-paypal.com.login.verify.xyz)
@@ -94,7 +106,7 @@ ANALYSIS INSTRUCTIONS:
    - Look for IP addresses instead of domain names
    - Check for HTTPS usage and certificate validity
 
-2. Email Content Analysis:
+3. Email Content Analysis:
    - Check for urgent or threatening language (e.g., "Your account will be suspended")
    - Look for poor grammar or spelling mistakes
    - Identify requests for sensitive information (passwords, SSN, credit card)
@@ -103,16 +115,41 @@ ANALYSIS INSTRUCTIONS:
    - Look for mismatched links (text shows one URL but links elsewhere)
    - Check for suspicious attachments or requests to download files
 
-3. Risk Assessment:
+4. Risk Assessment:
    - Assign a risk score (0-100) to each URL based on severity of findings
    - Calculate an overall risk score for the email
    - Be strict with financial institutions, government agencies, and tech companies
    - Consider the context and combination of multiple low-risk indicators
 
-4. Response Format (MUST be valid JSON):
+5. Response Format (MUST be valid JSON):
 {
   "overallRiskScore": number,  // 0-100
   "isSuspicious": boolean,      // true if likely phishing/scam
+  "headerAnalysis": {
+    "score": number,  // 0-100
+    "details": {
+      "routingPath": {
+        "score": number,  // 0-100
+        "findings": [string],
+        "suspicious": boolean
+      },
+      "serverReputation": {
+        "score": number,  // 0-100
+        "findings": [string],
+        "suspicious": boolean
+      },
+      "geoConsistency": {
+        "score": number,  // 0-100
+        "findings": [string],
+        "suspicious": boolean
+      },
+      "timestampSequence": {
+        "score": number,  // 0-100
+        "findings": [string],
+        "suspicious": boolean
+      }
+    }
+  },
   "phishingIndicators": [
     {
       "type": string,          // e.g., "suspicious_url", "urgent_language"

@@ -5,7 +5,7 @@ services:
     runtime: node
     region: singapore
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install && cd client && npm install && npm run build && cd ..
     startCommand: node server.js
     autoDeploy: true
     healthCheckPath: /health
@@ -33,7 +33,7 @@ services:
     headers:
       - path: /*
         name: Access-Control-Allow-Origin
-        value: "https://email-detection-api.onrender.com"
+        value: "*"
       - path: /*
         name: Access-Control-Allow-Credentials
         value: "true"
@@ -47,6 +47,17 @@ services:
     staticPublishPath: ./public
     # Routes configuration
     routes:
+      # API routes
+      - type: rewrite
+        source: /api/*
+        destination: /api/$1
+      # Auth routes with no rewrites
+      - type: rewrite
+        source: /login.html
+        destination: /login.html
+      - type: rewrite
+        source: /signup.html
+        destination: /signup.html
       # Explicit routes for HTML pages
       - type: rewrite
         source: /login
@@ -57,7 +68,14 @@ services:
       - type: rewrite
         source: /dashboard
         destination: /index.html
-      # Fallback route for SPA
+      # Static assets
+      - type: rewrite
+        source: /css/*
+        destination: /css/$1
+      - type: rewrite
+        source: /js/*
+        destination: /js/$1
+      # Fallback route for SPA - should be last
       - type: rewrite
         source: /*
         destination: /index.html

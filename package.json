@@ -10,9 +10,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "echo \"No build step required for backend\" && exit 0",
+    "build": "cd client && npm install && npm run build",
     "netlify-build": "cd client && npm install && npm run build",
-    "vercel-build": "echo \"No build step required for Vercel\" && exit 0",
+    "vercel-build": "npm install && npm run build",
     "render-build": "npm install"
   },
   "keywords": [],

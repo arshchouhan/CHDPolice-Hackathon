@@ -189,15 +189,9 @@ class SandboxFeedback extends React.Component {
     }
   };
 
+  // Use the global getBaseUrl function for consistent API URL handling
   getBaseUrl = () => {
-    // Get base URL based on environment
-    if (window.location.hostname === 'localhost') {
-      return 'http://localhost:3000';
-    } else if (window.location.hostname.includes('vercel.app')) {
-      return 'https://email-detection-api.onrender.com';
-    } else {
-      return ''; // Same domain
-    }
+    return window.getBaseUrl ? window.getBaseUrl() : window.location.origin;
   };
 
   renderStepIcon = (step) => {

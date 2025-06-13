@@ -7,6 +7,8 @@
     <title>Admin Dashboard - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com?v=3.3.0"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Load the unified base URL handler first -->
+    <script src="/js/base-url.js"></script>
     <!-- Force reload CSS -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
@@ -32,6 +34,54 @@
 </head>
 
 <body class="bg-gray-100 min-h-screen">
+    <!-- Authentication check script -->
+    <script>
+        // Check if user is authenticated and has admin role
+        function checkAdminAccess() {
+            const token = localStorage.getItem('token');
+            const userRole = localStorage.getItem('userRole');
+            
+            if (!token) {
+                console.error('No authentication token found');
+                window.location.href = '/login.html?error=not_authenticated&redirect=admin';
+                return false;
+            }
+            
+            if (userRole !== 'admin') {
+                console.error('User does not have admin role');
+                window.location.href = '/index.html?error=not_authorized';
+                return false;
+            }
+            
+            return true;
+        }
+        
+        // Handle logout functionality
+        function handleLogout() {
+            console.log('Logging out admin user');
+            // Clear authentication tokens
+            localStorage.removeItem('token');
+            localStorage.removeItem('userRole');
+            
+            // Redirect to login page
+            window.location.href = '/login.html?logout=success';
+        }
+        
+        // Run check immediately when page loads
+        if (!checkAdminAccess()) {
+            // This will redirect if not authenticated or not admin
+            // The page won't continue loading
+        }
+        
+        // Add event listener for logout button when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', handleLogout);
+            }
+        });
+    </script>
+    
     <!-- Loading overlay -->
     <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
         <div class="bg-white p-4 rounded-lg shadow-lg flex items-center space-x-4">
@@ -443,7 +493,7 @@
                 console.log('Checking admin authentication...');
                 
                 // Validate with server - we'll try with cookies first and token as backup
-                const response = await fetch(`${BASE_URL}/auth/check-auth`, {
+                const response = await fetch(`${BASE_URL}/api/auth/check-auth`, {
                     method: 'GET',
                     credentials: 'include' // Send cookies first
                 });
@@ -459,7 +509,7 @@
                     }
                     
                     // Try with token in Authorization header
-                    const tokenResponse = await fetch(`${BASE_URL}/auth/check-auth`, {
+                    const tokenResponse = await fetch(`${BASE_URL}/api/auth/check-auth`, {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${token}`
@@ -1037,6 +1087,62 @@
                                         <div class="w-full bg-gray-200 rounded-full h-2">
                                             <div class="bg-blue-500 h-2 rounded-full" style="width: ${email.scores.header}%"></div>
                                         </div>
+                                        
+                                        <!-- Detailed Header Analysis -->
+                                        <div class="mt-2 border-l-4 border-blue-500 pl-3 text-sm">
+                                            <div class="cursor-pointer text-blue-600 hover:text-blue-800" onclick="toggleHeaderDetails(this)">
+                                                <i class="fas fa-chevron-right mr-1"></i> View detailed header analysis
+                                            </div>
+                                            <div class="header-details hidden mt-2 space-y-3">
+                                                <!-- Email Routing Path Verification -->
+                                                <div class="${email.scores.headerDetails?.routingPath?.suspicious ? 'bg-red-50 border-l-4 border-red-500' : 'bg-gray-50'}  p-2 rounded">
+                                                    <h4 class="font-semibold flex items-center">
+                                                        <i class="fas fa-route mr-2"></i>
+                                                        Email Routing Path Verification
+                                                        ${email.scores.headerDetails?.routingPath?.suspicious ? '<span class="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Suspicious</span>' : ''}
+                                                    </h4>
+                                                    <div class="text-xs mt-1">
+                                                        ${email.scores.headerDetails?.routingPath?.findings?.map(finding => `<div class="py-1">${finding}</div>`).join('') || 'No issues found'}
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Server Reputation Checking -->
+                                                <div class="${email.scores.headerDetails?.serverReputation?.suspicious ? 'bg-red-50 border-l-4 border-red-500' : 'bg-gray-50'} p-2 rounded">
+                                                    <h4 class="font-semibold flex items-center">
+                                                        <i class="fas fa-server mr-2"></i>
+                                                        Server Reputation Checking
+                                                        ${email.scores.headerDetails?.serverReputation?.suspicious ? '<span class="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Suspicious</span>' : ''}
+                                                    </h4>
+                                                    <div class="text-xs mt-1">
+                                                        ${email.scores.headerDetails?.serverReputation?.findings?.map(finding => `<div class="py-1">${finding}</div>`).join('') || 'No issues found'}
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Geographic Consistency Validation -->
+                                                <div class="${email.scores.headerDetails?.geoConsistency?.suspicious ? 'bg-red-50 border-l-4 border-red-500' : 'bg-gray-50'} p-2 rounded">
+                                                    <h4 class="font-semibold flex items-center">
+                                                        <i class="fas fa-globe mr-2"></i>
+                                                        Geographic Consistency Validation
+                                                        ${email.scores.headerDetails?.geoConsistency?.suspicious ? '<span class="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Suspicious</span>' : ''}
+                                                    </h4>
+                                                    <div class="text-xs mt-1">
+                                                        ${email.scores.headerDetails?.geoConsistency?.findings?.map(finding => `<div class="py-1">${finding}</div>`).join('') || 'No issues found'}
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Timestamp Sequence Verification -->
+                                                <div class="${email.scores.headerDetails?.timestampSequence?.suspicious ? 'bg-red-50 border-l-4 border-red-500' : 'bg-gray-50'} p-2 rounded">
+                                                    <h4 class="font-semibold flex items-center">
+                                                        <i class="fas fa-clock mr-2"></i>
+                                                        Timestamp Sequence Verification
+                                                        ${email.scores.headerDetails?.timestampSequence?.suspicious ? '<span class="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Suspicious</span>' : ''}
+                                                    </h4>
+                                                    <div class="text-xs mt-1">
+                                                        ${email.scores.headerDetails?.timestampSequence?.findings?.map(finding => `<div class="py-1">${finding}</div>`).join('') || 'No issues found'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     
                                     <!-- Text Score -->
@@ -1166,6 +1272,21 @@
                 case 'Quarantined': return 'bg-red-100 text-red-800';
                 case 'Safe': return 'bg-green-100 text-green-800';
                 default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+        
+        // Toggle header details visibility
+        function toggleHeaderDetails(element) {
+            const detailsDiv = element.nextElementSibling;
+            const isHidden = detailsDiv.classList.contains('hidden');
+            
+            // Toggle visibility
+            if (isHidden) {
+                detailsDiv.classList.remove('hidden');
+                element.innerHTML = '<i class="fas fa-chevron-down mr-1"></i> Hide detailed header analysis';
+            } else {
+                detailsDiv.classList.add('hidden');
+                element.innerHTML = '<i class="fas fa-chevron-right mr-1"></i> View detailed header analysis';
             }
         }
         
@@ -1337,7 +1458,7 @@
                                     </div>
                                     <div>
                                         <p class="text-sm text-gray-500">Last Sync</p>
-                                        <p>${lastSync}</p>
+                                        <p id="lastSyncTime">${lastSync}</p>
                                     </div>
                                     <div>
                                         <p class="text-sm text-gray-500">User ID</p>
@@ -1385,12 +1506,49 @@
                             
                             if (response.ok) {
                                 const data = await response.json();
+                                // Update the last sync time in the modal without reloading
+                                const lastSyncElement = document.querySelector('#lastSyncTime');
+                                if (lastSyncElement) {
+                                    const formattedDate = new Date(data.lastSync).toLocaleString();
+                                    lastSyncElement.textContent = formattedDate;
+                                }
+                                
+                                // Refresh the emails table to show the latest emails
+                                loadAnalyzedEmails();
+                                
                                 alert(`Emails synced successfully! ${data.emailCount || 0} emails processed.`);
-                                // Refresh user details to show updated last sync time
-                                await viewUserDetails(userId);
                             } else {
                                 const errorData = await response.json();
-                                alert(`Failed to sync emails: ${errorData.message || 'Unknown error'}`); 
+                                
+                                // Update connection status UI if token needs to be refreshed
+                                if (errorData.needsReconnect) {
+                                    // Update the connection status in the modal
+                                    const connectionStatusElements = document.querySelectorAll(`.connection-status[data-user-id="${userId}"]`);
+                                    connectionStatusElements.forEach(element => {
+                                        element.textContent = 'Not Connected';
+                                        element.classList.remove('text-green-500', 'text-green-700', 'bg-green-100');
+                                        element.classList.add('text-red-500', 'bg-red-100');
+                                        element.setAttribute('data-status', 'disconnected');
+                                    });
+                                    
+                                    let message = errorData.message || 'Gmail authentication issue detected';
+                                    let reconnectMessage = 'Would you like to reconnect this user\'s Gmail account?';
+                                    
+                                    // Provide more specific message for invalid_grant errors
+                                    if (errorData.error === 'invalid_grant' || errorData.action === 'reconnect_required') {
+                                        message = 'Gmail authorization has been revoked or is invalid. This may happen if the user revoked access, changed their password, or the token has expired due to inactivity.';
+                                        reconnectMessage = 'The user will need to authorize access to their Gmail account again. Would you like to start the reconnection process now?';
+                                    }
+                                    
+                                    // Ask if admin wants to reconnect
+                                    if (confirm(`${message}\n\n${reconnectMessage}`)) {
+                                        // Redirect to Gmail connection page for this user
+                                        const reconnectUrl = `${BASE_URL}/gmail-connect.html?userId=${userId}&admin=true&return=${encodeURIComponent(window.location.href)}`;
+                                        window.open(reconnectUrl, '_blank');
+                                    }
+                                } else {
+                                    alert(`Failed to sync emails: ${errorData.message || 'Unknown error'}`);
+                                }
                             }
                         } catch (error) {
                             console.error('Error syncing emails:', error);

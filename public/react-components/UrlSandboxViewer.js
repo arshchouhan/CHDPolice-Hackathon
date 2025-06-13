@@ -629,65 +629,111 @@ class UrlSandboxViewer extends React.Component {
     return isTyposquatting && hasSuspiciousTLD;
   }
 
-  // Generate DNS analysis data for the URL
+  // Generate DNS analysis data for the URL using real IP analysis system
   generateDnsAnalysisData = async (url) => {
     try {
       const domain = new URL(url).hostname;
+      this.addLog(`Performing real IP analysis for ${domain}...`, 'system');
       
-      // Generate simulated DNS records
+      // Get authentication token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+      
+      // Get base URL
+      const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+      const apiEndpoint = `${baseUrl}/api/ip-analysis/details/${encodeURIComponent(domain)}`;
+      this.addLog(`Calling API endpoint: ${apiEndpoint}`, 'info');
+      
+      // Call the real IP analysis API endpoint with the domain (not the full URL)
+      const response = await fetch(apiEndpoint, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const responseText = await response.text();
+        this.addLog(`API response status: ${response.status} ${response.statusText}`, 'error');
+        this.addLog(`API response body preview: ${responseText.substring(0, 100)}...`, 'error');
+        throw new Error(`IP analysis API error: ${response.status} ${response.statusText}`);
+      }
+      
+      // Get the response as text first to check if it's valid JSON
+      const responseText = await response.text();
+      let ipData;
+      
+      try {
+        ipData = JSON.parse(responseText);
+      } catch (jsonError) {
+        this.addLog(`Invalid JSON response: ${responseText.substring(0, 100)}...`, 'error');
+        throw new Error(`Failed to parse JSON response: ${jsonError.message}`);
+      }
+      
+      if (!ipData.success) {
+        throw new Error(ipData.message || 'Unknown error from IP analysis API');
+      }
+      
+      this.addLog(`Successfully retrieved real IP intelligence data`, 'success');
+      
+      // Create DNS results from the real IP data
       const dnsResults = [
         {
           domain: domain,
-          a_records: ['192.168.1.1', '192.168.1.2'],
-          mx_records: [`mail.${domain}`, `smtp.${domain}`],
-          txt_records: [`v=spf1 include:${domain} ~all`],
-          is_suspicious: false,
-          timestamp: Math.floor(Date.now() / 1000)
+          a_records: [ipData.data.ip], // Real IP from analysis
+          mx_records: ipData.data.dns?.mx || [`mail.${domain}`],
+          txt_records: ipData.data.dns?.txt || [`v=spf1 include:${domain} ~all`],
+          is_suspicious: ipData.data.threatIntelligence?.isKnownBad || false,
+          timestamp: Math.floor(Date.now() / 1000),
+          // Add real IP intelligence data
+          ipIntelligence: {
+            ip: ipData.data.ip,
+            geolocation: ipData.data.geolocation,
+            isp: ipData.data.isp,
+            asn: ipData.data.asn,
+            threatIntelligence: ipData.data.threatIntelligence,
+            isVpnOrProxy: ipData.data.isVpnOrProxy,
+            confidence: ipData.data.confidence,
+            originalInput: ipData.data.originalInput
+          },
+          // Add DNS resolution data if available
+          dnsResolution: ipData.data.dnsResolution || null
         }
       ];
       
-      // Add records for common subdomains
-      const subdomains = [`www.${domain}`, `mail.${domain}`, `api.${domain}`];
-      subdomains.forEach(subdomain => {
-        dnsResults.push({
-          domain: subdomain,
-          a_records: ['192.168.2.1'],
-          mx_records: [],
-          txt_records: [],
-          is_suspicious: false,
-          timestamp: Math.floor(Date.now() / 1000)
+      // If we have DNS resolution data with multiple locations, add them
+      if (ipData.data.dnsResolution && ipData.data.dnsResolution.locationResults) {
+        Object.entries(ipData.data.dnsResolution.locationResults).forEach(([location, result]) => {
+          if (result.ip && !dnsResults[0].a_records.includes(result.ip)) {
+            dnsResults[0].a_records.push(result.ip);
+          }
         });
-      });
-
-      // Check for actual phishing indicators instead of just TLDs
-      const isPhishing = await this.checkForPhishingIndicators(domain);
+      }
+      
+      // Check for phishing indicators
+      const isPhishing = await this.checkForPhishingIndicators(domain) || 
+                         (ipData.data.threatIntelligence && ipData.data.threatIntelligence.isKnownBad);
       
       if (isPhishing) {
         dnsResults[0].is_suspicious = true;
-        
-        // Add some suspicious third-party domains
-        const suspiciousThirdParties = ['track.evil-analytics.xyz', 'cdn.malware-host.tk'];
-        suspiciousThirdParties.forEach(suspiciousDomain => {
-          dnsResults.push({
-            domain: suspiciousDomain,
-            a_records: ['10.0.0.1'],
-            mx_records: [],
-            txt_records: [],
-            is_suspicious: true,
-            timestamp: Math.floor(Date.now() / 1000)
-          });
-        });
+        this.addLog(`Warning: Domain ${domain} has suspicious characteristics`, 'warning');
       }
       
       return dnsResults;
       
     } catch (error) {
-      this.addLog(`Error generating DNS analysis data: ${error.message}`, 'error');
+      this.addLog(`Error with real IP analysis: ${error.message}. Falling back to simulated data.`, 'error');
+      
+      // Fallback to simulated data if real IP analysis fails
+      const domain = new URL(url).hostname;
       return [{
-        domain: new URL(url).hostname,
-        a_records: [],
-        mx_records: [],
-        txt_records: [],
+        domain: domain,
+        a_records: ['192.168.1.1'], // Fallback simulated IP
+        mx_records: [`mail.${domain}`],
+        txt_records: [`v=spf1 include:${domain} ~all`],
         is_suspicious: false,
         timestamp: Math.floor(Date.now() / 1000)
       }];
@@ -809,6 +855,198 @@ class UrlSandboxViewer extends React.Component {
               </div>
             );
           })}
+        </div>
+      </div>
+    );
+  }
+  
+  // Render IP Intelligence data from real IP analysis
+  renderIpIntelligence = () => {
+    const { dnsAnalysisData } = this.state;
+    
+    if (!dnsAnalysisData || !dnsAnalysisData[0] || !dnsAnalysisData[0].ipIntelligence) {
+      return null;
+    }
+    
+    const ipData = dnsAnalysisData[0].ipIntelligence;
+    const dnsResolution = dnsAnalysisData[0].dnsResolution;
+    
+    // Determine confidence level color
+    let confidenceColor = 'text-green-400';
+    if (ipData.confidence && ipData.confidence < 50) confidenceColor = 'text-red-400';
+    else if (ipData.confidence && ipData.confidence < 75) confidenceColor = 'text-yellow-400';
+    
+    // Determine VPN/proxy status color
+    let vpnProxyColor = 'text-green-400';
+    if (ipData.isVpnOrProxy) vpnProxyColor = 'text-red-400';
+    
+    // Determine threat intelligence color
+    let threatColor = 'text-green-400';
+    if (ipData.threatIntelligence && ipData.threatIntelligence.isKnownBad) threatColor = 'text-red-400';
+    else if (ipData.threatIntelligence && ipData.threatIntelligence.suspiciousScore > 50) threatColor = 'text-yellow-400';
+    
+    return (
+      <div className="mt-6 bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 shadow-lg overflow-hidden">
+        <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 border-b border-gray-700">
+          <div className="flex items-center justify-between">
+            <span className="text-gray-200 font-medium flex items-center">
+              <i className="fas fa-network-wired text-blue-400 mr-2"></i>
+              Real IP Intelligence
+            </span>
+            <span className="bg-blue-900/30 text-blue-300 text-xs px-2 py-1 rounded-full border border-blue-800/50">
+              Enhanced Analysis
+            </span>
+          </div>
+        </div>
+        
+        <div className="p-4 space-y-4">
+          {/* Original Input */}
+          {ipData.originalInput && (
+            <div className="mb-3">
+              <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Original Input</p>
+              <div className="flex items-center">
+                <span className="text-white">{ipData.originalInput.value}</span>
+                <span className="ml-2 px-2 py-0.5 bg-gray-700 rounded-full text-xs text-gray-300">
+                  {ipData.originalInput.type}
+                </span>
+              </div>
+            </div>
+          )}
+          
+          {/* IP Address */}
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex-1">
+              <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">IP Address</p>
+              <p className="text-white text-lg font-mono">{ipData.ip}</p>
+              
+              {/* Geolocation */}
+              {ipData.geolocation && (
+                <div className="mt-3">
+                  <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Geolocation</p>
+                  <p className="text-white">
+                    {ipData.geolocation.city}, {ipData.geolocation.region}, {ipData.geolocation.country}
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    Coordinates: {ipData.geolocation.lat}, {ipData.geolocation.lon}
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex-1">
+              {/* ISP & ASN */}
+              {(ipData.isp || ipData.asn) && (
+                <div className="mb-3">
+                  <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Network</p>
+                  {ipData.isp && <p className="text-white">ISP: {ipData.isp}</p>}
+                  {ipData.asn && <p className="text-gray-400 text-sm">ASN: {ipData.asn.number} ({ipData.asn.name})</p>}
+                </div>
+              )}
+              
+              {/* Confidence Score */}
+              {ipData.confidence !== undefined && (
+                <div className="mb-3">
+                  <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Real IP Confidence</p>
+                  <p className={`${confidenceColor} font-medium`}>
+                    {ipData.confidence}% 
+                    {ipData.confidence > 90 ? '(Very High)' : 
+                     ipData.confidence > 75 ? '(High)' : 
+                     ipData.confidence > 50 ? '(Medium)' : 
+                     ipData.confidence > 25 ? '(Low)' : '(Very Low)'}
+                  </p>
+                </div>
+              )}
+              
+              {/* VPN/Proxy Detection */}
+              <div className="mb-3">
+                <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">VPN/Proxy Detection</p>
+                <p className={`${vpnProxyColor} font-medium`}>
+                  {ipData.isVpnOrProxy ? 'Detected' : 'Not Detected'}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Threat Intelligence */}
+          {ipData.threatIntelligence && (
+            <div className="mt-2 pt-4 border-t border-gray-700">
+              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">Threat Intelligence</p>
+              <div className="flex flex-wrap gap-3">
+                <div className="bg-gray-800 px-3 py-2 rounded-lg flex items-center">
+                  <div className={`h-2 w-2 rounded-full ${threatColor} mr-2`}></div>
+                  <span className="text-white text-sm">
+                    {ipData.threatIntelligence.isKnownBad ? 'Known Bad IP' : 'No Known Threats'}
+                  </span>
+                </div>
+                
+                {ipData.threatIntelligence.suspiciousScore !== undefined && (
+                  <div className="bg-gray-800 px-3 py-2 rounded-lg">
+                    <span className="text-white text-sm">
+                      Suspicious Score: {ipData.threatIntelligence.suspiciousScore}/100
+                    </span>
+                  </div>
+                )}
+                
+                {ipData.threatIntelligence.reportCount > 0 && (
+                  <div className="bg-gray-800 px-3 py-2 rounded-lg">
+                    <span className="text-white text-sm">
+                      {ipData.threatIntelligence.reportCount} Abuse Reports
+                    </span>
+                  </div>
+                )}
+              </div>
+              
+              {ipData.threatIntelligence.categories && ipData.threatIntelligence.categories.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-gray-400 text-xs mb-1">Reported Categories:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ipData.threatIntelligence.categories.map((category, idx) => (
+                      <span key={idx} className="bg-red-900/30 text-red-300 text-xs px-2 py-1 rounded-full border border-red-800/50">
+                        {category}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* DNS Resolution Consistency */}
+          {dnsResolution && dnsResolution.locationResults && Object.keys(dnsResolution.locationResults).length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-700">
+              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">DNS Resolution Consistency</p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th className="text-left text-gray-400 font-medium py-2">Location</th>
+                      <th className="text-left text-gray-400 font-medium py-2">Resolved IP</th>
+                      <th className="text-left text-gray-400 font-medium py-2">Consistent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(dnsResolution.locationResults).map(([location, result], idx) => (
+                      <tr key={idx} className="border-t border-gray-800">
+                        <td className="py-2 text-white">{location}</td>
+                        <td className="py-2 font-mono text-white">{result.ip || 'Failed'}</td>
+                        <td className="py-2">
+                          {result.ip === ipData.ip ? 
+                            <span className="text-green-400">Yes</span> : 
+                            <span className="text-red-400">No</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-gray-400 text-xs mt-2">
+                Consistency Score: 
+                <span className={dnsResolution.consistencyScore > 75 ? 'text-green-400' : 'text-yellow-400'}>
+                  {dnsResolution.consistencyScore}%
+                </span>
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1199,6 +1437,8 @@ class UrlSandboxViewer extends React.Component {
                   </div>
                   <div className="p-4">
                     {this.renderSecurityFindings()}
+                    {this.renderRiskGauge()}
+                    {this.renderIpIntelligence()}
                   </div>
                 </div>
                 

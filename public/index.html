@@ -17,6 +17,8 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link rel="stylesheet" href="/css/email-analysis.css">
     <link rel="stylesheet" href="/css/skeleton-loading.css">
+    <!-- Load the unified base URL handler first -->
+    <script src="/js/base-url.js"></script>
     <script src="/js/skeleton-loader.js" defer></script>
     <script src="/js/gmail-oauth-handler.js" defer></script>
     <style>
@@ -1646,7 +1648,7 @@
                 
                 // If we have a token, verify it with the server
                 try {
-                    const response = await fetch(`${baseUrl}/auth/check-auth`, {
+                    const response = await fetch(`${baseUrl}/api/auth/check-auth`, {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${token}`
@@ -2287,6 +2289,8 @@
     <!-- Email Analysis Components -->
     <script type="text/babel" src="/react-components/EmailAnalysisDetails.js"></script>
     <script type="text/babel" src="/react-components/SandboxFeedback.js"></script>
+    <script type="text/babel" src="/react-components/IpAddressAnalyzer.js"></script>
+    <script type="text/babel" src="/react-components/GeminiEmailAnalyzer.js"></script>
     <script type="text/babel">
         // Render the Email Analysis component when viewing an email
         function renderEmailAnalysisDetails(emailId) {

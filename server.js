@@ -37,6 +37,8 @@ const authRoutes = require('./routes/auth.route');
 const gmailRoutes = require('./routes/gmail.route');
 const emailAnalysisRoutes = require('./routes/emailAnalysis.route');
 const geminiAnalysisRoutes = require('./routes/geminiAnalysis.route');
+const ipAnalysisRoutes = require('./routes/ipAnalysis.route');
+const ipGeolocationRoutes = require('./routes/ipGeolocation.route');
 
 // Import middleware
 const requireAdmin = require('./middlewares/requireAdmin');
@@ -45,11 +47,8 @@ const requireAdmin = require('./middlewares/requireAdmin');
 app.use(express.json());
 app.use(cookieParser());
 
-// Serve static files from the public directory with explicit root path
-app.use('/public', express.static(path.join(__dirname, 'public'), {
-    index: false,
-    redirect: false
-}));
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve index.html for the root route
 app.get('/', (req, res) => {
@@ -58,9 +57,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/login.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'), {
-        root: '/'
-    });
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 // Consolidated CORS configuration
@@ -153,6 +150,8 @@ const authenticateUser = (req, res, next) => {
 
 // Register authentication routes (no auth required)
 app.use('/api/auth', authRoutes);
+// Also register auth routes at /auth for backward compatibility
+app.use('/auth', authRoutes);
 
 // Basic health check endpoint
 app.get('/health', (req, res) => {
@@ -173,6 +172,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/gmail', gmailRoutes);
 app.use('/api/email-analysis', emailAnalysisRoutes);
 app.use('/api/gemini', geminiAnalysisRoutes);
+app.use('/api/ip-analysis', ipAnalysisRoutes);
 
 // Health check endpoint for Render deployment
 app.get('/health', (req, res) => {
@@ -194,6 +194,8 @@ app.get('/health', (req, res) => {
 app.use('/api/users', authenticateUser, userRoutes);
 app.use('/api/admin', authenticateUser, adminRoutes);
 app.use('/api/gemini', authenticateUser, geminiAnalysisRoutes);
+app.use('/api/ip-analysis', authenticateUser, ipAnalysisRoutes);
+app.use('/api/ip-geolocation', authenticateUser, ipGeolocationRoutes);
 
 // Special handling for Gmail routes
 // First register the callback route without authentication
@@ -208,6 +210,9 @@ app.use('/api/gmail', authenticateUser, gmailRoutes);
 
 // Register email analysis routes with authentication
 app.use('/api/email-analysis', authenticateUser, emailAnalysisRoutes);
+
+// Serve utility files
+app.use('/utils', express.static(path.join(__dirname, 'utils')));
 
 // Then serve static files (after API routes)
 app.use(express.static(path.join(__dirname, 'public'), {

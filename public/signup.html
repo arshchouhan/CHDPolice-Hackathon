@@ -7,7 +7,10 @@
     <title>Sign Up - Email Security Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-    <script src="https://accounts.google.com/gsi/client" async></script>
+    <link rel="stylesheet" href="/css/auth.css">
+    <!-- Load the unified base URL handler first -->
+    <script src="/js/base-url.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         .loader {
             border: 3px solid #f3f3f3;
@@ -184,10 +187,12 @@
     </div>
     
     <script>
-        // Use relative URLs for all API calls to work with any deployment
-        const BASE_URL = '';
+        // Use the global getBaseUrl function for consistent API endpoint resolution
+        function getApiBaseUrl() {
+            return window.getBaseUrl ? window.getBaseUrl() : '';
+        }
         
-        console.log('Using relative URLs for API calls');
+        console.log('Using getBaseUrl for API calls:', getApiBaseUrl());
 
         // Show loading overlay
         function showLoading() {
@@ -236,9 +241,10 @@
             }
             
             try {
-                console.log('Attempting signup to:', `${BASE_URL}/auth/signup`);
+                const apiUrl = getApiBaseUrl() + '/api/auth/signup';
+                console.log('Attempting signup to:', apiUrl);
 
-                const response = await fetch(`${BASE_URL}/auth/signup`, {
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

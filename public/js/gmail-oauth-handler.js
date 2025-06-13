@@ -8,22 +8,29 @@
  * - Redirecting the user back to the dashboard
  */
 
-// Function to get the base URL for API requests
+// Use the global getBaseUrl function from base-url.js
+// This function is now defined in public/js/base-url.js and loaded in the HTML head
 function getBaseUrl() {
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
+    // Always use the global function if available
+    if (window.getBaseUrl) {
+        console.log('Using global getBaseUrl function');
+        return window.getBaseUrl();
+    }
     
-    // Development environment
+    // Fallback implementation in case the script hasn't loaded yet
+    console.warn('Using fallback getBaseUrl in gmail-oauth-handler.js because global function is not available');
+    const hostname = window.location.hostname;
+    const origin = window.location.origin;
+    console.log('Current hostname:', hostname, 'Origin:', origin);
+    
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        const devUrl = `http://${hostname}:3000`;
-        console.log('Using development URL:', devUrl);
-        return devUrl;
-    } 
-    // Production environment
-    else {
-        const prodUrl = window.location.origin;
-        console.log('Using production URL:', prodUrl);
-        return prodUrl;
+        return 'http://localhost:3000';
+    } else if (hostname.includes('vercel.app')) {
+        return origin;
+    } else if (hostname.includes('onrender.com') || hostname.includes('email-detection')) {
+        return 'https://email-detection-api.onrender.com';
+    } else {
+        return origin;
     }
 }
 
@@ -62,7 +69,11 @@ async function connectGmail() {
             throw new Error('Not authenticated. Please log in again.');
         }
         
-        const response = await fetch('/api/gmail/auth-url', {
+        // Use the baseUrl function to ensure consistent API endpoint resolution
+        const baseUrl = getBaseUrl();
+        console.log('Using base URL for Gmail auth:', baseUrl);
+        
+        const response = await fetch(`${baseUrl}/api/gmail/auth-url`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
