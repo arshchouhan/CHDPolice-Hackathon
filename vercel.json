@@ -32,9 +32,11 @@
   ],
   "env": {
     "NODE_ENV": "production",
-    "MONGODB_URI": "@mongodb_uri",
-    "JWT_SECRET": "@jwt_secret",
-    "GOOGLE_CLIENT_ID": "@google_client_id",
-    "GOOGLE_CLIENT_SECRET": "@google_client_secret"
+    "PORT": "3000",
+    "HOST": "0.0.0.0",
+    "FRONTEND_URL_PROD": "https://chd-police-hackathon.vercel.app",
+    "BACKEND_URL": "https://chdpolice-hackathon.onrender.com",
+    "CORS_ORIGIN_PROD": "https://chd-police-hackathon.vercel.app",
+    "GOOGLE_CALLBACK_URL_PROD": "https://email-detection-api.onrender.com/api/gmail/callback"
   }
 }
