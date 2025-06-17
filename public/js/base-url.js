@@ -28,7 +28,7 @@ window.getBaseUrl = function() {
             baseUrl = origin;
             console.log('Vercel environment detected, using API at:', baseUrl);
         } else if (hostname.includes('onrender.com')) {
-            baseUrl = 'https://email-detection-api.onrender.com';
+            baseUrl = 'https://chdpolice-hackathon.onrender.com';
             console.log('Render environment detected, using API at:', baseUrl);
         } else {
             // For any other environment, use the current origin but log a warning
