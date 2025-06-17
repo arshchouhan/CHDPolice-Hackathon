@@ -478,28 +478,30 @@ const startServer = () => {
             }
         });
         
-        // Set up graceful shutdown
+        // Set up graceful shutdown handler
         process.on('SIGTERM', async () => {
-            console.log('SIGTERM received, shutting down gracefully');
+            console.log('SIGTERM received, initiating graceful shutdown...');
             try {
-                // Close server first
+                // First close the server to stop accepting new connections
                 await new Promise((resolve) => {
                     server.close(() => {
                         console.log('Server closed');
                         resolve();
                     });
                 });
-                
-                // Don't close MongoDB connection on Render, it will be handled by reconnection logic
-                if (!process.env.RENDER) {
-                    await mongoose.connection.close(false);
-                    console.log('MongoDB connection closed');
+
+                // On Render, we don't close MongoDB connections or exit the process
+                // This allows Render to manage container lifecycle and handle reconnections
+                if (process.env.RENDER) {
+                    console.log('Running on Render - skipping MongoDB disconnect and process exit');
+                    return;
                 }
-                
-                // Don't exit process on Render, let it handle the restart
-                if (!process.env.RENDER) {
-                    process.exit(0);
-                }
+
+                // For non-Render environments, close MongoDB and exit
+                console.log('Closing MongoDB connection...');
+                await mongoose.connection.close(false);
+                console.log('MongoDB connection closed');
+                process.exit(0);
             } catch (error) {
                 console.error('Error during graceful shutdown:', error);
                 if (!process.env.RENDER) {
