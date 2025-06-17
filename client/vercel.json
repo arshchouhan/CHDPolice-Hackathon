@@ -20,5 +20,12 @@
     { "src": "/manifest.json", "dest": "/manifest.json" },
     { "src": "/robots.txt", "dest": "/robots.txt" },
     { "src": "/(.*)", "dest": "/index.html" }
-  ]
+  ],
+  "env": {
+    "REACT_APP_API_URL": "https://email-detection-api.onrender.com",
+    "REACT_APP_GOOGLE_CLIENT_ID": "@google_client_id"
+  },
+  "github": {
+    "silent": true
+  }
 }
