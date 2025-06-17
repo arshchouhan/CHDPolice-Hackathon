@@ -1,37 +1,35 @@
 {
   "version": 2,
-  "buildEnvironment": {
-    "NODE_VERSION": "18.x"
-  },
   "builds": [
     {
       "src": "package.json",
       "use": "@vercel/static-build",
-      "config": { "distDir": "build" }
+      "config": {
+        "distDir": "build"
+      }
     }
   ],
   "routes": [
     {
-      "src": "^/static/(.*)",
-      "headers": { "cache-control": "public, max-age=31536000, immutable" },
+      "src": "/static/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      },
       "dest": "/static/$1"
     },
-    { "src": "^/favicon.ico", "dest": "/favicon.ico" },
-    { "src": "^/manifest.json", "dest": "/manifest.json" },
-    { "src": "^/robots.txt", "dest": "/robots.txt" },
-    { "src": "^/logo192.png", "dest": "/logo192.png" },
-    { "src": "^/logo512.png", "dest": "/logo512.png" },
     {
-      "src": "^/api/(.*)",
-      "dest": "https://email-detection-api.onrender.com/api/$1"
-    },
-    { "src": "^/(.*)", "dest": "/index.html" }
+      "src": "/(.*)",
+      "headers": {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+        "access-control-allow-headers": "*"
+      },
+      "dest": "/index.html",
+      "continue": true
+    }
   ],
   "env": {
     "REACT_APP_API_URL": "https://email-detection-api.onrender.com",
     "REACT_APP_GOOGLE_CLIENT_ID": "@google_client_id"
-  },
-  "github": {
-    "silent": true
   }
 }
