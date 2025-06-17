@@ -59,7 +59,7 @@ const corsOptions = {
         const allowedOrigins = [
             'https://chdpolice-hackathon.onrender.com',
             'https://chd-police-hackathon.vercel.app',
-            'https://chd-police-hackathon-1zv8w7jrk-arsh-chauhans-proj.vercel.app',
+            'https://chd-police-hackathon-lqqap4n5b-arsh-chauhans-projects-1f436a49.vercel.app',
             'http://localhost:3000',
             'http://localhost:5000'
         ];
@@ -461,7 +461,7 @@ const startServer = () => {
             // Log important URLs
             if (process.env.NODE_ENV === 'production') {
                 if (process.env.RENDER) {
-                    console.log('Render deployment URL: https://email-detection-api.onrender.com');
+                    console.log('Render deployment URL: https://chdpolice-hackathon.onrender.com');
                 } else if (process.env.VERCEL) {
                     console.log('Vercel deployment URL: https://chd-police-hackathon.vercel.app');
                 }

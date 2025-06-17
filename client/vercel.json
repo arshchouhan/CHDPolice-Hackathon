@@ -7,7 +7,7 @@
   "rewrites": [
     { 
       "source": "/api/:path*", 
-      "destination": "https://email-detection-api.onrender.com/api/:path*",
+      "destination": "https://chdpolice-hackathon.onrender.com/api/:path*",
       "headers": {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",

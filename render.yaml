@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: email-detection-api
+    name: chdpolice-hackathon
     env: node
     runtime: node
     region: singapore
@@ -10,6 +10,8 @@ services:
     autoDeploy: true
     healthCheckPath: /health
     healthCheckTimeout: 300
+    domains:
+      - chdpolice-hackathon.onrender.com
     pullRequestPreviewsEnabled: false
     envVars:
       - key: NODE_ENV
