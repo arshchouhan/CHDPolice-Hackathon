@@ -259,12 +259,15 @@ exports.login = async (req, res) => {
         
         if (origin && origin.includes('vercel.app')) {
             console.log('Request from Vercel frontend');
+            // For Vercel, we don't set domain - let the browser handle it
+            cookieOptions.sameSite = 'none';
+            cookieOptions.secure = true;
         } else if (origin && origin.includes('onrender.com')) {
             console.log('Request from Render frontend');
+            cookieOptions.domain = '.onrender.com';
         }
         
-        // Don't set domain for cross-origin cookies
-        console.log('Cookie options:', cookieOptions);
+        console.log('Final cookie options:', cookieOptions);
     }
 
     res.cookie('token', token, cookieOptions);
@@ -333,15 +336,22 @@ exports.signup = async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     };
 
-    // In production, set domain based on request origin
+    // In production, handle cross-origin cookies
     if (process.env.NODE_ENV === 'production') {
       const origin = req.get('origin');
       console.log('Request origin:', origin);
+      
       if (origin && origin.includes('vercel.app')) {
-        cookieOptions.domain = '.email-detection-eight.vercel.app';
+        console.log('Request from Vercel frontend');
+        // For Vercel, we don't set domain - let the browser handle it
+        cookieOptions.sameSite = 'none';
+        cookieOptions.secure = true;
       } else if (origin && origin.includes('render.com')) {
+        console.log('Request from Render frontend');
         cookieOptions.domain = '.onrender.com';
       }
+      
+      console.log('Final cookie options:', cookieOptions);
     }
 
     res.cookie('token', token, cookieOptions);
