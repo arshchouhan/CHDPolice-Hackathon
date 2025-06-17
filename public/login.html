@@ -510,5 +510,158 @@
         // Attach form submit handler
         document.getElementById('loginForm').addEventListener('submit', handleLogin);
     </script>
+    
+    <script>
+        // Function to check if user is already authenticated
+        async function checkExistingAuth() {
+            console.log('Checking existing authentication...');
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                console.log('No token found');
+                return false;
+            }
+
+            try {
+                const response = await fetch('/api/auth/check-auth', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    console.log('Token verification failed');
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    return false;
+                }
+
+                const data = await response.json();
+                console.log('Auth check response:', data);
+
+                if (data.authenticated && data.user) {
+                    console.log('User is already authenticated');
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                    }
+                    return data.user;
+                }
+
+                return false;
+            } catch (error) {
+                console.error('Auth check error:', error);
+                return false;
+            }
+        }
+
+        // Function to handle login form submission
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            // Clear any existing error messages
+            clearErrorMessage();
+            
+            const emailOrUsername = document.getElementById('emailOrUsername').value;
+            const password = document.getElementById('password').value;
+
+            if (!emailOrUsername || !password) {
+                displayErrorMessage('Please enter both email/username and password.');
+                return;
+            }
+
+            try {
+                console.log('Attempting login...');
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ emailOrUsername, password }),
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                console.log('Login response:', data);
+                
+                if (response.ok && data.success) {
+                    console.log('Login successful, setting up session...');
+                    
+                    // Store the token in localStorage
+                    localStorage.setItem('token', data.token);
+                    console.log('Token stored in localStorage');
+                    
+                    // Store user data
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    console.log('User data stored:', data.user);
+                    
+                    // Redirect based on role
+                    const redirectUrl = data.user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                    console.log('Redirecting to:', redirectUrl);
+                    
+                    // Use replace to prevent back button from returning to login
+                    window.location.replace(redirectUrl);
+                    return;
+                } else {
+                    throw new Error(data.message || 'Login failed');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                displayErrorMessage(error.message || 'An error occurred during login');
+            }
+        }
+
+        // Function to display error message
+        function displayErrorMessage(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            console.error('Error displayed:', message);
+        }
+
+        // Function to clear error message
+        function clearErrorMessage() {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = '';
+            errorDiv.classList.add('hidden');
+        }
+
+        // Check for existing session on page load
+        window.addEventListener('DOMContentLoaded', async () => {
+            console.log('Page loaded, checking authentication...');
+            const user = await checkExistingAuth();
+            
+            if (user) {
+                console.log('User already authenticated:', user);
+                const redirectUrl = user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                console.log('Redirecting to:', redirectUrl);
+                window.location.replace(redirectUrl);
+            } else {
+                console.log('No active session found');
+                // Check URL parameters for error messages
+                const urlParams = new URLSearchParams(window.location.search);
+                const error = urlParams.get('error');
+                if (error) {
+                    let message = 'An error occurred';
+                    switch(error) {
+                        case 'session_expired':
+                            message = 'Your session has expired. Please log in again.';
+                            break;
+                        case 'not_authenticated':
+                            message = 'Please log in to continue.';
+                            break;
+                        case 'not_authorized':
+                            message = 'You are not authorized to access that page.';
+                            break;
+                    }
+                    displayErrorMessage(message);
+                }
+            }
+        });
+    </script>
 </body>
 </html>

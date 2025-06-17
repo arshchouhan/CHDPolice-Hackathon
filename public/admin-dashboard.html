@@ -36,8 +36,18 @@
 <body class="bg-gray-100 min-h-screen">
     <!-- Authentication check script -->
     <script>
+        // Listen for storage changes to sync across tabs
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'token' && !event.newValue) {
+                // Token was cleared in another tab
+                console.log('Token cleared in another tab, redirecting to login');
+                window.location.href = '/login.html?error=session_expired';
+            }
+        });
+
         // Check if user is authenticated and has admin role
         async function checkAdminAccess() {
+            console.log('Checking admin access...');
             const token = localStorage.getItem('token');
             const userStr = localStorage.getItem('user');
             
@@ -47,30 +57,38 @@
                 return false;
             }
 
-            // Function to handle token refresh
+            // Function to handle token refresh and verification
             const refreshSession = async () => {
                 const baseUrl = window.location.origin;
                 const apiUrl = `${baseUrl}/api/auth/check-auth`;
+                console.log('Checking auth at:', apiUrl);
                 
                 try {
                     const response = await fetch(apiUrl, {
                         method: 'GET',
                         headers: {
-                            'Authorization': `Bearer ${token}`,
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
                             'Accept': 'application/json'
                         },
                         credentials: 'include'
                     });
 
                     if (!response.ok) {
-                        throw new Error('Token refresh failed');
+                        console.error('Auth check failed:', response.status);
+                        throw new Error('Token verification failed');
                     }
 
                     const data = await response.json();
+                    console.log('Auth check response:', data);
+                    
+                    if (!data.authenticated || !data.user || data.user.role !== 'admin') {
+                        console.error('Not authenticated as admin');
+                        throw new Error('Not authenticated as admin');
+                    }
                     
                     if (data.token) {
                         localStorage.setItem('token', data.token);
-                        console.log('Token refreshed successfully');
+                        console.log('Token updated');
                     }
                     
                     if (data.user) {
@@ -85,8 +103,18 @@
                 }
             };
 
-            // Set up periodic token refresh (every 30 minutes)
-            setInterval(refreshSession, 30 * 60 * 1000);
+            // Initial session check
+            try {
+                await refreshSession();
+                console.log('Initial session check successful');
+                
+                // Set up periodic token refresh (every 5 minutes)
+                setInterval(refreshSession, 5 * 60 * 1000);
+            } catch (error) {
+                console.error('Initial session check failed:', error);
+                window.location.href = '/login.html?error=session_expired';
+                return false;
+            }
 
             try {
                 const user = JSON.parse(userStr);
