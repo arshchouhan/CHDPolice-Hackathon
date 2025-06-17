@@ -267,8 +267,6 @@ const connectDB = async () => {
         console.log('MongoDB URI:', maskedURI);
         
         const options = {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
             serverSelectionTimeoutMS: 60000, // Increased timeout for Render
             socketTimeoutMS: 120000, // Increased timeout for Render
             family: 4, // Force to use IPv4
@@ -276,7 +274,9 @@ const connectDB = async () => {
             heartbeatFrequencyMS: 20000,
             maxPoolSize: 10,
             minPoolSize: 2,
-            retryWrites: true
+            retryWrites: true,
+            w: 'majority', // Ensure writes are acknowledged by majority
+            wtimeoutMS: 30000 // 30 second timeout for write operations
         };
 
         await mongoose.connect(mongoURI, options);
