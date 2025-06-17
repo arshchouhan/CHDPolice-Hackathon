@@ -37,41 +37,103 @@
     <!-- Authentication check script -->
     <script>
         // Check if user is authenticated and has admin role
-        function checkAdminAccess() {
+        async function checkAdminAccess() {
             const token = localStorage.getItem('token');
-            const userRole = localStorage.getItem('userRole');
+            const userStr = localStorage.getItem('user');
             
-            if (!token) {
-                console.error('No authentication token found');
+            if (!token || !userStr) {
+                console.error('No authentication token or user data found');
                 window.location.href = '/login.html?error=not_authenticated&redirect=admin';
                 return false;
             }
-            
-            if (userRole !== 'admin') {
-                console.error('User does not have admin role');
-                window.location.href = '/index.html?error=not_authorized';
+
+            try {
+                const user = JSON.parse(userStr);
+                console.log('Checking user role:', user.role);
+                
+                if (user.role !== 'admin') {
+                    console.error('User does not have admin role');
+                    window.location.href = '/index.html?error=not_authorized';
+                    return false;
+                }
+
+                // Verify token with server
+                const apiUrl = 'https://chdpolice-hackathon.onrender.com/api/auth/check-auth';
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    console.error('Token verification failed');
+                    window.location.href = '/login.html?error=session_expired';
+                    return false;
+                }
+
+                const data = await response.json();
+                if (!data.authenticated || data.user.role !== 'admin') {
+                    console.error('Server authentication failed');
+                    window.location.href = '/login.html?error=auth_failed';
+                    return false;
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Error checking admin access:', error);
+                window.location.href = '/login.html?error=auth_error';
                 return false;
             }
-            
-            return true;
         }
         
         // Handle logout functionality
-        function handleLogout() {
-            console.log('Logging out admin user');
-            // Clear authentication tokens
-            localStorage.removeItem('token');
-            localStorage.removeItem('userRole');
-            
-            // Redirect to login page
-            window.location.href = '/login.html?logout=success';
+        async function handleLogout() {
+            try {
+                console.log('Logging out admin user');
+                
+                // Call logout endpoint
+                const apiUrl = 'https://chdpolice-hackathon.onrender.com/api/auth/logout';
+                await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                // Clear local storage
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                
+                // Clear cookies
+                document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                document.cookie = 'sessionActive=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                
+                // Redirect to login page
+                window.location.href = '/login.html?logout=success';
+            } catch (error) {
+                console.error('Error during logout:', error);
+                // Still redirect even if the server call fails
+                window.location.href = '/login.html?logout=error';
+            }
         }
         
         // Run check immediately when page loads
-        if (!checkAdminAccess()) {
-            // This will redirect if not authenticated or not admin
-            // The page won't continue loading
-        }
+        checkAdminAccess().then(isAdmin => {
+            if (!isAdmin) {
+                // Redirect will happen in checkAdminAccess
+                return;
+            }
+            // Continue loading admin dashboard
+            console.log('Admin access verified');
+        }).catch(error => {
+            console.error('Error during admin check:', error);
+            window.location.href = '/login.html?error=check_failed';
+        });
         
         // Add event listener for logout button when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
