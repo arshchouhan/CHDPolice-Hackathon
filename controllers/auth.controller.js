@@ -564,9 +564,15 @@ exports.checkAuth = async (req, res) => {
               if (process.env.NODE_ENV === 'production') {
                 const origin = req.get('origin');
                 if (origin && origin.includes('vercel.app')) {
-                  cookieOptions.domain = '.email-detection-eight.vercel.app';
+                  // Extract the full subdomain from origin
+                  const matches = origin.match(/https:\/\/([\w-]+\.vercel\.app)/);
+                  if (matches && matches[1]) {
+                    cookieOptions.domain = matches[1];
+                    console.log('Setting cookie domain for Vercel:', cookieOptions.domain);
+                  }
                 } else if (origin && origin.includes('render.com')) {
                   cookieOptions.domain = '.onrender.com';
+                  console.log('Setting cookie domain for Render');
                 }
               }
               
