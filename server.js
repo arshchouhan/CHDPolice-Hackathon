@@ -48,17 +48,9 @@ const requireAdmin = require('./middlewares/requireAdmin');
 app.use(express.json());
 app.use(cookieParser());
 
-// Serve static files from the public directory
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Serve index.html for the root route
+// API root route
 app.get('/', (req, res) => {
-    console.log('Serving root route - redirecting to login');
-    res.redirect('/login.html');
-});
-
-app.get('/login.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    res.json({ message: 'Email Detection API Server' });
 });
 
 // Consolidated CORS configuration
@@ -67,6 +59,7 @@ const corsOptions = {
         const allowedOrigins = [
             'https://chdpolice-hackathon.onrender.com',
             'https://chd-police-hackathon.vercel.app',
+            'https://chd-police-hackathon-1zv8w7jrk-arsh-chauhans-proj.vercel.app',
             'http://localhost:3000',
             'http://localhost:5000'
         ];
@@ -432,10 +425,9 @@ app.get('/admin-dashboard.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
 });
 
-// All other routes should serve index.html for client-side routing
-app.get('*', (req, res) => {
-    console.log('Serving fallback route:', req.path);
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Handle 404 for unknown API routes
+app.use((req, res) => {
+    res.status(404).json({ message: 'API endpoint not found' });
 });
 
 

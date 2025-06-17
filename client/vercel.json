@@ -5,24 +5,20 @@
   "outputDirectory": "build",
   "framework": "create-react-app",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://email-detection-api.onrender.com/api/:path*" }
-  ],
-  "routes": [
-    { "handle": "filesystem" },
+    { 
+      "source": "/api/:path*", 
+      "destination": "https://email-detection-api.onrender.com/api/:path*",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Allow-Credentials": "true"
+      }
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "*" }
-      ]
-    }
-  ],
   "env": {
-    "REACT_APP_API_URL": "https://email-detection-api.onrender.com",
+    "REACT_APP_API_URL": "/api",
     "REACT_APP_GOOGLE_CLIENT_ID": "317162009302-294m6fsmrlqfa30q091rnkmo69uos1ba.apps.googleusercontent.com"
   }
 }
