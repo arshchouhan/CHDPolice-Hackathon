@@ -6,21 +6,42 @@ const logger = require('../utils/logger');
 
 // Create OAuth2 client with proper redirect URI
 const getRedirectUri = () => {
-  if (process.env.NODE_ENV === 'production') {
-    return 'https://email-detection-api.onrender.com/api/gmail/callback';
-  }
-  return 'http://localhost:3000/api/gmail/callback';
+  const baseUrl = process.env.NODE_ENV === 'production' 
+    ? process.env.PRODUCTION_URL || 'https://email-detection-api.onrender.com'
+    : process.env.BASE_URL || 'http://localhost:3000';
+  return `${baseUrl}/api/gmail/callback`;
 };
 
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  getRedirectUri()
-);
+// Create a function to get a fresh OAuth2 client
+const getOAuth2Client = () => {
+  return new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    getRedirectUri()
+  );
+};
+
+// Initialize default OAuth2 client
+const oauth2Client = getOAuth2Client();
+
+// Validate OAuth configuration
+const validateOAuthConfig = () => {
+  const requiredEnvVars = [
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET'
+  ];
+
+  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+  if (missingVars.length > 0) {
+    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  }
+};
 
 // Generate Gmail OAuth URL
 exports.getAuthUrl = (req, res) => {
   try {
+    validateOAuthConfig();
+
     if (!req.user || !req.user.id) {
       logger.error('User not authenticated for Gmail auth');
       return res.status(401).json({
@@ -40,7 +61,9 @@ exports.getAuthUrl = (req, res) => {
       state: state
     });
 
-    const authUrl = oauth2Client.generateAuthUrl({
+    // Get a fresh OAuth2 client for this request
+    const client = getOAuth2Client();
+    const authUrl = client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent',
@@ -49,8 +72,6 @@ exports.getAuthUrl = (req, res) => {
     });
 
     logger.info(`Generated Gmail auth URL for user ${req.user.id}`);
-    logger.debug('Auth URL:', authUrl);
-    
     res.json({ 
       success: true,
       authUrl,
@@ -69,430 +90,89 @@ exports.getAuthUrl = (req, res) => {
 
 // Handle OAuth callback
 exports.handleCallback = async (req, res) => {
-  console.log('OAuth callback received with query params:', req.query);
-  
-  const { code, state: userId, error } = req.query;
-
-  if (error) {
-    console.error('OAuth error:', error);
-    return res.redirect(`/dashboard?oauth_error=${encodeURIComponent(error)}`);
-  }
-
-  if (!code) {
-    console.error('No authorization code received');
-    return res.redirect('/dashboard?oauth_error=no_code');
-  }
-
-  if (!userId) {
-    console.error('No user ID in state parameter');
-    return res.redirect('/dashboard?oauth_error=invalid_state');
-  }
-
   try {
-    console.log('Exchanging authorization code for tokens...');
-    const { tokens } = await oauth2Client.getToken(code);
-    console.log('Tokens received, updating user record...');
-    
-    oauth2Client.setCredentials(tokens);
+    validateOAuthConfig();
 
-    const updateData = {
-      gmailAccessToken: tokens.access_token,
-      gmailTokenExpiry: tokens.expiry_date,
-      gmailConnected: true,
-      lastGmailSync: new Date()
-    };
+    const { code, state } = req.query;
     
-    // Only update refresh token if we got one (won't be present on subsequent authorizations)
-    if (tokens.refresh_token) {
-      updateData.gmailRefreshToken = tokens.refresh_token;
-    }
-
-    await User.findByIdAndUpdate(userId, updateData);
-
-    console.log(`Successfully connected Gmail for user ${userId}`);
-    res.redirect('/dashboard?gmail_connected=true');
-
-  } catch (error) {
-    console.error('Error in OAuth callback:', error);
-    const errorMessage = error.message || 'Unknown error during OAuth callback';
-    res.redirect(`/dashboard?oauth_error=${encodeURIComponent(errorMessage)}`);
-  }
-};
-
-
-// Handle OAuth callback
-exports.handleCallback = async (req, res) => {
-  console.log('OAuth callback received with query params:', req.query);
-  console.log('Request URL:', req.originalUrl);
-  console.log('Request method:', req.method);
-  
-  // Get the frontend URL from environment variable or default based on environment
-  const getFrontendUrl = () => {
-    // Check if a specific URL is provided in the query parameters
-    const referer = req.headers.referer || '';
-    
-    // If the referer contains vercel.app, use that as the frontend URL
-    if (referer.includes('vercel.app')) {
-      const vercelUrl = new URL(referer).origin;
-      console.log('Using Vercel URL from referer:', vercelUrl);
-      return vercelUrl;
-    }
-    
-    // If FRONTEND_URL is set in environment variables, use that
-    if (process.env.FRONTEND_URL) {
-      console.log('Using FRONTEND_URL from env:', process.env.FRONTEND_URL);
-      return process.env.FRONTEND_URL;
-    }
-    
-    // Always prefer the Vercel URL for production-like environments
-    // This ensures callbacks go to the Vercel deployment
-    const vercelUrl = 'https://chd-police-hackathon.vercel.app';
-    console.log('Using default Vercel URL:', vercelUrl);
-    return vercelUrl;
-  };
-  
-  const frontendUrl = getFrontendUrl();
-  console.log('Frontend URL for callback:', frontendUrl);
-  
-  try {
-    const { code, state, error } = req.query;
-    
-    // Check for OAuth error response
-    if (error) {
-      console.error('OAuth error returned:', error, req.query.error_description);
-      return res.send(`
-        <html>
-          <body>
-            <h1>Authentication Error</h1>
-            <p>Error: ${error}</p>
-            <p>Description: ${req.query.error_description || 'No description provided'}</p>
-            <p><a href="${frontendUrl}/index.html">Return to application</a></p>
-            <script>
-              // Store error in localStorage for the frontend to display
-              localStorage.setItem('gmailAuthError', JSON.stringify({
-                error: '${error}',
-                description: '${req.query.error_description || 'No description provided'}'
-              }));
-              // Redirect after 3 seconds
-              setTimeout(() => {
-                window.location.href = '${frontendUrl}/index.html?auth_error=true';
-              }, 3000);
-            </script>
-          </body>
-        </html>
-      `);
-    }
-    
-    // Validate required parameters
-    if (!code) {
-      console.error('Authorization code is missing');
-      return res.send(`
-        <html>
-          <body>
-            <h1>Authentication Error</h1>
-            <p>Error: Authorization code is missing</p>
-            <p><a href="${frontendUrl}/index.html">Return to application</a></p>
-            <script>
-              localStorage.setItem('gmailAuthError', JSON.stringify({
-                error: 'Missing Code',
-                description: 'Authorization code is missing from the callback'
-              }));
-              setTimeout(() => {
-                window.location.href = '${frontendUrl}/index.html?auth_error=true';
-              }, 3000);
-            </script>
-          </body>
-        </html>
-      `);
-    }
-    
-    if (!state) {
-      console.error('State parameter is missing');
-      return res.send(`
-        <html>
-          <body>
-            <h1>Authentication Error</h1>
-            <p>Error: State parameter is missing</p>
-            <p><a href="${frontendUrl}/index.html">Return to application</a></p>
-            <script>
-              localStorage.setItem('gmailAuthError', JSON.stringify({
-                error: 'Missing State',
-                description: 'State parameter is missing from the callback'
-              }));
-              setTimeout(() => {
-                window.location.href = '${frontendUrl}/index.html?auth_error=true';
-              }, 3000);
-            </script>
-          </body>
-        </html>
-      `);
-    }
-    
-    // Parse state parameter which now contains userId|redirectUri
-    console.log('Received state parameter:', state);
-    
-    let userId, callbackRedirectUri;
-    try {
-      if (state.includes('|')) {
-        // New format with redirect URI
-        [userId, callbackRedirectUri] = state.split('|');
-        console.log('Parsed from state - User ID:', userId);
-        console.log('Parsed from state - Redirect URI:', callbackRedirectUri);
-      } else {
-        // Old format, just user ID
-        userId = state;
-        callbackRedirectUri = getRedirectUri();
-        console.log('Using old state format - User ID:', userId);
-        console.log('Using default redirect URI:', callbackRedirectUri);
-      }
-      
-      if (!userId || userId.length < 5) {
-        throw new Error('Invalid user ID in state parameter');
-      }
-    } catch (stateError) {
-      console.error('Error parsing state parameter:', stateError);
-      return res.send(`
-        <html>
-          <body>
-            <h1>Authentication Error</h1>
-            <p>Error: Invalid state parameter format</p>
-            <p><a href="${frontendUrl}/index.html">Return to application</a></p>
-            <script>
-              localStorage.setItem('gmailAuthError', JSON.stringify({
-                error: 'Invalid State',
-                description: 'Could not parse the state parameter correctly'
-              }));
-              setTimeout(() => {
-                window.location.href = '${frontendUrl}/index.html?auth_error=true';
-              }, 3000);
-            </script>
-          </body>
-        </html>
-      `);
-    }
-    
-    // Find user by ID (from state parameter)
-    const user = await User.findById(userId);
-    if (!user) {
-      console.error('User not found:', userId);
-      return res.send(`
-        <html>
-          <body>
-            <h1>Authentication Error</h1>
-            <p>Error: User not found</p>
-            <p><a href="${frontendUrl}/index.html">Return to application</a></p>
-            <script>
-              localStorage.setItem('gmailAuthError', JSON.stringify({
-                error: 'User Not Found',
-                description: 'The user associated with this authentication request could not be found'
-              }));
-              setTimeout(() => {
-                window.location.href = '${frontendUrl}/index.html?auth_error=true';
-              }, 3000);
-            </script>
-          </body>
-        </html>
-      `);
-    }
-    
-    console.log('User found:', user.email || user._id);
-    console.log('Exchanging code for tokens...');
-    
-    try {
-      // Verify OAuth configuration
-      if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-        console.error('Missing OAuth credentials in environment variables');
-        throw new Error('Server configuration error: Missing OAuth credentials');
-      }
-      
-      // Use the redirect URI that was parsed from the state parameter
-      console.log('Using redirect URI for token exchange:', callbackRedirectUri);
-      
-      // Create a new OAuth client with the same redirect URI used in the initial request
-      const tokenExchangeClient = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        callbackRedirectUri
-      );
-      
-      // Log detailed information for debugging
-      console.log('Token exchange configuration:');
-      console.log('- Client ID exists:', !!process.env.GOOGLE_CLIENT_ID);
-      console.log('- Client Secret exists:', !!process.env.GOOGLE_CLIENT_SECRET);
-      console.log('- Redirect URI:', callbackRedirectUri);
-      console.log('- Authorization code length:', code.length);
-      
-      // Exchange code for tokens with explicit redirect URI
-      let tokens;
-      try {
-        const tokenResponse = await tokenExchangeClient.getToken({
-          code: code,
-          redirect_uri: callbackRedirectUri
-        });
-        tokens = tokenResponse.tokens;
-      } catch (tokenExchangeError) {
-        console.error('Token exchange error details:', tokenExchangeError);
-        throw new Error(`Failed to exchange authorization code: ${tokenExchangeError.message}`);
-      }
-      
-      // Verify we received the necessary tokens
-      if (!tokens || !tokens.access_token) {
-        console.error('No access token received from Google');
-        throw new Error('Authentication failed: No access token received');
-      }
-      
-      // Log token status without showing actual tokens
-      console.log('Tokens received:', {
-        access_token: tokens.access_token ? 'Present' : 'Missing',
-        refresh_token: tokens.refresh_token ? 'Present' : 'Missing',
-        expiry_date: tokens.expiry_date ? 'Present' : 'Missing'
+    if (!code || !state) {
+      logger.error('Missing code or state in callback');
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid callback parameters',
+        error: 'Missing required parameters'
       });
-      
-      // Update user with tokens
-      try {
-        await User.findByIdAndUpdate(userId, {
-          gmail_access_token: tokens.access_token,
-          gmail_refresh_token: tokens.refresh_token,
-          gmail_token_expiry: new Date(Date.now() + (tokens.expiry_date || 3600000)), // Default 1hr if missing
-          gmail_connected: true,
-          last_email_sync: new Date() // Set initial sync time to now
-        });
-        console.log('User updated with Gmail tokens');
-      } catch (dbError) {
-        console.error('Database error updating user:', dbError);
-        throw new Error(`Failed to update user with tokens: ${dbError.message}`);
-      }
-      
-      // Get user data to pass back to frontend
-      let userData = null;
-      try {
-        const user = await User.findById(userId).select('username email _id');
-        if (user) {
-          userData = {
-            id: user._id,
-            email: user.email,
-            username: user.username
-          };
-        }
-      } catch (userError) {
-        console.error('Error fetching user data:', userError);
-      }
-
-      // Generate a new JWT token for the user to maintain session
-      let newToken = '';
-      try {
-        if (userData) {
-          newToken = jwt.sign(
-            { id: userData.id },
-            process.env.JWT_SECRET || 'default_jwt_secret',
-            { expiresIn: '24h' }
-          );
-          console.log('Generated new JWT token for user');
-        }
-      } catch (tokenError) {
-        console.error('Error generating JWT token:', tokenError);
-      }
-
-      // Return HTML response with success message and improved redirection
-      return res.send(`
-        <html>
-          <head>
-            <title>Gmail Connected Successfully</title>
-            <style>
-              body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f5f5f5; }
-              .container { background-color: white; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-              h1 { color: #4285F4; }
-              .success-icon { font-size: 64px; color: #34A853; margin-bottom: 20px; }
-              .btn { display: inline-block; background-color: #4285F4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 20px; }
-              .btn:hover { background-color: #3367D6; }
-              .redirect-text { margin-top: 20px; color: #666; font-size: 14px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="success-icon">✓</div>
-              <h1>Gmail Connected Successfully</h1>
-              <p>Your Gmail account has been successfully connected to the application.</p>
-              <p>You will now be able to scan and analyze your emails for security threats.</p>
-              <a href="${frontendUrl}/index.html?connected=true&redirect=dashboard" class="btn" id="dashboardBtn">Return to Dashboard</a>
-              <p class="redirect-text">Redirecting automatically in <span id="countdown">3</span> seconds...</p>
-            </div>
-            
-            <script>
-              // Ensure we're running in a browser context
-              try {
-                // Store success status and authentication data in localStorage
-                localStorage.setItem('gmailConnected', 'true');
-                localStorage.setItem('gmailConnectTime', Date.now());
-                
-                // Store user data and token if available
-                ${userData ? `localStorage.setItem('userData', '${JSON.stringify(userData)}');` : ''}
-                ${newToken ? `localStorage.setItem('token', '${newToken}');` : ''}
-                
-                // Countdown timer
-                let seconds = 3;
-                const countdownElement = document.getElementById('countdown');
-                const countdownInterval = setInterval(() => {
-                  seconds--;
-                  countdownElement.textContent = seconds;
-                  if (seconds <= 0) {
-                    clearInterval(countdownInterval);
-                  }
-                }, 1000);
-                
-                // Set up dashboard button click handler
-                document.getElementById('dashboardBtn').addEventListener('click', function(e) {
-                  e.preventDefault();
-                  redirectToDashboard();
-                });
-              } catch (e) {
-                console.error('Error setting localStorage:', e);
-              }
-              
-              // Function to handle redirection
-              function redirectToDashboard() {
-                try {
-                  console.log('Redirecting to dashboard...');
-                  // Force the redirect with replace() instead of href assignment
-                  window.location.replace('${frontendUrl}/index.html?connected=true&redirect=dashboard&token=${encodeURIComponent(newToken)}');
-                } catch (e) {
-                  console.error('Redirect error:', e);
-                  // Fallback redirect method
-                  document.location.href = '${frontendUrl}/index.html?connected=true&redirect=dashboard&token=${encodeURIComponent(newToken)}';
-                }
-              }
-              
-              // Auto-redirect after 3 seconds
-              setTimeout(redirectToDashboard, 3000);
-            </script>
-          </body>
-        </html>
-      `);
-    } catch (tokenError) {
-      console.error('Error exchanging code for tokens:', tokenError);
-      return res.send(`
-        <html>
-          <body>
-            <h1>Authentication Error</h1>
-            <p>Error exchanging code for tokens: ${tokenError.message}</p>
-            <pre>${tokenError.stack}</pre>
-            <p><a href="/admin.html">Return to application</a></p>
-          </body>
-        </html>
-      `);
     }
+
+    // Get user ID from state parameter
+    const userId = state;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      logger.error(`User not found for ID: ${userId}`);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        error: 'Invalid user ID'
+      });
+    }
+
+    // Get a fresh OAuth2 client for this request
+    const client = getOAuth2Client();
+
+    try {
+      // Exchange code for tokens with proper redirect URI
+      const { tokens } = await client.getToken({
+        code,
+        redirect_uri: getRedirectUri()
+      });
+      logger.info('Successfully obtained tokens');
+      
+      // Validate token response
+      if (!tokens || !tokens.access_token) {
+        throw new Error('Invalid token response from Google');
+      }
+
+      // Update user with new tokens
+      user.gmail_access_token = tokens.access_token;
+      user.gmail_refresh_token = tokens.refresh_token || user.gmail_refresh_token;
+      user.gmail_token_expiry = new Date(Date.now() + (tokens.expiry_date || 3600000));
+      user.gmail_connected = true;
+
+      await user.save();
+      logger.info(`Updated tokens for user: ${userId}`);
+
+      // Redirect to success page
+      const redirectUrl = process.env.NODE_ENV === 'production'
+        ? `${process.env.PRODUCTION_URL || 'https://email-detection-api.onrender.com'}/gmail-success`
+        : 'http://localhost:3000/gmail-success';
+
+      return res.redirect(redirectUrl);
+
+    } catch (tokenError) {
+      logger.error('Error exchanging code for tokens:', tokenError);
+      
+      // Clear any existing tokens on error
+      user.gmail_connected = false;
+      user.gmail_access_token = null;
+      user.gmail_refresh_token = null;
+      user.gmail_token_expiry = null;
+      await user.save();
+
+      const errorUrl = process.env.NODE_ENV === 'production'
+        ? `${process.env.PRODUCTION_URL || 'https://email-detection-api.onrender.com'}/gmail-error`
+        : 'http://localhost:3000/gmail-error';
+
+      return res.redirect(`${errorUrl}?error=token_exchange_failed`);
+    }
+
   } catch (error) {
-    console.error('OAuth callback error:', error);
-    return res.send(`
-      <html>
-        <body>
-          <h1>Authentication Error</h1>
-          <p>Error: ${error.message}</p>
-          <pre>${error.stack}</pre>
-          <p><a href="/admin.html">Return to application</a></p>
-        </body>
-      </html>
-    `);
+    logger.error('Error in OAuth callback:', error);
+    const errorUrl = process.env.NODE_ENV === 'production'
+      ? `${process.env.PRODUCTION_URL || 'https://email-detection-api.onrender.com'}/gmail-error`
+      : 'http://localhost:3000/gmail-error';
+
+    return res.redirect(`${errorUrl}?error=server_error`);
   }
 };
 
@@ -502,15 +182,23 @@ exports.fetchEmails = async (req, res) => {
     console.log('Fetching emails for user...');
     // Check if req.user exists before accessing its properties
     if (!req.user) {
-      return res.status(401).json({ message: 'Authentication required' });
+      console.error('Authentication required - no user object found');
+      return res.status(401).json({ 
+        message: 'Authentication required',
+        action: 'login'
+      });
     }
     
     const userId = req.user.id;
     const user = await User.findById(userId);
     
-    if (!user.gmail_connected) {
+    if (!user || !user.gmail_connected) {
       console.log('Gmail not connected for user:', userId);
-      return res.status(400).json({ message: 'Gmail not connected' });
+      return res.status(400).json({ 
+        message: 'Gmail not connected', 
+        action: 'reconnect_required',
+        error: 'Gmail connection not found'
+      });
     }
     
     console.log('Gmail connected, access token present:', !!user.gmail_access_token);
@@ -522,6 +210,16 @@ exports.fetchEmails = async (req, res) => {
       process.env.GOOGLE_CLIENT_SECRET,
       getRedirectUri()
     );
+
+    // Validate required environment variables
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.error('Missing required Google OAuth credentials');
+      return res.status(500).json({
+        message: 'Server configuration error',
+        error: 'Missing OAuth credentials',
+        action: 'contact_admin'
+      });
+    }
     
     // Check if we have valid tokens before proceeding
     if (!user.gmail_access_token || !user.gmail_refresh_token) {
@@ -547,32 +245,60 @@ exports.fetchEmails = async (req, res) => {
       const tokenExpiryTime = user.gmail_token_expiry ? new Date(user.gmail_token_expiry) : new Date(0);
       const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
       
+      // Log token status for debugging
+      console.log(`Token status for user ${userId}:`);
+      console.log(`Current time: ${new Date().toISOString()}`);
+      console.log(`Token expiry: ${tokenExpiryTime.toISOString()}`);
+      console.log(`Token needs refresh: ${tokenExpiryTime < fiveMinutesFromNow}`);
+      
       if (!user.gmail_token_expiry || tokenExpiryTime < fiveMinutesFromNow) {
-        console.log('Token expired or about to expire, refreshing...');
+        console.log(`Initiating token refresh for user ${userId}...`);
+        
+        // Add retry mechanism for token refresh
+        let retryCount = 0;
+        const maxRetries = 3;
+        let lastError = null;
         
         try {
-          const { credentials } = await emailClient.refreshAccessToken();
-          console.log('Token refreshed successfully');
-          
-          // Update user with new tokens
-          user.gmail_access_token = credentials.access_token;
-          if (credentials.refresh_token) {
-            user.gmail_refresh_token = credentials.refresh_token;
+          while (retryCount < maxRetries) {
+            try {
+              const { credentials } = await emailClient.refreshAccessToken();
+              console.log(`Token refresh attempt ${retryCount + 1} successful`);
+              console.log('Token refreshed successfully');
+              
+              // Update user with new tokens
+              user.gmail_access_token = credentials.access_token;
+              if (credentials.refresh_token) {
+                user.gmail_refresh_token = credentials.refresh_token;
+              }
+              
+              // Calculate expiry time from the response or default to 1 hour
+              const expiresIn = credentials.expiry_date ? 
+                (credentials.expiry_date - Date.now()) : 
+                (credentials.expires_in ? credentials.expires_in * 1000 : 3600000);
+              
+              user.gmail_token_expiry = new Date(Date.now() + expiresIn);
+              await user.save();
+              
+              // Update client credentials with refreshed tokens
+              emailClient.setCredentials({
+                access_token: credentials.access_token,
+                refresh_token: user.gmail_refresh_token
+              });
+              break; // Success, exit retry loop
+            } catch (refreshAttemptError) {
+              lastError = refreshAttemptError;
+              retryCount++;
+              if (retryCount < maxRetries) {
+                console.log(`Token refresh attempt ${retryCount} failed, retrying...`);
+                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+              }
+            }
           }
           
-          // Calculate expiry time from the response or default to 1 hour
-          const expiresIn = credentials.expiry_date ? 
-            (credentials.expiry_date - Date.now()) : 
-            (credentials.expires_in ? credentials.expires_in * 1000 : 3600000);
-          
-          user.gmail_token_expiry = new Date(Date.now() + expiresIn);
-          await user.save();
-          
-          // Update client credentials with refreshed tokens
-          emailClient.setCredentials({
-            access_token: credentials.access_token,
-            refresh_token: user.gmail_refresh_token
-          });
+          if (retryCount === maxRetries) {
+            throw lastError; // All retries failed
+          }
         } catch (innerRefreshError) {
           // Log the full error object for debugging
           console.error('Token refresh failed with error:', JSON.stringify(innerRefreshError, null, 2));
@@ -1437,19 +1163,40 @@ exports.scanEmails = async (req, res) => {
       });
     }
     
-    // Create OAuth client for this user
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      getRedirectUri()
-    );
+    // Create OAuth2 client
+    const oauth2Client = getOAuth2Client();
     
-    // Set credentials
-    oauth2Client.setCredentials({
-      access_token: user.gmail_access_token,
-      refresh_token: user.gmail_refresh_token,
-      expiry_date: user.gmail_token_expiry
-    });
+    // Set credentials with error handling
+    try {
+      if (!user.gmail_access_token || !user.gmail_refresh_token) {
+        throw new Error('Missing Gmail tokens');
+      }
+
+      oauth2Client.setCredentials({
+        access_token: user.gmail_access_token,
+        refresh_token: user.gmail_refresh_token,
+        expiry_date: user.gmail_token_expiry
+      });
+
+      // Set up token refresh handler
+      oauth2Client.on('tokens', async (tokens) => {
+        logger.info('Refreshing Gmail tokens');
+        if (tokens.access_token) {
+          user.gmail_access_token = tokens.access_token;
+        }
+        if (tokens.refresh_token) {
+          user.gmail_refresh_token = tokens.refresh_token;
+        }
+        user.gmail_token_expiry = tokens.expiry_date;
+        await user.save();
+        logger.info('Gmail tokens refreshed and saved');
+      });
+    } catch (authError) {
+      logger.error('Gmail auth error:', authError);
+      user.gmail_connected = false;
+      await user.save();
+      throw new Error('Gmail authentication failed');
+    }
     
     // Create Gmail API client
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });

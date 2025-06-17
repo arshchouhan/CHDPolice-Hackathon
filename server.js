@@ -39,6 +39,7 @@ const emailAnalysisRoutes = require('./routes/emailAnalysis.route');
 const geminiAnalysisRoutes = require('./routes/geminiAnalysis.route');
 const ipAnalysisRoutes = require('./routes/ipAnalysis.route');
 const ipGeolocationRoutes = require('./routes/ipGeolocation.route');
+const attachmentAnalysisRoutes = require('./routes/attachmentAnalysis.route');
 
 // Import middleware
 const requireAdmin = require('./middlewares/requireAdmin');
@@ -196,16 +197,33 @@ app.use('/api/admin', authenticateUser, adminRoutes);
 app.use('/api/gemini', authenticateUser, geminiAnalysisRoutes);
 app.use('/api/ip-analysis', authenticateUser, ipAnalysisRoutes);
 app.use('/api/ip-geolocation', authenticateUser, ipGeolocationRoutes);
+app.use('/api/attachment', authenticateUser, attachmentAnalysisRoutes);
 
 // Special handling for Gmail routes
+const gmailController = require('./controllers/gmail.controller');
+
 // First register the callback route without authentication
-app.get('/api/gmail/callback', (req, res) => {
-    console.log('Callback route hit directly, forwarding to controller');
-    const gmailController = require('./controllers/gmail.controller');
-    gmailController.handleCallback(req, res);
+app.get('/api/gmail/callback', async (req, res) => {
+    try {
+        console.log('OAuth callback received:', {
+            query: req.query,
+            headers: {
+                referer: req.headers.referer,
+                origin: req.headers.origin
+            }
+        });
+        await gmailController.handleCallback(req, res);
+    } catch (error) {
+        console.error('Error in Gmail callback route:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error during OAuth callback',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
 });
 
-// Then register other Gmail routes with authentication
+// Then register the rest of Gmail routes with authentication
 app.use('/api/gmail', authenticateUser, gmailRoutes);
 
 // Register email analysis routes with authentication

@@ -3,9 +3,6 @@ const router = express.Router();
 const gmailController = require('../controllers/gmail.controller');
 const { authenticateToken } = require('../middlewares/requireRole');
 
-// Public route for OAuth callback
-router.get('/callback', gmailController.handleCallback);
-
 // Protected routes (require authentication)
 router.get('/auth-url', authenticateToken, gmailController.getAuthUrl);
 router.get('/status', authenticateToken, gmailController.getStatus);

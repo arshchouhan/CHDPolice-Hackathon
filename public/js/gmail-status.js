@@ -27,7 +27,8 @@ async function checkGmailStatus() {
             return;
         }
         
-        const response = await fetch(`${BASE_URL}/api/gmail/status`, {
+        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        const response = await fetch(`${baseUrl}/api/gmail/status`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -70,4 +71,14 @@ async function checkGmailStatus() {
     } catch (error) {
         console.error('Error checking Gmail status:', error);
     }
+}
+
+// Export functions for browser use
+window.gmailStatus = {
+    check: checkGmailStatus
+};
+
+// Initialize status check on load if not in OAuth callback
+if (!new URLSearchParams(window.location.search).has('code')) {
+    document.addEventListener('DOMContentLoaded', checkGmailStatus);
 }

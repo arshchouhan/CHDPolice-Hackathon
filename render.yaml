@@ -5,7 +5,7 @@ services:
     runtime: node
     region: singapore
     plan: free
-    buildCommand: npm install && cd client && npm install && npm run build && cd ..
+    buildCommand: npm install
     startCommand: node server.js
     autoDeploy: true
     healthCheckPath: /health
@@ -22,18 +22,18 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      - key: FRONTEND_URL
+        value: "https://chd-police-hackathon.vercel.app"
       - key: PROD_REDIRECT_URI
         value: "https://email-detection-api.onrender.com/api/gmail/callback"
       - key: PORT
         value: 3000
       - key: HOST
         value: 0.0.0.0
-      - key: NODE_OPTIONS
-        value: "--max-old-space-size=768"
     headers:
       - path: /*
         name: Access-Control-Allow-Origin
-        value: "*"
+        value: "https://chd-police-hackathon.vercel.app"
       - path: /*
         name: Access-Control-Allow-Credentials
         value: "true"
@@ -43,39 +43,13 @@ services:
       - path: /*
         name: Access-Control-Allow-Headers
         value: "Content-Type,Authorization"
-    # Static file handling
-    staticPublishPath: ./public
-    # Routes configuration
     routes:
-      # API routes
       - type: rewrite
         source: /api/*
         destination: /api/$1
-      # Auth routes with no rewrites
       - type: rewrite
-        source: /login.html
-        destination: /login.html
+        source: /auth/*
+        destination: /auth/$1
       - type: rewrite
-        source: /signup.html
-        destination: /signup.html
-      # Explicit routes for HTML pages
-      - type: rewrite
-        source: /login
-        destination: /login.html
-      - type: rewrite
-        source: /admin
-        destination: /admin-dashboard.html
-      - type: rewrite
-        source: /dashboard
-        destination: /index.html
-      # Static assets
-      - type: rewrite
-        source: /css/*
-        destination: /css/$1
-      - type: rewrite
-        source: /js/*
-        destination: /js/$1
-      # Fallback route for SPA - should be last
-      - type: rewrite
-        source: /*
-        destination: /index.html
+        source: /health
+        destination: /health

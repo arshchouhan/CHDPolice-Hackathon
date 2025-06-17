@@ -347,107 +347,92 @@ exports.syncUserEmails = async (req, res) => {
       });
     }
     
-    // Create a modified request object to pass to fetchEmails
-    const modifiedReq = {
-      user: {
-        id: user._id,
-        _id: user._id
-      }
-    };
-    
-    // Create a response handler that captures the result
-    let emailCount = 0;
-    let success = false;
-    let errorMessage = '';
-    let errorCode = 400;
-    let needsReconnect = false;
-    
-    const responseHandler = {
-      status: function(code) {
-        return {
-          json: function(data) {
-            errorCode = code;
-            if (code >= 200 && code < 300) {
-              success = true;
-              emailCount = data.emailCount || (data.emails ? data.emails.length : 0);
-              console.log(`Successfully processed ${emailCount} emails for user ${userId}`);
-            } else {
-              success = false;
-              errorMessage = data.message || 'Unknown error';
-              console.log(`Error syncing emails for user ${userId}: ${errorMessage}`);
-              
-              // Check if this is an authentication error requiring reconnection
-              if (code === 401 && (data.action === 'reconnect' || data.action === 'reconnect_required')) {
-                needsReconnect = true;
-                console.log(`Authentication error requiring reconnection for user ${userId}`);
-                
-                // Mark user as disconnected
-                user.gmail_connected = false;
-                
-                // If it's a permanent token issue (invalid_grant), clear the tokens
-                if (data.action === 'reconnect_required' || data.error === 'invalid_grant') {
-                  console.log(`Clearing Gmail tokens for user ${userId} due to invalid_grant`);
-                  user.gmail_access_token = null;
-                  user.gmail_refresh_token = null;
-                  user.gmail_token_expiry = null;
-                }
-              }
-            }
-            return data;
-          }
-        };
-      }
-    };
-    
+    // Create OAuth2 client for this user
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.NODE_ENV === 'production' 
+        ? process.env.PRODUCTION_URL + '/api/gmail/callback'
+        : process.env.BASE_URL + '/api/gmail/callback'
+    );
+
+    // Set credentials
+    oauth2Client.setCredentials({
+      access_token: user.gmail_access_token,
+      refresh_token: user.gmail_refresh_token,
+      expiry_date: user.gmail_token_expiry
+    });
+
+    // Create Gmail API client
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
     try {
+      // Test the connection with a simple profile request
+      await gmail.users.getProfile({ userId: 'me' });
+
+      // If we get here, the connection is good. Create request object for fetchEmails
+      const modifiedReq = {
+        user: {
+          id: user._id,
+          _id: user._id,
+          gmail_access_token: user.gmail_access_token,
+          gmail_refresh_token: user.gmail_refresh_token,
+          gmail_token_expiry: user.gmail_token_expiry,
+          gmail_connected: true
+        }
+      };
+
       // Call the fetchEmails function from the Gmail controller
       console.log(`Calling fetchEmails for user ${userId}`);
       const gmailController = require('./gmail.controller');
-      await gmailController.fetchEmails(modifiedReq, responseHandler);
-    } catch (fetchError) {
-      console.error(`Unhandled error in fetchEmails for user ${userId}:`, fetchError);
-      // If there was an unhandled error, mark as failed
-      success = false;
-      errorMessage = fetchError.message || 'Unexpected error during email fetch';
-      errorCode = 500;
-      
-      // Check if it's an OAuth error
-      if (fetchError.response && fetchError.response.data && fetchError.response.data.error === 'invalid_grant') {
-        console.log(`Invalid grant error caught in admin controller for user ${userId}`);
-        needsReconnect = true;
+      await gmailController.fetchEmails(modifiedReq, res);
+
+    } catch (error) {
+      console.error(`Gmail error for user ${userId}:`, error);
+
+      // Check for specific OAuth errors
+      if (error.response?.data?.error === 'invalid_grant' ||
+          error.code === 401 ||
+          error.message?.includes('invalid_grant')) {
+        
+        console.log(`Invalid grant error detected for user ${userId}`);
+        
+        // Clear user's Gmail tokens
         user.gmail_connected = false;
         user.gmail_access_token = null;
         user.gmail_refresh_token = null;
         user.gmail_token_expiry = null;
+        await user.save();
+
+        return res.status(401).json({
+          success: false,
+          message: 'Gmail authentication expired. Please reconnect your account.',
+          error: 'invalid_grant',
+          action: 'reconnect_required',
+          needsReconnect: true
+        });
       }
-    }
-    
-    // Update last sync time only on success or if not an auth error
-    if (success || !needsReconnect) {
-      console.log(`Updating last sync time for user ${userId}`);
-      user.last_email_sync = new Date();
-    }
-    
-    // Always save user changes
-    await user.save();
-    
-    if (!success) {
-      console.log(`Returning error response for user ${userId}: ${errorMessage}`);
-      return res.status(errorCode).json({
-        message: `Failed to sync emails: ${errorMessage}`,
-        lastSync: user.last_email_sync,
-        needsReconnect: needsReconnect,
-        error: errorMessage
+
+      // For other errors
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to sync emails',
+        error: error.message,
+        needsReconnect: false
       });
     }
     
-    // If we reached here, the sync was successful
-    console.log(`Email sync successful for user ${userId}, processed ${emailCount} emails`);
+    // If we reach here, the sync was successful
+    console.log(`Email sync successful for user ${userId}`);
+    
+    // Update last sync time
+    user.last_email_sync = new Date();
+    await user.save();
+    
     return res.status(200).json({
+      success: true,
       message: 'Emails synced successfully',
-      lastSync: user.last_email_sync,
-      emailCount: emailCount,
-      success: true
+      lastSync: user.last_email_sync
     });
   } catch (error) {
     console.error('Error syncing emails:', error);

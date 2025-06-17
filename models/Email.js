@@ -51,10 +51,40 @@ const emailSchema = new mongoose.Schema({
   rawHeaders: { 
     type: String 
   },
-  attachmentInfo: [{ 
+  attachments: [{ 
     name: String, 
     contentType: String, 
-    size: Number 
+    detectedMimeType: String,
+    size: Number,
+    path: String,
+    headers: mongoose.Schema.Types.Mixed,
+    originalHash: String, // SHA-256 hash when first received
+    currentHash: String,  // Current SHA-256 hash
+    analysis: {
+      hashes: {
+        md5: String,
+        sha1: String,
+        sha256: String,
+        sha512: String
+      },
+      hashCheck: {
+        isKnownMalware: Boolean,
+        detections: [{
+          source: String,
+          positives: Number,
+          total: Number,
+          scanDate: Date
+        }],
+        lastChecked: Date
+      },
+      mitmCheck: {
+        suspectedTampering: Boolean,
+        indicators: [String],
+        riskScore: Number
+      },
+      riskScore: Number,
+      analyzedAt: Date
+    }
   }],
   urls: [{ 
     url: String, 

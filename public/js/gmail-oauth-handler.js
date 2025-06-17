@@ -719,5 +719,10 @@ window.gmailOAuth = {
     connect: connectGmail,
     showModal: showGmailAuthModal,
     hideModal: hideGmailAuthModal,
-    checkRedirect: checkOAuthRedirect
+    checkRedirect: checkOAuthRedirect,
+    checkStatus: checkGmailStatus,
+    updateUI: updateGmailUI
 };
+
+// Initialize status check on load
+checkGmailStatus();
