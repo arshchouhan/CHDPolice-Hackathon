@@ -276,9 +276,7 @@ const connectDB = async () => {
             heartbeatFrequencyMS: 20000,
             maxPoolSize: 10,
             minPoolSize: 2,
-            retryWrites: true,
-            keepAlive: true,
-            keepAliveInitialDelay: 300000 // 5 minutes
+            retryWrites: true
         };
 
         await mongoose.connect(mongoURI, options);
