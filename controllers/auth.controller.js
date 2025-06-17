@@ -545,12 +545,29 @@ exports.checkAuth = async (req, res) => {
       role: role
     };
     
+    // Create a new token with consistent data
+    const newToken = jwt.sign(
+      { id: user._id, email: user.email, role: role },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    // Set the new token in cookie
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    };
+    
+    res.cookie('token', newToken, cookieOptions);
     console.log('User authenticated successfully:', userData.email);
+    
     return res.status(200).json({ 
       authenticated: true, 
       message: 'User is authenticated',
       user: userData,
-      token: token // Return the token back to help with localStorage sync
+      token: newToken // Return token in response for client storage
     });
   } catch (error) {
     console.error('Unexpected error in checkAuth:', error);

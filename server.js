@@ -98,7 +98,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// Authentication middleware - MOVED BEFORE ROUTES TO FIX RENDER DEPLOYMENT ERROR
+// Authentication middleware
 const authenticateUser = (req, res, next) => {
     // Skip auth for static files and public routes
     if (
@@ -114,23 +114,35 @@ const authenticateUser = (req, res, next) => {
         return next();
     }
     
+    console.log('Auth check for:', req.path, {
+        cookies: req.cookies ? 'present' : 'absent',
+        authorization: req.headers.authorization ? 'present' : 'absent'
+    });
+    
     // Try to get token from multiple sources
     let token = null;
     
     // Check Authorization header first
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
         token = req.headers.authorization.split(' ')[1];
+        console.log('Found token in Authorization header');
     } 
     // Then check cookies
     else if (req.cookies && req.cookies.token) {
         token = req.cookies.token;
+        console.log('Found token in cookies');
     }
     
     if (!token) {
         console.log('No token found in request');
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(401).json({ message: 'Authentication required' });
+        // For API requests, return 401
+        if (req.path.startsWith('/api/')) {
+            return res.status(401).json({ 
+                message: 'Authentication required',
+                redirectTo: '/login.html'
+            });
         }
+        // For other requests, redirect to login
         return res.redirect('/login.html');
     }
 
@@ -138,12 +150,37 @@ const authenticateUser = (req, res, next) => {
         // Verify the token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = decoded;
+        
+        // Refresh token if it's close to expiring (within 1 hour)
+        const expiresIn = decoded.exp - Math.floor(Date.now() / 1000);
+        if (expiresIn < 3600) { // Less than 1 hour left
+            console.log('Token close to expiry, refreshing...');
+            const newToken = jwt.sign(
+                { id: decoded.id, email: decoded.email, role: decoded.role },
+                process.env.JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+            
+            // Set new token in cookie with appropriate options
+            res.cookie('token', newToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                maxAge: 24 * 60 * 60 * 1000 // 24 hours
+            });
+        }
+        
         next();
     } catch (err) {
         console.error('Token verification error:', err);
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-            return res.status(401).json({ message: 'Invalid or expired token' });
+        // For API requests, return 401
+        if (req.path.startsWith('/api/')) {
+            return res.status(401).json({ 
+                message: 'Invalid or expired token',
+                redirectTo: '/login.html'
+            });
         }
+        // For other requests, redirect to login
         return res.redirect('/login.html');
     }
 };
