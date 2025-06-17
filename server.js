@@ -190,7 +190,7 @@ const authenticateUser = (req, res, next) => {
             const newToken = jwt.sign(
                 { id: decoded.id, email: decoded.email, role: decoded.role },
                 process.env.JWT_SECRET,
-                { expiresIn: '24h' }
+                { expiresIn: '7d' } // 7 days to match client-side
             );
             
             // Set new token in cookie with appropriate options
@@ -198,7 +198,7 @@ const authenticateUser = (req, res, next) => {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                maxAge: 24 * 60 * 60 * 1000 // 24 hours
+                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days to match client-side
             });
         }
         

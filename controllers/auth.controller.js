@@ -438,9 +438,36 @@ exports.checkAuth = async (req, res) => {
       const timeToExpire = decoded.exp - now;
       console.log(`Token expires in ${timeToExpire} seconds`);
       
-      // If token expires in less than 30 minutes, issue a new one
-      if (timeToExpire < 1800) {
-        console.log('Token close to expiry, will issue new token');
+      // If token expires in less than 1 hour, issue a new one
+      if (timeToExpire < 3600) {
+        console.log('Token close to expiry, issuing new token');
+        const newToken = jwt.sign(
+          { id: decoded.id, email: decoded.email, role: role },
+          process.env.JWT_SECRET,
+          { expiresIn: '7d' } // 7 days to match client-side
+        );
+
+        // Set the new token in cookie with proper options
+        const cookieOptions = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        };
+
+        // In production, set domain based on request origin
+        if (process.env.NODE_ENV === 'production') {
+          const origin = req.get('origin');
+          if (origin && origin.includes('vercel.app')) {
+            cookieOptions.domain = '.email-detection-eight.vercel.app';
+          } else if (origin && origin.includes('render.com')) {
+            cookieOptions.domain = '.onrender.com';
+          }
+        }
+
+        res.cookie('token', newToken, cookieOptions);
+        console.log('New token issued with 7-day expiration');
+        token = newToken; // Update token for response
       }
     } catch (tokenError) {
       console.error('Token verification failed:', tokenError.message);
@@ -520,18 +547,28 @@ exports.checkAuth = async (req, res) => {
               
               // Issue a new token with correct ID
               const newToken = jwt.sign(
-                { id: user._id, email: user.email },
+                { id: user._id, email: user.email, role: role },
                 process.env.JWT_SECRET,
-                { expiresIn: '24h' }
+                { expiresIn: '7d' } // 7 days to match client-side
               );
               
               // Set the new token in cookie
               const cookieOptions = {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
-                sameSite: 'lax',
-                maxAge: 24 * 60 * 60 * 1000 // 24 hours
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days to match client-side
               };
+
+              // In production, set domain based on request origin
+              if (process.env.NODE_ENV === 'production') {
+                const origin = req.get('origin');
+                if (origin && origin.includes('vercel.app')) {
+                  cookieOptions.domain = '.email-detection-eight.vercel.app';
+                } else if (origin && origin.includes('render.com')) {
+                  cookieOptions.domain = '.onrender.com';
+                }
+              }
               
               res.cookie('token', newToken, cookieOptions);
               console.log('New token issued and cookie set for recovered user');
