@@ -50,7 +50,13 @@ app.use(cookieParser());
 
 // API root route
 app.get('/', (req, res) => {
-    res.json({ message: 'Email Detection API Server' });
+    res.json({
+        message: 'Email Detection API Server',
+        status: 'online',
+        version: '1.0.0',
+        documentation: '/api/docs',
+        health: '/health'
+    });
 });
 
 // Consolidated CORS configuration
@@ -147,18 +153,7 @@ app.use('/api/auth', authRoutes);
 // Also register auth routes at /auth for backward compatibility
 app.use('/auth', authRoutes);
 
-// Basic health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    node_version: process.version,
-    platform: process.platform,
-    memory: process.memoryUsage(),
-    uptime: process.uptime()
-  });
-});
+
 
 // Register API routes
 app.use('/api/users', userRoutes);
