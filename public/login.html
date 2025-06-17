@@ -312,45 +312,81 @@
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             const errorMessage = document.getElementById('errorMessage');
+            const error = urlParams.get('error');
+            const logout = urlParams.get('logout');
             
             // Check for logout parameter
-            if (urlParams.get('logout') === 'success') {
+            if (logout === 'success') {
                 // Create success message element
                 const successMessage = document.createElement('div');
                 successMessage.className = 'bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4';
-                successMessage.innerHTML = '<strong class="font-bold">Success!</strong><span class="block sm:inline"> You have been successfully logged out.</span>';
+                successMessage.textContent = 'You have been successfully logged out.';
                 
-                // Insert before the form
-                const form = document.querySelector('form');
-                form.parentNode.insertBefore(successMessage, form);
+                // Add success message before the form
+                const loginForm = document.getElementById('loginForm');
+                loginForm.parentNode.insertBefore(successMessage, loginForm);
                 
-                // Remove after 5 seconds
+                // Remove success message after 5 seconds
                 setTimeout(() => {
                     successMessage.remove();
                 }, 5000);
             }
             
             // Check for error parameter
-            if (urlParams.get('error')) {
+            if (error) {
                 let errorText = '';
-                switch(urlParams.get('error')) {
+                switch(error) {
                     case 'not_authenticated':
                         errorText = 'You need to log in to access that page.';
                         break;
                     case 'session_expired':
                         errorText = 'Your session has expired. Please log in again.';
                         break;
+                    case 'auth_failed':
+                        errorText = 'Authentication failed. Please try again.';
+                        break;
+                    case 'not_authorized':
+                        errorText = 'You are not authorized to access that page.';
+                        break;
                     default:
                         errorText = 'An error occurred. Please log in again.';
+                        break;
                 }
-                
                 errorMessage.textContent = errorText;
                 errorMessage.classList.remove('hidden');
             }
-            
-            // Clear any existing tokens that might be invalid
-            localStorage.removeItem('token');
-            localStorage.removeItem('userRole');
+
+            // Only clear tokens if this was a logout or session expired
+            if (logout === 'success' || error === 'session_expired') {
+                console.log('Clearing stored credentials due to logout or session expiry');
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                
+                // Clear cookies
+                document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                document.cookie = 'sessionActive=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            } else {
+                // Check if we already have valid credentials
+                const token = localStorage.getItem('token');
+                const user = localStorage.getItem('user');
+                
+                if (token && user) {
+                    try {
+                        const userData = JSON.parse(user);
+                        console.log('Found existing credentials, redirecting...');
+                        
+                        // Redirect to appropriate dashboard
+                        const baseUrl = window.location.origin;
+                        if (userData.role === 'admin') {
+                            window.location.href = `${baseUrl}/admin-dashboard.html`;
+                        } else {
+                            window.location.href = `${baseUrl}/index.html`;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing stored user data:', e);
+                    }
+                }
+            }
         });
     
         // Update all fetch requests to use BASE_URL
@@ -391,50 +427,31 @@
                     if (data.token) {
                         localStorage.setItem('token', data.token);
                         console.log('Token saved to localStorage');
-                        
-                        // Set token cookie with secure attributes
-                        const cookieOptions = [
-                            'token=' + data.token,
-                            'path=/',
-                            'secure',
-                            'samesite=none',
-                            'max-age=' + (7 * 24 * 60 * 60) // 7 days
-                        ];
-                        document.cookie = cookieOptions.join('; ');
-                        console.log('Token cookie set');
                     }
                     
                     if (data.user) {
                         localStorage.setItem('user', JSON.stringify(data.user));
                         console.log('User data saved:', data.user);
-                        
-                        // Set session cookie with secure attributes
-                        const sessionOptions = [
-                            'sessionActive=true',
-                            'path=/',
-                            'secure',
-                            'samesite=none',
-                            'max-age=' + (7 * 24 * 60 * 60) // 7 days
-                        ];
-                        document.cookie = sessionOptions.join('; ');
-                        console.log('Session cookie set');
                     }
+
+                    // Set a session cookie
+                    document.cookie = `sessionActive=true; path=/; secure; samesite=none`;
                     
-                    // Get base URL for redirects
-                    const baseUrl = window.location.origin;
-                    console.log('Base URL for redirect:', baseUrl);
-                    
-                    // Verify cookies are set
-                    console.log('Cookies after login:', document.cookie);
-                    
-                    // Redirect based on role with absolute paths
-                    if (data.user && data.user.role === 'admin') {
-                        console.log('Redirecting admin to dashboard...');
-                        window.location.href = `${baseUrl}/admin-dashboard.html`;
-                    } else {
-                        console.log('Redirecting user to dashboard...');
-                        window.location.href = `${baseUrl}/index.html`;
-                    }
+                    // Small delay to ensure cookie is set
+                    setTimeout(() => {
+                        // Get base URL for redirects
+                        const baseUrl = window.location.origin;
+                        console.log('Base URL for redirect:', baseUrl);
+
+                        // Redirect based on role with absolute paths
+                        if (data.user && data.user.role === 'admin') {
+                            console.log('Redirecting admin to dashboard...');
+                            window.location.href = `${baseUrl}/admin-dashboard.html`;
+                        } else {
+                            console.log('Redirecting user to dashboard...');
+                            window.location.href = `${baseUrl}/index.html`;
+                        }
+                    }, 500);
                 } else {
                     throw new Error(data.message || 'Login failed');
                 }
