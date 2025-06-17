@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "buildEnvironment": {
+    "NODE_VERSION": "18.x"
+  },
   "builds": [
     {
       "src": "package.json",
