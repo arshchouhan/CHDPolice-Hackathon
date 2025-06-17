@@ -22,18 +22,14 @@ window.getBaseUrl = function() {
             baseUrl = `http://${hostname}:3000`; // Always use port 3000 for API in development
             console.log('Development environment detected, using API at:', baseUrl);
         } 
-        // Check for production environments
-        else if (hostname.includes('vercel.app')) {
-            // For Vercel, the API and frontend are on the same domain
-            baseUrl = origin;
-            console.log('Vercel environment detected, using API at:', baseUrl);
-        } else if (hostname.includes('onrender.com')) {
+        // Always use Render API in production
+        else if (hostname.includes('vercel.app') || hostname.includes('onrender.com')) {
             baseUrl = 'https://chdpolice-hackathon.onrender.com';
-            console.log('Render environment detected, using API at:', baseUrl);
+            console.log('Production environment detected, using Render API at:', baseUrl);
         } else {
-            // For any other environment, use the current origin but log a warning
-            baseUrl = origin;
-            console.warn('Unknown environment, falling back to current origin:', baseUrl);
+            // For any other environment, use localhost:3000
+            baseUrl = 'http://localhost:3000';
+            console.log('Development environment detected, using API at:', baseUrl);
         }
         
         console.log('Final BASE_URL set to:', baseUrl);
