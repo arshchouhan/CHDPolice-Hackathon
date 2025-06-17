@@ -9,7 +9,9 @@ services:
     startCommand: node server.js
     autoDeploy: true
     healthCheckPath: /health
-    healthCheckTimeout: 300
+    healthCheckTimeout: 600
+    minInstances: 1
+    maxInstances: 1
     domains:
       - chdpolice-hackathon.onrender.com
     pullRequestPreviewsEnabled: false

@@ -269,11 +269,16 @@ const connectDB = async () => {
         const options = {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 30000, // Increased timeout for Render
-            socketTimeoutMS: 75000, // Increased timeout for Render
+            serverSelectionTimeoutMS: 60000, // Increased timeout for Render
+            socketTimeoutMS: 120000, // Increased timeout for Render
             family: 4, // Force to use IPv4
-            connectTimeoutMS: 30000,
-            heartbeatFrequencyMS: 10000
+            connectTimeoutMS: 60000,
+            heartbeatFrequencyMS: 20000,
+            maxPoolSize: 10,
+            minPoolSize: 2,
+            retryWrites: true,
+            keepAlive: true,
+            keepAliveInitialDelay: 300000 // 5 minutes
         };
 
         await mongoose.connect(mongoURI, options);
@@ -314,22 +319,23 @@ const connectDB = async () => {
 
 // Retry connection with exponential backoff and Render-specific handling
 const connectWithRetry = (retryCount = 0) => {
-    // For Render, add a delay before first connection attempt to allow network to stabilize
-    if (retryCount === 0 && process.env.RENDER) {
-        console.log('Running on Render, adding initial delay before MongoDB connection attempt...');
-        setTimeout(() => {
-            connectDB().catch(err => {
-                const retryDelay = Math.min(Math.pow(2, retryCount) * 1000, 30000);
-                console.log(`Failed to connect to MongoDB, retrying in ${retryDelay/1000} seconds... (attempt ${retryCount + 1})`);
-                setTimeout(() => connectWithRetry(retryCount + 1), retryDelay);
-            });
-        }, 5000); // 5 second initial delay for Render
-    } else {
+    const maxRetryDelay = process.env.RENDER ? 60000 : 30000; // 60s max delay on Render, 30s elsewhere
+    const initialDelay = process.env.RENDER ? 10000 : 0; // 10s initial delay on Render
+    
+    const attemptConnection = () => {
         connectDB().catch(err => {
-            const retryDelay = Math.min(Math.pow(2, retryCount) * 1000, 30000); // Exponential backoff with max 30s
+            const retryDelay = Math.min(Math.pow(2, retryCount) * 1000, maxRetryDelay);
             console.log(`Failed to connect to MongoDB, retrying in ${retryDelay/1000} seconds... (attempt ${retryCount + 1})`);
+            console.error('Connection error:', err.message);
             setTimeout(() => connectWithRetry(retryCount + 1), retryDelay);
         });
+    };
+    
+    if (retryCount === 0 && initialDelay > 0) {
+        console.log(`Adding initial delay of ${initialDelay/1000}s before MongoDB connection attempt...`);
+        setTimeout(attemptConnection, initialDelay);
+    } else {
+        attemptConnection();
     }
 };
 
@@ -491,13 +497,21 @@ const startServer = () => {
                     });
                 });
                 
-                // Close MongoDB connection using Promise-based approach
-                await mongoose.connection.close(false);
-                console.log('MongoDB connection closed');
-                process.exit(0);
+                // Don't close MongoDB connection on Render, it will be handled by reconnection logic
+                if (!process.env.RENDER) {
+                    await mongoose.connection.close(false);
+                    console.log('MongoDB connection closed');
+                }
+                
+                // Don't exit process on Render, let it handle the restart
+                if (!process.env.RENDER) {
+                    process.exit(0);
+                }
             } catch (error) {
                 console.error('Error during graceful shutdown:', error);
-                process.exit(1);
+                if (!process.env.RENDER) {
+                    process.exit(1);
+                }
             }
         });
         
