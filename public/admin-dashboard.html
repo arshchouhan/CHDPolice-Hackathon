@@ -47,6 +47,47 @@
                 return false;
             }
 
+            // Function to handle token refresh
+            const refreshSession = async () => {
+                const baseUrl = window.location.origin;
+                const apiUrl = `${baseUrl}/api/auth/check-auth`;
+                
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/json'
+                        },
+                        credentials: 'include'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Token refresh failed');
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                        console.log('Token refreshed successfully');
+                    }
+                    
+                    if (data.user) {
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                        console.log('User data updated');
+                    }
+
+                    return data;
+                } catch (error) {
+                    console.error('Session refresh failed:', error);
+                    throw error;
+                }
+            };
+
+            // Set up periodic token refresh (every 30 minutes)
+            setInterval(refreshSession, 30 * 60 * 1000);
+
             try {
                 const user = JSON.parse(userStr);
                 console.log('Checking user role:', user.role);
@@ -96,6 +137,11 @@
                 if (data.token) {
                     console.log('Updating stored token');
                     localStorage.setItem('token', data.token);
+                    
+                    // Start periodic token refresh
+                    refreshSession().catch(error => {
+                        console.error('Initial token refresh failed:', error);
+                    });
                 }
 
                 return true;
