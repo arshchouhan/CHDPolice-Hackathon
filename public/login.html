@@ -308,6 +308,34 @@
         }
         console.log('Using global getBaseUrl function for API calls:', getApiBaseUrl());
         
+        // Check authentication status immediately before any other code runs
+        (function checkAuthStatus() {
+            const token = localStorage.getItem('token');
+            const userStr = localStorage.getItem('user');
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Only redirect if we have credentials and this isn't a logout or error
+            if (token && userStr && !urlParams.get('logout') && !urlParams.get('error')) {
+                try {
+                    const user = JSON.parse(userStr);
+                    const baseUrl = window.location.origin;
+                    
+                    console.log('Found existing credentials, redirecting...');
+                    if (user.role === 'admin') {
+                        window.location.href = `${baseUrl}/admin-dashboard.html`;
+                    } else {
+                        window.location.href = `${baseUrl}/index.html`;
+                    }
+                    return; // Stop execution here
+                } catch (e) {
+                    console.error('Error parsing stored user data:', e);
+                    // Clear invalid data
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                }
+            }
+        })();
+
         // Handle URL parameters on page load
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -427,6 +455,17 @@
                     if (data.token) {
                         localStorage.setItem('token', data.token);
                         console.log('Token saved to localStorage');
+                        
+                        // Set token cookie with secure attributes
+                        const cookieOptions = [
+                            'token=' + data.token,
+                            'path=/',
+                            'secure',
+                            'samesite=none',
+                            'max-age=' + (7 * 24 * 60 * 60) // 7 days
+                        ];
+                        document.cookie = cookieOptions.join('; ');
+                        console.log('Token cookie set');
                     }
                     
                     if (data.user) {
@@ -434,24 +473,29 @@
                         console.log('User data saved:', data.user);
                     }
 
-                    // Set a session cookie
-                    document.cookie = `sessionActive=true; path=/; secure; samesite=none`;
+                    // Set session cookie with secure attributes
+                    const sessionOptions = [
+                        'sessionActive=true',
+                        'path=/',
+                        'secure',
+                        'samesite=none',
+                        'max-age=' + (7 * 24 * 60 * 60) // 7 days
+                    ];
+                    document.cookie = sessionOptions.join('; ');
+                    console.log('Session cookie set');
                     
-                    // Small delay to ensure cookie is set
-                    setTimeout(() => {
-                        // Get base URL for redirects
-                        const baseUrl = window.location.origin;
-                        console.log('Base URL for redirect:', baseUrl);
+                    // Get base URL for redirects
+                    const baseUrl = window.location.origin;
+                    console.log('Base URL for redirect:', baseUrl);
 
-                        // Redirect based on role with absolute paths
-                        if (data.user && data.user.role === 'admin') {
-                            console.log('Redirecting admin to dashboard...');
-                            window.location.href = `${baseUrl}/admin-dashboard.html`;
-                        } else {
-                            console.log('Redirecting user to dashboard...');
-                            window.location.href = `${baseUrl}/index.html`;
-                        }
-                    }, 500);
+                    // Redirect based on role with absolute paths
+                    if (data.user && data.user.role === 'admin') {
+                        console.log('Redirecting admin to dashboard...');
+                        window.location.href = `${baseUrl}/admin-dashboard.html`;
+                    } else {
+                        console.log('Redirecting user to dashboard...');
+                        window.location.href = `${baseUrl}/index.html`;
+                    }
                 } else {
                     throw new Error(data.message || 'Login failed');
                 }
