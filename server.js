@@ -257,12 +257,35 @@ app.use('/api/email-analysis', authenticateUser, emailAnalysisRoutes);
 // Serve utility files
 app.use('/utils', express.static(path.join(__dirname, 'utils')));
 
+// Add specific routes for HTML pages
+app.get('/admin-dashboard.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
+});
+
+app.get('/index.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/login.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
 // Then serve static files (after API routes)
 app.use(express.static(path.join(__dirname, 'public'), {
     maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0, // Cache for 1 day in production
     etag: true,
-    lastModified: true
+    lastModified: true,
+    index: false // Disable automatic serving of index.html
 }));
+
+// Handle 404s
+app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.includes('.')) {
+        res.redirect('/login.html');
+    } else {
+        res.status(404).json({ message: 'Not found' });
+    }
+});
 
 // Connect to MongoDB with improved error handling
 const connectDB = async () => {

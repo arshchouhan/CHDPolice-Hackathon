@@ -53,12 +53,15 @@
                 
                 if (user.role !== 'admin') {
                     console.error('User does not have admin role');
-                    window.location.href = '/index.html?error=not_authorized';
+                    window.location.href = `${window.location.origin}/index.html?error=not_authorized`;
                     return false;
                 }
 
                 // Verify token with server
-                const apiUrl = 'https://chdpolice-hackathon.onrender.com/api/auth/check-auth';
+                const baseUrl = window.location.origin;
+                const apiUrl = `${baseUrl}/api/auth/check-auth`;
+                console.log('Verifying token with server at:', apiUrl);
+                
                 const response = await fetch(apiUrl, {
                     method: 'GET',
                     headers: {
@@ -69,16 +72,30 @@
                 });
 
                 if (!response.ok) {
-                    console.error('Token verification failed');
-                    window.location.href = '/login.html?error=session_expired';
+                    console.error('Token verification failed:', response.status);
+                    window.location.href = `${window.location.origin}/login.html?error=session_expired`;
                     return false;
                 }
 
                 const data = await response.json();
+                console.log('Server auth response:', data);
+                
                 if (!data.authenticated || data.user.role !== 'admin') {
-                    console.error('Server authentication failed');
-                    window.location.href = '/login.html?error=auth_failed';
+                    console.error('Server authentication failed:', data);
+                    window.location.href = `${window.location.origin}/login.html?error=auth_failed`;
                     return false;
+                }
+                
+                // Update stored user data if different
+                if (JSON.stringify(data.user) !== userStr) {
+                    console.log('Updating stored user data');
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                }
+                
+                // Update token if provided
+                if (data.token) {
+                    console.log('Updating stored token');
+                    localStorage.setItem('token', data.token);
                 }
 
                 return true;
