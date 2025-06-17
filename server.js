@@ -72,8 +72,16 @@ const corsOptions = {
         
         console.log('Request origin:', origin || 'No origin (direct access)');
         
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) {
             callback(null, true);
+            return;
+        }
+        
+        // Check if the origin is allowed
+        if (allowedOrigins.includes(origin)) {
+            // Return the origin instead of true
+            callback(null, origin);
         } else {
             console.log('CORS blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
@@ -90,13 +98,37 @@ const corsOptions = {
         'Access-Control-Allow-Origin',
         'Access-Control-Allow-Credentials'
     ],
-    exposedHeaders: ['Set-Cookie'],
-    maxAge: 86400
+    exposedHeaders: ['Set-Cookie', 'Authorization'],
+    maxAge: 86400,
+    preflightContinue: false,
+    optionsSuccessStatus: 204
 };
 
 // Apply CORS configuration
+app.use((req, res, next) => {
+    // Log the request details
+    console.log('Incoming request:', {
+        method: req.method,
+        path: req.path,
+        origin: req.headers.origin,
+        cookies: req.headers.cookie ? 'present' : 'absent'
+    });
+    next();
+});
+
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', (req, res) => {
+    console.log('Handling preflight request from:', req.headers.origin);
+    res.set('Access-Control-Allow-Origin', req.headers.origin);
+    res.set('Access-Control-Allow-Credentials', 'true');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.set('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
+    res.set('Access-Control-Expose-Headers', corsOptions.exposedHeaders.join(', '));
+    res.set('Access-Control-Max-Age', corsOptions.maxAge);
+    res.status(204).end();
+});
 
 // Authentication middleware
 const authenticateUser = (req, res, next) => {

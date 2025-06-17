@@ -391,31 +391,50 @@
                     if (data.token) {
                         localStorage.setItem('token', data.token);
                         console.log('Token saved to localStorage');
+                        
+                        // Set token cookie with secure attributes
+                        const cookieOptions = [
+                            'token=' + data.token,
+                            'path=/',
+                            'secure',
+                            'samesite=none',
+                            'max-age=' + (7 * 24 * 60 * 60) // 7 days
+                        ];
+                        document.cookie = cookieOptions.join('; ');
+                        console.log('Token cookie set');
                     }
                     
                     if (data.user) {
                         localStorage.setItem('user', JSON.stringify(data.user));
                         console.log('User data saved:', data.user);
+                        
+                        // Set session cookie with secure attributes
+                        const sessionOptions = [
+                            'sessionActive=true',
+                            'path=/',
+                            'secure',
+                            'samesite=none',
+                            'max-age=' + (7 * 24 * 60 * 60) // 7 days
+                        ];
+                        document.cookie = sessionOptions.join('; ');
+                        console.log('Session cookie set');
                     }
-
-                    // Set a session cookie
-                    document.cookie = `sessionActive=true; path=/; secure; samesite=none`;
                     
-                    // Small delay to ensure cookie is set
-                    setTimeout(() => {
-                        // Get base URL for redirects
-                        const baseUrl = window.location.origin;
-                        console.log('Base URL for redirect:', baseUrl);
-
-                        // Redirect based on role with absolute paths
-                        if (data.user && data.user.role === 'admin') {
-                            console.log('Redirecting admin to dashboard...');
-                            window.location.href = `${baseUrl}/admin-dashboard.html`;
-                        } else {
-                            console.log('Redirecting user to dashboard...');
-                            window.location.href = `${baseUrl}/index.html`;
-                        }
-                    }, 500);
+                    // Get base URL for redirects
+                    const baseUrl = window.location.origin;
+                    console.log('Base URL for redirect:', baseUrl);
+                    
+                    // Verify cookies are set
+                    console.log('Cookies after login:', document.cookie);
+                    
+                    // Redirect based on role with absolute paths
+                    if (data.user && data.user.role === 'admin') {
+                        console.log('Redirecting admin to dashboard...');
+                        window.location.href = `${baseUrl}/admin-dashboard.html`;
+                    } else {
+                        console.log('Redirecting user to dashboard...');
+                        window.location.href = `${baseUrl}/index.html`;
+                    }
                 } else {
                     throw new Error(data.message || 'Login failed');
                 }
