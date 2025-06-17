@@ -4,8 +4,8 @@
   "description": "Email Detection System",
   "main": "server.js",
   "engines": {
-    "node": "18.x",
-    "npm": "9.x"
+    "node": ">=18.20.0",
+    "npm": ">=10.8.2"
   },
   "scripts": {
     "start": "node server.js",
@@ -30,13 +30,13 @@
     "dotenv": "^16.5.0",
     "express": "^4.18.2",
     "express-session": "^1.18.1",
-    "file-type": "^21.0.0",
+    "mime-types": "^2.1.35",
     "google-auth-library": "^9.15.1",
     "googleapis": "^129.0.0",
     "jsonwebtoken": "^9.0.2",
-    "mongodb": "^6.16.0",
+    "mongodb": "^6.3.0",
     "mongoose": "^8.1.1",
-    "node-cache": "^5.1.2",
+    "keyv": "^4.5.4",
     "node-html-parser": "^6.1.12",
     "socket.io": "^4.8.1",
     "whois-json": "^2.0.4",

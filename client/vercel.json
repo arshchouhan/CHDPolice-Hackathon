@@ -1,16 +1,11 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
+  "devCommand": "npm start",
+  "outputDirectory": "build",
   "framework": "create-react-app",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "build" }
-    }
-  ],
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/.*", "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "env": {
     "REACT_APP_API_URL": "https://email-detection-api.onrender.com",
