@@ -248,21 +248,22 @@ exports.login = async (req, res) => {
     const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     };
 
-    // In production, set domain based on request origin
+    // In production, handle cross-origin cookies
     if (process.env.NODE_ENV === 'production') {
         const origin = req.get('origin');
         console.log('Request origin:', origin);
-        if (origin) {
-            // Extract domain from origin
-            const domain = new URL(origin).hostname;
-            // Set cookie domain to the main domain
-            cookieOptions.domain = domain;
-            console.log('Setting cookie domain to:', domain);
+        
+        if (origin && origin.includes('vercel.app')) {
+            console.log('Request from Vercel frontend');
+        } else if (origin && origin.includes('onrender.com')) {
+            console.log('Request from Render frontend');
         }
+        
+        // Don't set domain for cross-origin cookies
         console.log('Cookie options:', cookieOptions);
     }
 

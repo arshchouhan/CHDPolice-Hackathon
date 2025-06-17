@@ -386,26 +386,30 @@
                 if (response.ok) {
                     // Show loading overlay
                     document.getElementById('loadingOverlay').classList.remove('hidden');
-                    // Redirect to dashboard based on user role
-                    // Store token in localStorage for client-side auth checks
+
+                    // Store token and user data
                     if (data.token) {
                         localStorage.setItem('token', data.token);
                         console.log('Token saved to localStorage');
                     }
                     
-                    // Store user role if available
-                    if (data.user && data.user.role) {
-                        localStorage.setItem('userRole', data.user.role);
+                    if (data.user) {
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                        console.log('User data saved:', data.user);
                     }
+
+                    // Set a session cookie
+                    document.cookie = `sessionActive=true; path=/; secure; samesite=none`;
                     
-                    // Redirect based on role and redirect parameter
-                    if (data.user && data.user.role === 'admin') {
-                        // Admin users go to the admin dashboard
-                        window.location.href = '/admin-dashboard.html';
-                    } else {
-                        // Regular users always go to the user dashboard
-                        window.location.href = '/index.html';
-                    }
+                    // Small delay to ensure cookie is set
+                    setTimeout(() => {
+                        // Redirect based on role
+                        if (data.user && data.user.role === 'admin') {
+                            window.location.href = '/admin-dashboard.html';
+                        } else {
+                            window.location.href = '/index.html';
+                        }
+                    }, 500);
                 } else {
                     throw new Error(data.message || 'Login failed');
                 }
