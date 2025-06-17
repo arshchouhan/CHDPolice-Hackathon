@@ -5,7 +5,10 @@
   "outputDirectory": "build",
   "framework": "create-react-app",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://email-detection-api.onrender.com/api/:path*" },
+    { "source": "/api/:path*", "destination": "https://email-detection-api.onrender.com/api/:path*" }
+  ],
+  "routes": [
+    { "handle": "filesystem" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
