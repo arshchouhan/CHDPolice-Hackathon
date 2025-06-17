@@ -12,14 +12,20 @@
   ],
   "routes": [
     {
-      "src": "/static/(.*)",
+      "src": "^/static/(.*)",
       "headers": { "cache-control": "public, max-age=31536000, immutable" },
       "dest": "/static/$1"
     },
-    { "src": "/favicon.ico", "dest": "/favicon.ico" },
-    { "src": "/manifest.json", "dest": "/manifest.json" },
-    { "src": "/robots.txt", "dest": "/robots.txt" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "^/favicon.ico", "dest": "/favicon.ico" },
+    { "src": "^/manifest.json", "dest": "/manifest.json" },
+    { "src": "^/robots.txt", "dest": "/robots.txt" },
+    { "src": "^/logo192.png", "dest": "/logo192.png" },
+    { "src": "^/logo512.png", "dest": "/logo512.png" },
+    {
+      "src": "^/api/(.*)",
+      "dest": "https://email-detection-api.onrender.com/api/$1"
+    },
+    { "src": "^/(.*)", "dest": "/index.html" }
   ],
   "env": {
     "REACT_APP_API_URL": "https://email-detection-api.onrender.com",
