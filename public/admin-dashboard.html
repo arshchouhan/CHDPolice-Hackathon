@@ -139,7 +139,17 @@
             }
         }
         
-        // Run check immediately when page loads
+        // Function to check session status
+        function checkSessionStatus() {
+            const sessionActive = document.cookie.includes('sessionActive=true');
+            if (!sessionActive) {
+                console.log('Session cookie not found');
+                window.location.href = '/login.html?error=session_expired';
+                return;
+            }
+        }
+
+        // Run checks when page loads
         checkAdminAccess().then(isAdmin => {
             if (!isAdmin) {
                 // Redirect will happen in checkAdminAccess
@@ -147,9 +157,20 @@
             }
             // Continue loading admin dashboard
             console.log('Admin access verified');
+            
+            // Set up periodic session checks
+            setInterval(checkSessionStatus, 60000); // Check every minute
         }).catch(error => {
             console.error('Error during admin check:', error);
             window.location.href = '/login.html?error=check_failed';
+        });
+
+        // Add session expiration listener
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'token' && !e.newValue) {
+                console.log('Token cleared in another tab');
+                window.location.href = '/login.html?error=session_ended';
+            }
         });
         
         // Add event listener for logout button when DOM is loaded

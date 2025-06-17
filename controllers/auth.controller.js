@@ -432,12 +432,30 @@ exports.checkAuth = async (req, res) => {
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
       console.log('Token decoded successfully:', { id: decoded.id, email: decoded.email });
+      
+      // Check token expiration
+      const now = Math.floor(Date.now() / 1000);
+      const timeToExpire = decoded.exp - now;
+      console.log(`Token expires in ${timeToExpire} seconds`);
+      
+      // If token expires in less than 30 minutes, issue a new one
+      if (timeToExpire < 1800) {
+        console.log('Token close to expiry, will issue new token');
+      }
     } catch (tokenError) {
       console.error('Token verification failed:', tokenError.message);
+      
+      // Clear invalid token from cookies
+      res.clearCookie('token', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+      });
+      
       return res.status(401).json({ 
         authenticated: false, 
-        message: 'Invalid or expired token',
-        error: tokenError.message,
+        message: 'Your session has expired. Please log in again.',
+        error: 'token_expired',
         redirectTo: '/login.html'
       });
     }
@@ -545,29 +563,41 @@ exports.checkAuth = async (req, res) => {
       role: role
     };
     
-    // Create a new token with consistent data
+    // Create a new token with consistent data and longer expiration
     const newToken = jwt.sign(
-      { id: user._id, email: user.email, role: role },
+      { 
+        id: user._id, 
+        email: user.email, 
+        role: role,
+        iat: Math.floor(Date.now() / 1000)
+      },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' } // Extended to 7 days
     );
     
-    // Set the new token in cookie
+    // Set the new token in cookie with same expiration
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     };
     
     res.cookie('token', newToken, cookieOptions);
     console.log('User authenticated successfully:', userData.email);
     
+    // Set a session cookie as well
+    res.cookie('sessionActive', 'true', {
+      ...cookieOptions,
+      httpOnly: false // Allow JavaScript access
+    });
+    
     return res.status(200).json({ 
       authenticated: true, 
       message: 'User is authenticated',
       user: userData,
-      token: newToken // Return token in response for client storage
+      token: newToken, // Return token in response for client storage
+      expiresIn: 7 * 24 * 60 * 60 // Send expiration time to client
     });
   } catch (error) {
     console.error('Unexpected error in checkAuth:', error);
