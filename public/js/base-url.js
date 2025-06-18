@@ -128,10 +128,21 @@ window.apiRequest = async function(endpoint, options = {}) {
     
     try {
         const response = await fetch(url, config);
+        const data = await response.json();
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(data.message || `HTTP error! status: ${response.status}`);
         }
-        return await response.json();
+        
+        // Handle successful response
+        if (data.token) {
+            localStorage.setItem('token', data.token);
+            if (data.user) {
+                localStorage.setItem('user', JSON.stringify(data.user));
+            }
+        }
+        
+        return data;
     } catch (error) {
         console.error('API request failed:', error);
         throw error;

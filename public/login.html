@@ -274,15 +274,21 @@
                     console.log('Attempting login...');
                     const response = await window.apiRequest('/api/auth/login', {
                         method: 'POST',
-                        body: JSON.stringify({ emailOrUsername, password })
+                        body: JSON.stringify({ emailOrUsername, password }),
+                        credentials: 'include'
                     });
                     
                     console.log('Login response:', response);
                     
                     if (response.success) {
-                        // Store token and user data
-                        localStorage.setItem('token', response.token);
-                        localStorage.setItem('user', JSON.stringify(response.user));
+                        // Token and user data are automatically stored by apiRequest
+                        // Just verify we have them
+                        const token = localStorage.getItem('token');
+                        const user = localStorage.getItem('user');
+                        
+                        if (!token || !user) {
+                            throw new Error('Authentication succeeded but token/user data missing');
+                        }
                         
                         // Get return URL if exists
                         const returnUrl = sessionStorage.getItem('returnUrl');
@@ -300,7 +306,11 @@
                     }
                 } catch (error) {
                     console.error('Login error:', error);
-                    this.displayErrorMessage(error.message || 'Failed to login. Please try again.');
+                    this.displayErrorMessage(error.message || 'Login failed. Please check your credentials.');
+                    
+                    // Clear any partial auth state on error
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
                 } finally {
                     this.setLoading(false);
                 }
