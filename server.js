@@ -116,18 +116,35 @@ app.use((req, res, next) => {
 // Authentication middleware
 const authenticateUser = (req, res, next) => {
     // Skip auth for public routes and static files
-    // Skip auth for public routes and static files
-    if (
-        req.path === '/' ||
-        req.path === '/login' ||
-        req.path === '/signup' ||
-        req.path.startsWith('/auth/') ||
-        req.path === '/health' ||
+    const publicPaths = [
+        // API endpoints that don't need auth
+        { path: '/api/auth/login', method: 'POST' },
+        { path: '/api/auth/signup', method: 'POST' },
+        { path: '/api/auth/google', method: ['GET', 'POST'] },
+        { path: '/health', method: ['GET', 'HEAD'] },
+        // Static files and root
+        { path: '/', method: ['GET', 'HEAD'] },
+        { path: '/login', method: 'GET' },
+        { path: '/signup', method: 'GET' }
+    ];
+
+    // Check if the request matches any public path
+    const isPublicPath = publicPaths.some(route => {
+        const pathMatches = req.path === route.path;
+        const methodMatches = Array.isArray(route.method) 
+            ? route.method.includes(req.method)
+            : route.method === req.method;
+        return pathMatches && methodMatches;
+    });
+
+    // Also allow all static files
+    const isStaticFile = (
         req.path.endsWith('.html') ||
         req.path.endsWith('.css') ||
-        req.path.endsWith('.js') ||
-        // Allow health checks without auth
-        (req.path === '/' && req.method === 'HEAD')
+        req.path.endsWith('.js')
+    );
+
+    if (isPublicPath || isStaticFile
     ) {
         console.log('Skipping auth for public path:', req.path);
         return next();

@@ -8,8 +8,42 @@ const api = axios.create({
     withCredentials: true, // This is crucial for sending cookies
     headers: {
         'Content-Type': 'application/json',
-    }
+    },
+    validateStatus: status => status < 500 // Don't reject if status < 500
 });
+
+// Log all requests in development
+if (process.env.NODE_ENV !== 'production') {
+    api.interceptors.request.use(request => {
+        console.log('API Request:', {
+            url: request.url,
+            method: request.method,
+            data: request.data,
+            headers: request.headers
+        });
+        return request;
+    });
+
+    api.interceptors.response.use(
+        response => {
+            console.log('API Response:', {
+                url: response.config.url,
+                status: response.status,
+                data: response.data
+            });
+            return response;
+        },
+        error => {
+            console.error('API Error:', {
+                url: error.config?.url,
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message
+            });
+            return Promise.reject(error);
+        }
+    );
+}
 
 // Log the base URL in development
 if (process.env.NODE_ENV !== 'production') {
@@ -68,10 +102,17 @@ api.interceptors.response.use(
 
 // API methods
 export const authAPI = {
-    login: (credentials) => api.post('/api/auth/login', credentials),
+    login: (credentials) => {
+        console.log('Making login request:', {
+            url: '/api/auth/login',
+            method: 'POST',
+            credentials
+        });
+        return api.post('/api/auth/login', credentials);
+    },
     signup: (userData) => api.post('/api/auth/signup', userData),
     logout: () => api.post('/api/auth/logout'),
-    checkAuth: () => api.get('/api/auth/check'),
+    checkAuth: () => api.get('/api/auth/check-auth'), // Fixed endpoint name
 };
 
 export const userAPI = {

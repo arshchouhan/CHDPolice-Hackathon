@@ -26,14 +26,31 @@ export const AuthProvider = ({ children }) => {
     };
 
     const login = async (credentials) => {
-        const { data } = await authAPI.login(credentials);
-        if (data.success) {
-            setUser(data.user);
-            if (data.token) {
-                localStorage.setItem('token', data.token);
+        console.log('AuthContext: Making login request');
+        try {
+            const response = await authAPI.login(credentials);
+            console.log('AuthContext: Login response received:', {
+                status: response.status,
+                headers: response.headers,
+                data: response.data
+            });
+
+            const { data } = response;
+            if (data.success) {
+                setUser(data.user);
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                }
             }
+            return data;
+        } catch (error) {
+            console.error('AuthContext: Login request failed:', {
+                error: error.message,
+                response: error.response?.data,
+                status: error.response?.status
+            });
+            throw error;
         }
-        return data;
     };
 
     const logout = async () => {

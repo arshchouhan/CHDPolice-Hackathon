@@ -18,9 +18,22 @@ function Login() {
         setLoading(true);
 
         try {
-            await login(credentials);
+            console.log('Login request:', {
+                url: '/api/auth/login',
+                method: 'POST',
+                credentials
+            });
+            
+            const result = await login(credentials);
+            console.log('Login response:', result);
+            
             navigate('/');
         } catch (err) {
+            console.error('Login error:', {
+                status: err.response?.status,
+                data: err.response?.data,
+                message: err.message
+            });
             setError(err.response?.data?.message || 'Failed to login');
         } finally {
             setLoading(false);
