@@ -14,12 +14,21 @@ const asyncHandler = (fn) => (req, res, next) => {
     });
 };
 
-// Apply error handling to routes
-router.post('/login', asyncHandler(authController.login));  // Single route to handle both roles
-router.post('/signup', asyncHandler(authController.signup)); // Route for user registration
-router.post('/google', asyncHandler(authController.googleSignIn)); // Route for Google Sign-In
-router.get('/google', asyncHandler(authController.googleSignIn)); // Route for Google Sign-In redirect
-router.post('/logout', asyncHandler(authController.logout)); // Route for logout
-router.get('/check-auth', asyncHandler(authController.checkAuth)); // Route to check authentication status
+// Login route with explicit method handling
+router.route('/login')
+    .post(asyncHandler(authController.login))  // Allow POST for login
+    .all(asyncHandler((req, res) => {  // Reject all other methods
+        res.status(405).json({
+            success: false,
+            message: 'Method not allowed. Use POST for login.'
+        });
+    }));
+
+// Other routes
+router.post('/signup', asyncHandler(authController.signup));
+router.post('/google', asyncHandler(authController.googleSignIn));
+router.get('/google', asyncHandler(authController.googleSignIn));
+router.post('/logout', asyncHandler(authController.logout));
+router.get('/check-auth', asyncHandler(authController.checkAuth));
 
 module.exports = router;
