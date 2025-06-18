@@ -253,12 +253,15 @@
                     }
 
                     try {
-                        const baseUrl = window.getApiBaseUrl();
-                        console.log('Using API base URL:', baseUrl);
-
                         // Show loading state
                         const loadingOverlay = document.getElementById('loadingOverlay');
                         loadingOverlay.classList.remove('hidden');
+
+                        const baseUrl = window.getApiBaseUrl();
+                        console.log('Using API base URL:', baseUrl);
+
+                        // Clear any existing error
+                        clearErrorMessage();
 
                         const response = await fetch(`${baseUrl}/api/auth/login`, {
                             method: 'POST',
@@ -276,51 +279,57 @@
                         const data = await response.json();
                         console.log('Login response:', data);
 
-                        if (response.ok && data.success) {
-                            console.log('Login successful, setting up session...');
-                            
-                            // Store token with domain validation and expiry
-                            const expiresIn = data.expiresIn || 7 * 24 * 60 * 60 * 1000; // 7 days default
-                            window.TokenStorage.setToken(data.token, expiresIn);
-                            
-                            // Store user data securely
-                            const userData = {
-                                ...data.user,
-                                domain: window.location.hostname,
-                                timestamp: Date.now()
-                            };
-                            sessionStorage.setItem('userData', JSON.stringify(userData));
-                            console.log('User data stored securely');
-                            
-                            // Check for return URL first
-                            const returnUrl = sessionStorage.getItem('returnUrl');
-                            sessionStorage.removeItem('returnUrl'); // Clear it after use
-                            
-                            // Determine redirect URL
-                            let redirectUrl;
-                            if (returnUrl && returnUrl.startsWith('/')) {
-                                redirectUrl = returnUrl;
-                            } else {
-                                redirectUrl = data.user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
-                            }
-                            
-                            // Handle redirect URL
-                            if (redirectUrl.startsWith('/')) {
-                                // Use current origin for relative paths
-                                redirectUrl = window.location.origin + redirectUrl;
-                            } else if (!redirectUrl.startsWith('http')) {
-                                // Fallback to base URL for non-absolute paths
-                                redirectUrl = baseUrl + '/' + redirectUrl;
-                            }
-                            
-                            console.log('Redirecting to:', redirectUrl);
-                            window.location.replace(redirectUrl);
-                            return;
-                        } else {
-                            throw new Error(data.message || 'Login failed');
+                        // Hide loading overlay
+                        loadingOverlay.classList.add('hidden');
+
+                        if (!response.ok || !data.success) {
+                            throw new Error(data.message || `HTTP error! status: ${response.status}`);
                         }
+
+                        console.log('Login successful, setting up session...');
+                        
+                        // Store token with domain validation and expiry
+                        const expiresIn = data.expiresIn || 7 * 24 * 60 * 60 * 1000; // 7 days default
+                        window.TokenStorage.setToken(data.token, expiresIn);
+                        
+                        // Store user data securely
+                        const userData = {
+                            ...data.user,
+                            domain: window.location.hostname,
+                            timestamp: Date.now()
+                        };
+                        sessionStorage.setItem('userData', JSON.stringify(userData));
+                        console.log('User data stored securely');
+                        
+                        // Check for return URL first
+                        const returnUrl = sessionStorage.getItem('returnUrl');
+                        sessionStorage.removeItem('returnUrl'); // Clear it after use
+                        
+                        // Determine redirect URL
+                        let redirectUrl;
+                        if (returnUrl && returnUrl.startsWith('/')) {
+                            redirectUrl = returnUrl;
+                        } else {
+                            redirectUrl = data.user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                        }
+                        
+                        // Handle redirect URL
+                        if (redirectUrl.startsWith('/')) {
+                            // Use current origin for relative paths
+                            redirectUrl = window.location.origin + redirectUrl;
+                        } else if (!redirectUrl.startsWith('http')) {
+                            // Fallback to base URL for non-absolute paths
+                            redirectUrl = baseUrl + '/' + redirectUrl;
+                        }
+                        
+                        console.log('Redirecting to:', redirectUrl);
+                        window.location.replace(redirectUrl);
                     } catch (error) {
                         console.error('Login error:', error);
+                        // Hide loading overlay
+                        const loadingOverlay = document.getElementById('loadingOverlay');
+                        loadingOverlay.classList.add('hidden');
+                        // Display error message
                         displayErrorMessage(error.message || 'An error occurred during login');
                     }
                 }
