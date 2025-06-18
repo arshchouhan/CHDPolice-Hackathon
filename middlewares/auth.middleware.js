@@ -24,6 +24,7 @@ const authenticateUser = (req, res, next) => {
   
   // Check if accessing auth-related pages
   const isAuthPage = req.path.includes('/login') || req.path.includes('/signup');
+  const isAdminPage = req.path.includes('/admin');
   
   if (!token) {
     console.log('No token found in request');
@@ -31,9 +32,25 @@ const authenticateUser = (req, res, next) => {
       // Allow access to auth pages without token
       return next();
     }
+    
+    // Build redirect URL with proper parameters
+    let redirectUrl = '/login.html';
+    const params = new URLSearchParams();
+    params.append('error', 'not_authenticated');
+    
+    // Add redirect parameter for admin pages
+    if (isAdminPage) {
+      params.append('redirect', 'admin');
+    } else if (!isAuthPage) {
+      // For non-admin, non-auth pages, store the current path
+      params.append('redirect', req.path);
+    }
+    
+    redirectUrl += '?' + params.toString();
+    
     return res.status(401).json({ 
       message: 'Authentication required', 
-      redirectTo: '/login.html'
+      redirectTo: redirectUrl
     });
   }
 
@@ -49,10 +66,34 @@ const authenticateUser = (req, res, next) => {
     
     console.log('Token verified successfully for user ID:', decoded.id);
     
-    // If user is authenticated and trying to access auth pages, redirect to dashboard
+    // If user is authenticated and trying to access auth pages, redirect to appropriate page
     if (isAuthPage) {
-      const redirectPath = decoded.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+      // Check for redirect parameter
+      const redirectTo = req.query.redirect;
+      let redirectPath;
+      
+      if (redirectTo) {
+        // Handle admin redirect
+        if (redirectTo === 'admin') {
+          redirectPath = decoded.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+        } else {
+          // For other redirects, ensure they start with /
+          redirectPath = redirectTo.startsWith('/') ? redirectTo : '/' + redirectTo;
+        }
+      } else {
+        // Default redirect based on role
+        redirectPath = decoded.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+      }
+      
       return res.redirect(redirectPath);
+    }
+    
+    // For admin pages, check if user has admin role
+    if (isAdminPage && decoded.role !== 'admin') {
+      return res.status(403).json({
+        message: 'Not authorized to access admin area',
+        redirectTo: '/login.html?error=not_authorized'
+      });
     }
     
     next();

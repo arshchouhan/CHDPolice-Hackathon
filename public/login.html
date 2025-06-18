@@ -691,8 +691,12 @@
             // Store redirect URL if provided
             if (redirect) {
                 let redirectUrl = decodeURIComponent(redirect);
+                // Handle 'admin' shorthand
+                if (redirect === 'admin') {
+                    redirectUrl = '/admin-dashboard.html';
+                }
                 // Ensure redirect URL starts with /
-                if (!redirectUrl.startsWith('/')) {
+                else if (!redirectUrl.startsWith('/')) {
                     redirectUrl = '/' + redirectUrl;
                 }
                 console.log('Storing redirect URL:', redirectUrl);
@@ -707,7 +711,13 @@
                 let redirectUrl;
                 
                 if (returnUrl) {
-                    redirectUrl = returnUrl;
+                    // Special handling for admin redirect
+                    if (returnUrl === '/admin-dashboard.html' && user.role !== 'admin') {
+                        console.log('User is not admin, redirecting to index');
+                        redirectUrl = '/index.html';
+                    } else {
+                        redirectUrl = returnUrl;
+                    }
                     sessionStorage.removeItem('returnUrl'); // Clear after use
                 } else {
                     redirectUrl = user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
