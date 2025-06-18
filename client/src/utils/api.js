@@ -104,7 +104,13 @@ api.interceptors.response.use(
                 const { token, user } = response.data;
                 console.log('Token refresh successful');
 
-                // Update localStorage
+                // Check if we have a cookie set
+                if (!document.cookie.includes('token=')) {
+                    console.warn('No auth cookie set after refresh');
+                    throw new Error('Session expired');
+                }
+
+                // Update localStorage as fallback
                 localStorage.setItem('token', token);
                 localStorage.setItem('user', JSON.stringify(user));
 
@@ -120,8 +126,13 @@ api.interceptors.response.use(
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
                 
-                // Redirect to login
-                window.location.href = '/login.html?error=session_expired';
+                // Get the current path for redirect back
+                const currentPath = window.location.pathname;
+                const isAdminPath = currentPath.includes('admin');
+                
+                // Redirect to login with return path
+                const returnPath = isAdminPath ? 'admin' : currentPath.replace(/^\//, '');
+                window.location.href = `/login.html?error=session_expired&redirect=${returnPath}`;
                 return Promise.reject(refreshError);
             }
         }

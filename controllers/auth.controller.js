@@ -10,26 +10,35 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Token generation utility with consistent payload structure
 const generateToken = (user, role) => {
+    // Calculate expiration time - 7 days from now
+    const expiresIn = 7 * 24 * 60 * 60; // 7 days in seconds
+    const expirationTime = Math.floor(Date.now() / 1000) + expiresIn;
+
     return jwt.sign(
         { 
             id: user._id, 
             email: user.email, 
             role: role,
-            iat: Math.floor(Date.now() / 1000)
+            iat: Math.floor(Date.now() / 1000),
+            exp: expirationTime
         },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
+        process.env.JWT_SECRET
     );
 };
 
 // Set authentication cookies utility
 const setAuthCookies = (res, token, cookieConfig) => {
+    // Parse token to get expiration
+    const decoded = jwt.decode(token);
+    const maxAge = (decoded.exp - Math.floor(Date.now() / 1000)) * 1000; // Convert to milliseconds
+    
     // Set auth token cookie with secure settings
     res.cookie('token', token, {
         ...cookieConfig,
         httpOnly: true,        // Prevent JavaScript access
         sameSite: 'None',     // Required for cross-site
-        secure: true          // Required for sameSite: 'None'
+        secure: true,         // Required for sameSite: 'None'
+        maxAge               // Use token expiration time
     });
     
     // Set session indicator cookie (non-httpOnly for client-side checks)
@@ -37,8 +46,8 @@ const setAuthCookies = (res, token, cookieConfig) => {
         ...cookieConfig,
         httpOnly: false,      // Allow JavaScript access for UI state
         sameSite: 'None',    // Required for cross-site
-        secure: true,        // Required for sameSite: 'None'
-        maxAge: cookieConfig.maxAge
+        secure: true,        // Required for sameSite: 'None',
+        maxAge               // Use same expiration as token
     });
 
     // Set Authorization header for API clients
@@ -48,6 +57,8 @@ const setAuthCookies = (res, token, cookieConfig) => {
     // Log cookie settings
     console.log('Setting auth cookies with config:', {
         token: 'present',
+        maxAge,
+        expiresIn: Math.floor(maxAge / 1000 / 60), // minutes
         cookieConfig: {
             ...cookieConfig,
             sameSite: 'None',
