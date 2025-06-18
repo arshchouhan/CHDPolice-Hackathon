@@ -73,7 +73,7 @@
                     </div>
                 </div>
             </div>
-            <form id="loginForm" class="mt-8 space-y-6">
+            <form id="loginForm" class="mt-8 space-y-6" onsubmit="handleLogin(event)">
                 <div class="space-y-4 rounded-md">
                     <div>
                         <label for="emailOrUsername" class="text-sm font-medium text-gray-300 block mb-2">
@@ -237,6 +237,79 @@
                             errorMessage.classList.remove('hidden');
                         }
                     }
+                </script>
+
+                <script>
+                async function handleLogin(event) {
+                    event.preventDefault();
+                    clearErrorMessage();
+
+                    const emailOrUsername = document.getElementById('emailOrUsername').value;
+                    const password = document.getElementById('password').value;
+
+                    if (!emailOrUsername || !password) {
+                        displayErrorMessage('Please enter both email/username and password');
+                        return;
+                    }
+
+                    try {
+                        const baseUrl = window.getApiBaseUrl();
+                        console.log('Using API base URL:', baseUrl);
+
+                        const response = await fetch(`${baseUrl}/api/auth/login`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                emailOrUsername,
+                                password
+                            }),
+                            credentials: 'include'
+                        });
+
+                        const data = await response.json();
+                        console.log('Login response:', data);
+
+                        if (response.ok && data.success) {
+                            console.log('Login successful, setting up session...');
+                            
+                            // Store token with domain validation and expiry
+                            const expiresIn = data.expiresIn || 7 * 24 * 60 * 60 * 1000; // 7 days default
+                            window.TokenStorage.setToken(data.token, expiresIn);
+                            
+                            // Store user data securely
+                            const userData = {
+                                ...data.user,
+                                domain: window.location.hostname,
+                                timestamp: Date.now()
+                            };
+                            sessionStorage.setItem('userData', JSON.stringify(userData));
+                            console.log('User data stored securely');
+                            
+                            // Check for return URL first
+                            const returnUrl = sessionStorage.getItem('returnUrl');
+                            sessionStorage.removeItem('returnUrl'); // Clear it after use
+                            
+                            // Determine redirect URL
+                            let redirectUrl;
+                            if (returnUrl && returnUrl.startsWith('/')) {
+                                redirectUrl = returnUrl;
+                            } else {
+                                redirectUrl = data.user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                            }
+                            
+                            console.log('Redirecting to:', redirectUrl);
+                            window.location.replace(redirectUrl);
+                            return;
+                        } else {
+                            throw new Error(data.message || 'Login failed');
+                        }
+                    } catch (error) {
+                        console.error('Login error:', error);
+                        displayErrorMessage(error.message || 'An error occurred during login');
+                    }
+                }
                 </script>
 
                 <div class="text-center text-sm mt-6">
