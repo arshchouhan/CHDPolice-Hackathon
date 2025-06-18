@@ -256,10 +256,15 @@
                         const baseUrl = window.getApiBaseUrl();
                         console.log('Using API base URL:', baseUrl);
 
+                        // Show loading state
+                        const loadingOverlay = document.getElementById('loadingOverlay');
+                        loadingOverlay.classList.remove('hidden');
+
                         const response = await fetch(`${baseUrl}/api/auth/login`, {
                             method: 'POST',
                             headers: {
-                                'Content-Type': 'application/json'
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
                             },
                             body: JSON.stringify({
                                 emailOrUsername,
@@ -297,6 +302,11 @@
                                 redirectUrl = returnUrl;
                             } else {
                                 redirectUrl = data.user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                            }
+                            
+                            // Add base URL if needed
+                            if (!redirectUrl.startsWith('http')) {
+                                redirectUrl = baseUrl + redirectUrl;
                             }
                             
                             console.log('Redirecting to:', redirectUrl);
