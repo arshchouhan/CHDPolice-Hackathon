@@ -35,6 +35,9 @@ if (!process.env.NODE_ENV) {
     process.env.NODE_ENV = isRender ? 'production' : 'development';
 }
 
+// Trust first proxy for secure cookies behind Render
+app.set('trust proxy', 1);
+
 // Essential middleware
 app.use(express.json());
 app.use(cookieParser());

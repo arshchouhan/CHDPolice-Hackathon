@@ -25,9 +25,9 @@ const getCookieConfig = (req, tokenExpiryDays = 7) => {
     const config = {
         httpOnly: true,      // Prevent JavaScript access
         path: '/',           // Available on all paths
-        maxAge: tokenExpiryDays * 24 * 60 * 60 * 1000,  // 7 days
-        secure: isProd || isSecure,  // Must be secure in prod or if HTTPS
-        sameSite: (isProd || isSecure) ? 'None' : 'Lax'  // Must be None for cross-origin in prod
+        maxAge: tokenExpiryDays * 24 * 60 * 60 * 1000,  // 7 days in milliseconds
+        secure: true,        // Always use secure cookies
+        sameSite: 'None'     // Required for cross-site cookies (Vercel + Render)
     };
     
     // Log final config
@@ -37,8 +37,6 @@ const getCookieConfig = (req, tokenExpiryDays = 7) => {
         isProd
     });
     
-    return config;
-
     return config;
 };
 

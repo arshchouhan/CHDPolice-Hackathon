@@ -213,7 +213,12 @@
                 this.isProcessing = false;
                 this.loadingOverlay = document.getElementById('loadingOverlay');
                 this.errorDisplay = document.getElementById('errorMessage');
-                this.init();
+                this.loginForm = document.getElementById('loginForm');
+                
+                // Initialize event listeners
+                if (this.loginForm) {
+                    this.loginForm.addEventListener('submit', (e) => this.handleLogin(e));
+                }
             }
 
             // Loading state management
@@ -505,12 +510,6 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM loaded, initializing auth manager...');
             authManager = new AuthManager();
-            
-            // Attach form submit handler - single event listener
-            const loginForm = document.getElementById('loginForm');
-            loginForm.addEventListener('submit', (event) => {
-                authManager.handleLogin(event);
-            });
 
             // Password visibility toggle
             const togglePassword = document.getElementById('togglePassword');
