@@ -42,59 +42,61 @@ app.use(cookieParser());
 // CORS Configuration
 const corsOptions = {
     origin: function(origin, callback) {
-        const allowedOrigins = [
-            'https://chdpolice-hackathon.onrender.com',
-            'https://chd-police-hackathon.vercel.app',
+        const isProd = process.env.NODE_ENV === 'production';
+        
+        // Development origins
+        const devOrigins = [
             'http://localhost:3000',
-            'http://localhost:5000'
+            'http://localhost:5000',
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:5000'
         ];
+        
+        // Production origins - include both Vercel and Render domains
+        const prodOrigins = [
+            'https://chdpolice-hackathon.onrender.com',      // Render backend
+            'https://chd-police-hackathon.vercel.app',       // Vercel frontend
+            'https://email-detection.onrender.com'           // Alternative Render domain
+        ];
+        
+        // Select origins based on environment
+        const allowedOrigins = isProd ? prodOrigins : devOrigins;
         
         // Log request details for debugging
         console.log('CORS Request Details:', {
             origin: origin || 'No origin (direct access)',
-            referer: this.req?.headers?.referer,
+            environment: process.env.NODE_ENV,
             host: this.req?.headers?.host,
-            secure: this.req?.secure,
-            protocol: this.req?.protocol
+            allowedOrigins: allowedOrigins
         });
         
-        // Development mode - allow all origins
-        if (process.env.NODE_ENV !== 'production') {
-            callback(null, true);
-            return;
-        }
-        
-        // Production mode - strict origin checking
+        // Handle requests with no origin (like mobile apps or Postman)
         if (!origin) {
-            // Allow requests with no origin (like mobile apps or curl requests)
             callback(null, true);
             return;
         }
         
-        // Check against allowed origins
-        if (allowedOrigins.some(allowed => origin.startsWith(allowed))) {
-            callback(null, true);
-            return;
-        }
+        // Check if origin is allowed
+        const isAllowed = allowedOrigins.includes(origin);
         
-        // Check if origin matches host (same-origin)
-        const host = this.req?.headers?.host;
-        if (host && origin.includes(host)) {
+        if (isAllowed) {
             callback(null, true);
-            return;
+        } else {
+            console.log(`CORS blocked origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
         }
-        
-        // Block other origins
-        console.log('CORS blocked origin:', origin);
-        callback(new Error('Not allowed by CORS'));
     },
-    credentials: true,
+    credentials: true,                 // Required for cookies
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cookie'],
-    exposedHeaders: ['Set-Cookie', 'Authorization'],
-    maxAge: 86400, // 24 hours
-    optionsSuccessStatus: 204,
-    preflightContinue: false
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With'
+    ],
+    exposedHeaders: ['Authorization'],  // We don't need to expose Set-Cookie
+    maxAge: 24 * 60 * 60,              // 24 hours in seconds
+    optionsSuccessStatus: 204,          // Standard OPTIONS success status
+    preflightContinue: false            // Don't pass OPTIONS to routes
 };
 
 // Apply CORS middleware
@@ -320,11 +322,12 @@ const startServer = async () => {
     try {
         await connectDB();
         
-        const PORT = process.env.PORT || 3000;
-        const HOST = '0.0.0.0';
+        const PORT = process.env.PORT || 5000; // Backend port changed to 5000
+        const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
         server = app.listen(PORT, HOST, () => {
-            console.log(`Server running at http://${HOST}:${PORT}/`);
+            const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+            console.log(`Server running at http://${displayHost}:${PORT}/`);
             console.log('Environment:', process.env.NODE_ENV);
             if (isRender) console.log('Running on Render platform');
         });

@@ -1,13 +1,20 @@
 import axios from 'axios';
 
+import { getBaseUrl } from './getBaseUrl';
+
 // Create axios instance with default config
 const api = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+    baseURL: getBaseUrl(),
     withCredentials: true, // This is crucial for sending cookies
     headers: {
         'Content-Type': 'application/json',
     }
 });
+
+// Log the base URL in development
+if (process.env.NODE_ENV !== 'production') {
+    console.log('API Base URL:', getBaseUrl());
+}
 
 // Request interceptor
 api.interceptors.request.use(

@@ -1,65 +1,42 @@
-// Cookie configuration utility
+/**
+ * Cookie configuration utility that handles cross-domain authentication
+ * between Vercel frontend and Render backend
+ */
 const getCookieConfig = (req, tokenExpiryDays = 7) => {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isSecure = isProduction || req.secure || req.headers['x-forwarded-proto'] === 'https';
+    const isProd = process.env.NODE_ENV === 'production';
     
+    // Log request details in development
+    if (!isProd) {
+        console.log('Cookie Config Details:', {
+            environment: process.env.NODE_ENV,
+            secure: req.secure,
+            protocol: req.protocol,
+            origin: req.get('origin'),
+            host: req.get('host')
+        });
+    }
+
     // Base cookie configuration
-    const baseConfig = {
-        httpOnly: true,
-        secure: isSecure,
-        sameSite: isSecure ? 'none' : 'lax',
-        maxAge: tokenExpiryDays * 24 * 60 * 60 * 1000, // Convert days to milliseconds
-        path: '/' // Ensure cookies are available across all paths
+    const config = {
+        httpOnly: true,                    // Prevent JavaScript access
+        secure: isProd,                    // Must be true in production
+        sameSite: isProd ? 'None' : 'Lax', // Required for cross-origin in production
+        maxAge: tokenExpiryDays * 24 * 60 * 60 * 1000, // 7 days
+        path: '/'                          // Available on all paths
     };
 
-    // In development, return base config
-    if (!isProduction) {
-        console.log('Development cookie config:', baseConfig);
-        return baseConfig;
+    // In production, we don't set a domain
+    // This ensures cookies work across different domains (Vercel and Render)
+    // The browser will treat it as a host-only cookie
+    
+    // For local development
+    if (!isProd) {
+        // In local dev, we can use localhost
+        // Don't set domain to allow it to work with both localhost and 127.0.0.1
+        config.secure = false;  // Allow HTTP in development
     }
 
-    const origin = req.get('origin');
-    console.log('Setting cookie config for origin:', origin);
-
-    // Production domain handling
-    if (origin) {
-        let domain;
-        
-        // Handle Vercel domains
-        if (origin.includes('vercel.app')) {
-            domain = '.vercel.app';
-        }
-        // Handle Render domains
-        else if (origin.includes('onrender.com')) {
-            domain = '.onrender.com';
-        }
-        // Handle custom domains
-        else {
-            try {
-                const url = new URL(origin);
-                domain = url.hostname;
-            } catch (e) {
-                console.error('Invalid origin URL:', origin);
-            }
-        }
-
-        if (domain) {
-            console.log('Setting cookie domain:', domain);
-            return {
-                ...baseConfig,
-                domain,
-                secure: true,
-                sameSite: 'none'
-            };
-        }
-    }
-
-    // Default to base config with enhanced security
-    return {
-        ...baseConfig,
-        secure: true,
-        sameSite: 'none'
-    };
+    return config;
 };
 
 module.exports = getCookieConfig;
