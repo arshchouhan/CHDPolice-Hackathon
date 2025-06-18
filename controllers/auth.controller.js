@@ -24,50 +24,51 @@ const generateToken = (user, role) => {
 
 // Set authentication cookies utility
 const setAuthCookies = (res, token, cookieConfig) => {
-    // Ensure secure cookie settings
-    const secureConfig = {
+    // Set auth token cookie with secure settings
+    res.cookie('token', token, {
         ...cookieConfig,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-    };
-
-    // Set auth token cookie
-    res.cookie('token', token, secureConfig);
+        httpOnly: true        // Prevent JavaScript access
+    });
     
     // Set session indicator cookie (non-httpOnly for client-side checks)
-    const sessionCookie = {
-        ...secureConfig,
-        httpOnly: false
-    };
-    res.cookie('sessionActive', 'true', sessionCookie);
+    res.cookie('sessionActive', 'true', {
+        ...cookieConfig,
+        httpOnly: false,      // Allow JavaScript access for UI state
+        maxAge: cookieConfig.maxAge
+    });
 
     // Set Authorization header for API clients
     res.setHeader('Authorization', `Bearer ${token}`);
+
+    // Log cookie settings
+    console.log('Setting auth cookies with config:', {
+        token: 'present',
+        cookieConfig,
+        headers: res.getHeaders()
+    });
 };
 
 // Clear authentication cookies utility
 const clearAuthCookies = (res, cookieConfig) => {
-    const cookieOptions = {
+    // Use same settings as when setting cookies, but with immediate expiry
+    const clearConfig = {
         ...cookieConfig,
-        expires: new Date(0),
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+        expires: new Date(0)
     };
-    delete cookieOptions.maxAge;
+    delete clearConfig.maxAge;
 
-    ['token', 'sessionActive'].forEach(cookieName => {
-        // Clear with domain
-        res.clearCookie(cookieName, { ...cookieOptions, path: '/' });
-        // Clear without domain for local development
-        if (process.env.NODE_ENV !== 'production') {
-            const localOptions = { ...cookieOptions };
-            delete localOptions.domain;
-            res.clearCookie(cookieName, { ...localOptions, path: '/' });
-        }
-    });
+    // Clear both cookies
+    res.clearCookie('token', clearConfig);
+    res.clearCookie('sessionActive', clearConfig);
 
     // Clear Authorization header
     res.setHeader('Authorization', '');
+
+    // Log cookie clearing
+    console.log('Clearing auth cookies with config:', {
+        clearConfig,
+        headers: res.getHeaders()
+    });
 };
 
 // Login controller
@@ -187,53 +188,55 @@ exports.signup = async (req, res) => {
 // Google Sign In controller
 exports.googleSignIn = async (req, res) => {
     try {
-        const { credential } = req.body;
+        const { token: idToken } = req.body;
         
-        if (!credential) {
-            return res.status(400).json({ message: 'Google credential required' });
+        if (!idToken) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID token is required'
+            });
         }
 
+        // Verify the Google ID token
         const ticket = await client.verifyIdToken({
-            idToken: credential,
+            idToken,
             audience: process.env.GOOGLE_CLIENT_ID
         });
 
-        const { email, name, picture, sub: googleId } = ticket.getPayload();
+        const payload = ticket.getPayload();
+        const { email, name, picture } = payload;
 
+        // Check for existing user
         let user = await User.findOne({ email });
+
         if (!user) {
-            user = new User({
-                username: name,
+            // Create new user if not exists
+            user = await User.create({
                 email,
+                name,
+                profilePicture: picture,
                 password: await bcrypt.hash(Math.random().toString(36), 10),
-                googleId,
-                profilePicture: picture
+                isGoogleUser: true
             });
-            await user.save();
         }
 
+        // Generate token and set cookies
         const token = generateToken(user, 'user');
         const cookieConfig = getCookieConfig(req);
         setAuthCookies(res, token, cookieConfig);
 
-        // Return HTML with client-side storage and redirect
-        const html = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Redirecting...</title>
-                <script>
-                    localStorage.setItem('token', '${token}');
-                    localStorage.setItem('userRole', 'user');
-                    window.location.replace('/index.html');
-                </script>
-            </head>
-            <body>
-                <p>Signing you in... Please wait.</p>
-            </body>
-            </html>
-        `;
-        return res.send(html);
+        // Return success response with user info
+        return res.status(200).json({
+            success: true,
+            token,
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                role: 'user',
+                profilePicture: user.profilePicture
+            }
+        });
     } catch (error) {
         console.error('Google sign in error:', error);
         return res.status(500).json({
