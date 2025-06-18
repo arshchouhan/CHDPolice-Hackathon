@@ -19,49 +19,57 @@ const API_CONFIG = {
 
 // Token storage with domain validation
 window.TokenStorage = {
-    setToken: function(token, expiresIn = 7 * 24 * 60 * 60 * 1000) { // 7 days default
-        try {
-            const tokenData = {
-                value: token,
-                domain: window.location.hostname,
-                expires: Date.now() + expiresIn,
-                timestamp: Date.now()
-            };
-            localStorage.setItem('authToken', JSON.stringify(tokenData));
-            console.log('Token stored successfully for domain:', tokenData.domain);
-        } catch (error) {
-            console.error('Error storing token:', error);
-        }
+    setToken: function(token, expiresIn) {
+        const tokenData = {
+            token: token,
+            domain: window.location.hostname,
+            expires: Date.now() + (expiresIn || 7 * 24 * 60 * 60 * 1000) // Default 7 days
+        };
+        localStorage.setItem('authToken', JSON.stringify(tokenData));
+        
+        // Set a session flag cookie
+        document.cookie = 'sessionActive=true; path=/; secure; samesite=lax';
     },
-
     getToken: function() {
         try {
+            // First check if session is active via cookie
+            if (!document.cookie.includes('sessionActive=true')) {
+                console.log('No active session cookie found');
+                this.clearToken();
+                return null;
+            }
+            
             const tokenData = JSON.parse(localStorage.getItem('authToken'));
-            if (!tokenData) return null;
+            if (!tokenData) {
+                console.log('No token data found');
+                return null;
+            }
 
             // Validate domain
             if (tokenData.domain !== window.location.hostname) {
-                console.warn('Token domain mismatch, clearing token');
+                console.log('Token domain mismatch, clearing token');
                 this.clearToken();
                 return null;
             }
 
             // Check expiration
             if (Date.now() > tokenData.expires) {
-                console.warn('Token expired, clearing token');
+                console.log('Token expired, clearing token');
                 this.clearToken();
                 return null;
             }
 
-            return tokenData.value;
+            return tokenData.token;
         } catch (error) {
-            console.error('Error retrieving token:', error);
+            console.error('Error reading token:', error);
+            this.clearToken();
             return null;
         }
     },
-
     clearToken: function() {
         localStorage.removeItem('authToken');
+        // Clear the session cookie
+        document.cookie = 'sessionActive=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; secure; samesite=lax';
         console.log('Token cleared');
     }
 };

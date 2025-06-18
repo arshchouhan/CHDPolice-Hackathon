@@ -286,17 +286,26 @@
                             throw new Error(data.message || `HTTP error! status: ${response.status}`);
                         }
 
-                        console.log('Login successful, setting up session...');
+                        console.log('Login successful, setting up session...', data);
+                        
+                        // Verify we have the required data
+                        if (!data.token || !data.user) {
+                            throw new Error('Invalid server response: missing token or user data');
+                        }
                         
                         // Store token with domain validation and expiry
-                        const expiresIn = data.expiresIn || 7 * 24 * 60 * 60 * 1000; // 7 days default
+                        const expiresIn = data.expiresIn * 1000 || 7 * 24 * 60 * 60 * 1000; // Convert to milliseconds
                         window.TokenStorage.setToken(data.token, expiresIn);
                         
                         // Store user data securely
                         const userData = {
-                            ...data.user,
+                            id: data.user.id,
+                            username: data.user.username,
+                            email: data.user.email,
+                            role: data.user.role,
                             domain: window.location.hostname,
-                            timestamp: Date.now()
+                            timestamp: Date.now(),
+                            expiresAt: Date.now() + expiresIn
                         };
                         sessionStorage.setItem('userData', JSON.stringify(userData));
                         console.log('User data stored securely');
