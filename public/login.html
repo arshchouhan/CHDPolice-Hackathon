@@ -211,7 +211,17 @@
         class AuthManager {
             constructor() {
                 this.isProcessing = false;
-                this.initializeAuth();
+                this.loadingOverlay = document.getElementById('loadingOverlay');
+                this.errorDisplay = document.getElementById('errorMessage');
+                this.init();
+            }
+
+            // Loading state management
+            setLoading(show) {
+                if (this.loadingOverlay) {
+                    this.loadingOverlay.style.display = show ? 'flex' : 'none';
+                }
+                this.isProcessing = show;
             }
 
             // Get API base URL
@@ -221,72 +231,17 @@
 
             // Display error message
             displayErrorMessage(message) {
-                const errorDiv = document.getElementById('errorMessage');
-                errorDiv.textContent = message;
-                errorDiv.classList.remove('hidden');
-                console.error('Error displayed:', message);
+                if (this.errorDisplay) {
+                    this.errorDisplay.textContent = message;
+                    this.errorDisplay.style.display = 'block';
+                    console.log('Error displayed:', message);
+                }
             }
 
-            // Clear error message
             clearErrorMessage() {
-                const errorDiv = document.getElementById('errorMessage');
-                errorDiv.textContent = '';
-                errorDiv.classList.add('hidden');
-            }
-
-            // Show/hide loading overlay
-            setLoading(show) {
-                const loadingOverlay = document.getElementById('loadingOverlay');
-                if (show) {
-                    loadingOverlay.classList.remove('hidden');
-                } else {
-                    loadingOverlay.classList.add('hidden');
-                }
-            }
-
-            // Check if user is already authenticated
-            async checkExistingAuth() {
-                console.log('Checking existing authentication...');
-                const token = localStorage.getItem('token');
-                
-                if (!token) {
-                    console.log('No token found');
-                    return false;
-                }
-
-                try {
-                    const response = await fetch(`${this.getApiBaseUrl()}/api/auth/check-auth`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Accept': 'application/json'
-                        },
-                        credentials: 'include'
-                    });
-
-                    if (!response.ok) {
-                        console.log('Token verification failed');
-                        localStorage.removeItem('token');
-                        localStorage.removeItem('user');
-                        return false;
-                    }
-
-                    const data = await response.json();
-                    console.log('Auth check response:', data);
-
-                    if (data.authenticated && data.user) {
-                        console.log('User is already authenticated');
-                        localStorage.setItem('user', JSON.stringify(data.user));
-                        if (data.token) {
-                            localStorage.setItem('token', data.token);
-                        }
-                        return data.user;
-                    }
-
-                    return false;
-                } catch (error) {
-                    console.error('Auth check error:', error);
-                    return false;
+                if (this.errorDisplay) {
+                    this.errorDisplay.textContent = '';
+                    this.errorDisplay.style.display = 'none';
                 }
             }
 
@@ -295,10 +250,10 @@
                 event.preventDefault();
                 
                 if (this.isProcessing) {
-                    console.log('Login already in progress, ignoring duplicate request');
+                    console.log('Login already in progress');
                     return;
                 }
-
+                
                 const emailOrUsername = document.getElementById('emailOrUsername').value;
                 const password = document.getElementById('password').value;
                 
@@ -307,9 +262,11 @@
                     return;
                 }
                 
-                this.showLoading();
+                this.setLoading(true);
+                this.clearErrorMessage();
                 
                 try {
+                    console.log('Attempting login...');
                     const response = await window.apiRequest('/api/auth/login', {
                         method: 'POST',
                         body: JSON.stringify({ emailOrUsername, password })
@@ -334,14 +291,13 @@
                         window.location.replace(redirectUrl);
                         return;
                     } else {
-                        throw new Error(data.message || 'Login failed');
+                        throw new Error(response.message || 'Login failed');
                     }
                 } catch (error) {
                     console.error('Login error:', error);
-                    this.displayErrorMessage(error.message || 'An error occurred during login');
+                    this.displayErrorMessage(error.message || 'Failed to login. Please try again.');
                 } finally {
                     this.setLoading(false);
-                    this.isProcessing = false;
                 }
             }
 
