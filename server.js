@@ -106,17 +106,30 @@ const corsOptions = {
         console.log('[CORS Request]', {
             origin: origin || 'No origin',
             environment: process.env.NODE_ENV,
-            allowedOrigins
+            allowedOrigins,
+            userAgent: this?.req?.headers?.['user-agent'] || 'Unknown'
         });
         
-        // Handle requests with no origin (like Postman or direct access)
+        // Handle requests with no origin
         if (!origin) {
+            // Allow requests with no origin in development
             if (process.env.NODE_ENV === 'development') {
                 console.log('[Development Mode] Allowing no origin');
                 callback(null, true);
                 return;
             }
-            console.log('[Production Mode] Blocking no origin');
+            
+            // In production, check if it's a health check or internal request
+            const userAgent = this?.req?.headers?.['user-agent'] || '';
+            const path = this?.req?.path || '';
+            
+            if (path === '/health' || userAgent.includes('Render') || userAgent.includes('render-health-check')) {
+                console.log('[Production Mode] Allowing internal/health check request');
+                callback(null, true);
+                return;
+            }
+            
+            console.log('[Production Mode] Blocking no origin request');
             callback(new Error('Origin required in production'));
             return;
         }
