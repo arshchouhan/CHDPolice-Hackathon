@@ -6,41 +6,105 @@
  */
 
 // Define the getBaseUrl function in the global scope
-window.getBaseUrl = function() {
+// API Configuration
+const API_CONFIG = {
+    production: {
+        render: 'https://chdpolice-hackathon.onrender.com',
+        vercel: 'https://email-detection-api.onrender.com'
+    },
+    development: {
+        api: 'http://localhost:3000'
+    }
+};
+
+// Token storage with domain validation
+window.TokenStorage = {
+    setToken: function(token, expiresIn = 7 * 24 * 60 * 60 * 1000) { // 7 days default
+        try {
+            const tokenData = {
+                value: token,
+                domain: window.location.hostname,
+                expires: Date.now() + expiresIn,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('authToken', JSON.stringify(tokenData));
+            console.log('Token stored successfully for domain:', tokenData.domain);
+        } catch (error) {
+            console.error('Error storing token:', error);
+        }
+    },
+
+    getToken: function() {
+        try {
+            const tokenData = JSON.parse(localStorage.getItem('authToken'));
+            if (!tokenData) return null;
+
+            // Validate domain
+            if (tokenData.domain !== window.location.hostname) {
+                console.warn('Token domain mismatch, clearing token');
+                this.clearToken();
+                return null;
+            }
+
+            // Check expiration
+            if (Date.now() > tokenData.expires) {
+                console.warn('Token expired, clearing token');
+                this.clearToken();
+                return null;
+            }
+
+            return tokenData.value;
+        } catch (error) {
+            console.error('Error retrieving token:', error);
+            return null;
+        }
+    },
+
+    clearToken: function() {
+        localStorage.removeItem('authToken');
+        console.log('Token cleared');
+    }
+};
+
+// Get API base URL based on environment
+window.getApiBaseUrl = function() {
     try {
         const hostname = window.location.hostname;
-        const origin = window.location.origin;
-        const port = window.location.port;
-        let baseUrl;
-        
-        console.log('getBaseUrl called from:', document.title || 'Unknown page');
-        console.log('Current location:', window.location.href);
-        console.log('Hostname:', hostname, 'Origin:', origin, 'Port:', port);
-        
-        // Check if we're in development mode (localhost with React dev server)
+        console.log('Getting API base URL for hostname:', hostname);
+
+        // Development environment
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            baseUrl = `http://${hostname}:3000`; // Always use port 3000 for API in development
-            console.log('Development environment detected, using API at:', baseUrl);
-        } 
-        // Always use Render API in production
-        else if (hostname.includes('vercel.app') || hostname.includes('onrender.com')) {
-            baseUrl = 'https://chdpolice-hackathon.onrender.com';
-            console.log('Production environment detected, using Render API at:', baseUrl);
-        } else {
-            // For any other environment, use localhost:3000
-            baseUrl = 'http://localhost:3000';
-            console.log('Development environment detected, using API at:', baseUrl);
+            console.log('Development environment detected');
+            return API_CONFIG.development.api;
         }
-        
-        console.log('Final BASE_URL set to:', baseUrl);
-        return baseUrl;
+
+        // Production environment
+        if (hostname.includes('vercel.app')) {
+            console.log('Vercel environment detected');
+            return API_CONFIG.production.vercel;
+        }
+
+        if (hostname.includes('onrender.com')) {
+            console.log('Render environment detected');
+            return API_CONFIG.production.render;
+        }
+
+        // Fallback to development
+        console.warn('Unknown environment, falling back to development API');
+        return API_CONFIG.development.api;
     } catch (error) {
-        console.error('Error determining base URL:', error);
-        // Fallback to current origin if there's an error
-        const fallbackUrl = window.location.origin;
-        console.warn('Falling back to origin:', fallbackUrl);
-        return fallbackUrl;
+        console.error('Error determining API base URL:', error);
+        return API_CONFIG.production.render; // Safe fallback
     }
+};
+
+// Backward compatibility
+window.getBaseUrl = window.getApiBaseUrl;
+
+// OAuth URL generator
+window.getOAuthRedirectUrl = function() {
+    const baseUrl = window.getApiBaseUrl();
+    return `${baseUrl}/api/gmail/callback`;
 };
 
 // Log that the base URL module has been loaded

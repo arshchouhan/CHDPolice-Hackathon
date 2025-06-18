@@ -342,6 +342,15 @@
             const errorMessage = document.getElementById('errorMessage');
             const error = urlParams.get('error');
             const logout = urlParams.get('logout');
+            const returnUrl = urlParams.get('returnUrl');
+            
+            // Clear any existing tokens on login page load
+            window.TokenStorage.clearToken();
+            
+            // Store return URL if provided
+            if (returnUrl) {
+                sessionStorage.setItem('returnUrl', returnUrl);
+            }
             
             // Check for logout parameter
             if (logout === 'success') {
@@ -358,6 +367,15 @@
                 setTimeout(() => {
                     successMessage.remove();
                 }, 5000);
+            }
+            
+            // Handle OAuth errors
+            if (error === 'oauth_error') {
+                showError('Google OAuth authentication failed. Please try again.');
+            } else if (error === 'invalid_grant') {
+                showError('Your Google access has expired. Please reconnect your account.');
+            } else if (error === 'token_expired') {
+                showError('Your session has expired. Please log in again.');
             }
             
             // Check for error parameter
@@ -504,19 +522,32 @@
                 if (response.ok && data.success) {
                     console.log('Login successful, setting up session...');
                     
-                    // Store the token in localStorage
-                    localStorage.setItem('token', data.token);
-                    console.log('Token stored in localStorage');
+                    // Store token with domain validation and expiry
+                    const expiresIn = data.expiresIn || 7 * 24 * 60 * 60 * 1000; // 7 days default
+                    window.TokenStorage.setToken(data.token, expiresIn);
                     
-                    // Store user data
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    console.log('User data stored:', data.user);
+                    // Store user data securely
+                    const userData = {
+                        ...data.user,
+                        domain: window.location.hostname,
+                        timestamp: Date.now()
+                    };
+                    sessionStorage.setItem('userData', JSON.stringify(userData));
+                    console.log('User data stored securely');
                     
-                    // Redirect based on role
-                    const redirectUrl = data.user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                    // Check for return URL first
+                    const returnUrl = sessionStorage.getItem('returnUrl');
+                    sessionStorage.removeItem('returnUrl'); // Clear it after use
+                    
+                    // Determine redirect URL
+                    let redirectUrl;
+                    if (returnUrl && returnUrl.startsWith('/')) {
+                        redirectUrl = returnUrl;
+                    } else {
+                        redirectUrl = data.user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                    }
+                    
                     console.log('Redirecting to:', redirectUrl);
-                    
-                    // Use replace to prevent back button from returning to login
                     window.location.replace(redirectUrl);
                     return;
                 } else {
