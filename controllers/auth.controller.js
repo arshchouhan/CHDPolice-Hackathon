@@ -3,10 +3,25 @@ const User = require('../models/Users');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
+const getCookieConfig = require('../utils/cookieConfig');
 
 // Login controller (shared for both Admin and User)
 // Google OAuth client
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// Token generation utility
+const generateToken = (user, role) => {
+    return jwt.sign(
+        { 
+            id: user._id, 
+            email: user.email, 
+            role: role,
+            iat: Math.floor(Date.now() / 1000)
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+    );
+};
 
 // Verify Google token
 async function verifyGoogleToken(token) {
@@ -92,34 +107,23 @@ exports.googleSignIn = async (req, res) => {
             await user.save();
         }
 
-        // Create JWT token
-        const token = jwt.sign(
-            { id: user._id, email: user.email },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' } // 7 days
-        );
+        // Generate JWT token
+        const role = 'user'; // Default role for Google sign-in
+        const token = generateToken(user, role);
 
-        // Set token in cookie
-        const cookieOptions = {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-        };
-
-        // In production, set domain based on request origin
-        if (process.env.NODE_ENV === 'production') {
-            const origin = req.get('origin');
-            if (origin && origin.includes('vercel.app')) {
-                cookieOptions.domain = '.email-detection-eight.vercel.app';
-            } else if (origin && origin.includes('render.com')) {
-                cookieOptions.domain = '.onrender.com';
-            }
-        }
-
+        // Get consistent cookie configuration
+        const cookieOptions = getCookieConfig(req);
+        
+        // Set auth token cookie
         res.cookie('token', token, cookieOptions);
         
-        // Set token in localStorage via client-side script that runs automatically after redirect
+        // Set a session indicator cookie (non-httpOnly for client-side checks)
+        const sessionCookie = {
+            ...cookieOptions,
+            httpOnly: false
+        };
+        res.cookie('sessionActive', 'true', sessionCookie);
+
         const html = `
         <!DOCTYPE html>
         <html>
@@ -223,7 +227,7 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
-    // Create JWT token
+    // Generate JWT token
     let tokenPayload;
     
     // Special handling for admin token to ensure consistent ID
@@ -238,40 +242,20 @@ exports.login = async (req, res) => {
       tokenPayload = { id: account._id, email: account.email, role };
     }
     
-    const token = jwt.sign(
-      tokenPayload,
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' } // 7 days
-    );
+    const token = generateToken(account, role);
 
-    // Set token in cookie
-    const cookieOptions = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    };
-
-    // In production, handle cross-origin cookies
-    if (process.env.NODE_ENV === 'production') {
-        const origin = req.get('origin');
-        console.log('Request origin:', origin);
-        
-        if (origin && origin.includes('vercel.app')) {
-            console.log('Request from Vercel frontend');
-            // For Vercel, we don't set domain - let the browser handle it
-            cookieOptions.sameSite = 'none';
-            cookieOptions.secure = true;
-        } else if (origin && origin.includes('onrender.com')) {
-            console.log('Request from Render frontend');
-            cookieOptions.domain = '.onrender.com';
-        }
-        
-        console.log('Final cookie options:', cookieOptions);
-    }
-
+    // Get consistent cookie configuration
+    const cookieOptions = getCookieConfig(req);
+    
+    // Set auth token cookie
     res.cookie('token', token, cookieOptions);
-    console.log('Cookie set successfully');
+    
+    // Set a session indicator cookie (non-httpOnly for client-side checks)
+    const sessionCookie = {
+        ...cookieOptions,
+        httpOnly: false
+    };
+    res.cookie('sessionActive', 'true', sessionCookie);
 
     const response = {
       success: true,
@@ -322,40 +306,20 @@ exports.signup = async (req, res) => {
     console.log('New user created:', { id: newUser._id, username, email });
 
     // Automatically log the user in by creating a token
-    const token = jwt.sign(
-      { id: newUser._id, role: 'user' },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const token = generateToken(newUser, 'user');
 
-    // Set token in cookie
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    };
-
-    // In production, handle cross-origin cookies
-    if (process.env.NODE_ENV === 'production') {
-      const origin = req.get('origin');
-      console.log('Request origin:', origin);
-      
-      if (origin && origin.includes('vercel.app')) {
-        console.log('Request from Vercel frontend');
-        // For Vercel, we don't set domain - let the browser handle it
-        cookieOptions.sameSite = 'none';
-        cookieOptions.secure = true;
-      } else if (origin && origin.includes('render.com')) {
-        console.log('Request from Render frontend');
-        cookieOptions.domain = '.onrender.com';
-      }
-      
-      console.log('Final cookie options:', cookieOptions);
-    }
-
+    // Get consistent cookie configuration
+    const cookieOptions = getCookieConfig(req);
+    
+    // Set auth token cookie
     res.cookie('token', token, cookieOptions);
-    console.log('Cookie set on signup');
+    
+    // Set a session indicator cookie (non-httpOnly for client-side checks)
+    const sessionCookie = {
+        ...cookieOptions,
+        httpOnly: false
+    };
+    res.cookie('sessionActive', 'true', sessionCookie);
 
     // Return success with token
     return res.status(201).json({ 
@@ -377,32 +341,45 @@ exports.signup = async (req, res) => {
 };
 
 // Logout function
-exports.logout = (req, res) => {
+exports.logout = async (req, res) => {
     try {
-        // Clear the token cookie
+        // Get base cookie options from utility
+        const baseOptions = getCookieConfig(req);
+        
+        // Modify for logout (set expires instead of maxAge)
         const cookieOptions = {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            expires: new Date(0)
+            ...baseOptions,
+            expires: new Date(0) // Immediate expiration
         };
+        delete cookieOptions.maxAge; // Remove maxAge as we're using expires
 
-        // In production, set domain based on request origin
-        if (process.env.NODE_ENV === 'production') {
-            const origin = req.get('origin');
-            if (origin && origin.includes('vercel.app')) {
-                cookieOptions.domain = '.email-detection-eight.vercel.app';
-            } else if (origin && origin.includes('render.com')) {
-                cookieOptions.domain = '.onrender.com';
-            }
-        }
+        // Clear all authentication-related cookies
+        const cookiesToClear = ['token', 'sessionActive'];
+        
+        cookiesToClear.forEach(cookieName => {
+            // Clear with path
+            res.clearCookie(cookieName, { ...cookieOptions, path: '/' });
+            
+            // Also try clearing without domain for local cookies
+            const localOptions = { ...cookieOptions };
+            delete localOptions.domain;
+            res.clearCookie(cookieName, { ...localOptions, path: '/' });
+        });
 
-        res.cookie('token', '', cookieOptions);
+        console.log('All auth cookies cleared');
 
-        return res.status(200).json({ message: 'Logged out successfully' });
+        return res.status(200).json({ 
+            success: true, 
+            message: 'Logged out successfully',
+            clearLocalStorage: true // Signal client to clear localStorage
+        });
     } catch (error) {
         console.error('Logout error:', error);
-        return res.status(500).json({ message: 'Error logging out' });
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Error during logout',
+            error: error.message
+        });
     }
 };
 
@@ -451,33 +428,14 @@ exports.checkAuth = async (req, res) => {
       // If token expires in less than 1 hour, issue a new one
       if (timeToExpire < 3600) {
         console.log('Token close to expiry, issuing new token');
-        const newToken = jwt.sign(
-          { id: decoded.id, email: decoded.email, role: role },
-          process.env.JWT_SECRET,
-          { expiresIn: '7d' } // 7 days to match client-side
-        );
-
-        // Set the new token in cookie with proper options
-        const cookieOptions = {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-        };
-
-        // In production, set domain based on request origin
-        if (process.env.NODE_ENV === 'production') {
-          const origin = req.get('origin');
-          if (origin && origin.includes('vercel.app')) {
-            cookieOptions.domain = '.email-detection-eight.vercel.app';
-          } else if (origin && origin.includes('render.com')) {
-            cookieOptions.domain = '.onrender.com';
-          }
+        const user = await User.findById(decoded.id);
+        if (user) {
+          const newToken = generateToken(user, decoded.role);
+          const cookieOptions = getCookieConfig(req);
+          res.cookie('token', newToken, cookieOptions);
+          console.log('New token issued with 7-day expiration');
+          token = newToken; // Update token for response
         }
-
-        res.cookie('token', newToken, cookieOptions);
-        console.log('New token issued with 7-day expiration');
-        token = newToken; // Update token for response
       }
     } catch (tokenError) {
       console.error('Token verification failed:', tokenError.message);
@@ -555,42 +513,21 @@ exports.checkAuth = async (req, res) => {
               role = 'user';
               console.log('Recovered regular user by email:', decoded.email);
               
-              // Issue a new token with correct ID
-              const newToken = jwt.sign(
-                { id: user._id, email: user.email, role: role },
-                process.env.JWT_SECRET,
-                { expiresIn: '7d' } // 7 days to match client-side
-              );
+              // Generate new token with correct role
+              const newToken = generateToken(user, role);
               
-              // Set the new token in cookie
-              const cookieOptions = {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days to match client-side
-              };
-
-              // In production, set domain based on request origin
-              if (process.env.NODE_ENV === 'production') {
-                const origin = req.get('origin');
-                if (origin && origin.includes('vercel.app')) {
-                  // Extract the full subdomain from origin
-                  const matches = origin.match(/https:\/\/([\w-]+\.vercel\.app)/);
-                  if (matches && matches[1]) {
-                    cookieOptions.domain = matches[1];
-                    console.log('Setting cookie domain for Vercel:', cookieOptions.domain);
-                  }
-                } else if (origin && origin.includes('render.com')) {
-                  cookieOptions.domain = '.onrender.com';
-                  console.log('Setting cookie domain for Render');
-                }
-              }
+              // Get consistent cookie configuration
+              const cookieOptions = getCookieConfig(req);
               
+              // Set auth token cookie
               res.cookie('token', newToken, cookieOptions);
-              console.log('New token issued and cookie set for recovered user');
               
-              // Update token for response
-              token = newToken;
+              // Set session indicator cookie
+              const sessionCookie = {
+                  ...cookieOptions,
+                  httpOnly: false
+              };
+              res.cookie('sessionActive', 'true', sessionCookie);
             }
           }
         } catch (recoveryError) {
