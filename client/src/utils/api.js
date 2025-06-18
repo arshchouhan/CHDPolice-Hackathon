@@ -2,15 +2,23 @@ import axios from 'axios';
 
 import { getBaseUrl } from './getBaseUrl';
 
+// Get base URL
+const baseURL = getBaseUrl();
+console.log('Creating API instance with base URL:', baseURL);
+
 // Create axios instance with default config
 const api = axios.create({
-    baseURL: getBaseUrl(),
-    withCredentials: true, // This is crucial for sending cookies
+    baseURL,
+    withCredentials: true, // Required for cookies
     headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
     },
     validateStatus: status => status < 500 // Don't reject if status < 500
 });
+
+// Ensure proper method handling
+api.defaults.method = 'post'; // Default to POST for safety
 
 // Log all requests in development
 if (process.env.NODE_ENV !== 'production') {
@@ -102,17 +110,36 @@ api.interceptors.response.use(
 
 // API methods
 export const authAPI = {
-    login: (credentials) => {
+    login: async (credentials) => {
         console.log('Making login request:', {
             url: '/api/auth/login',
             method: 'POST',
+            baseURL,
             credentials
         });
-        return api.post('/api/auth/login', credentials);
+
+        try {
+            // Explicitly set method and URL
+            const response = await api.request({
+                method: 'POST',
+                url: '/api/auth/login',
+                data: credentials,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+
+            console.log('Login response:', response);
+            return response;
+        } catch (error) {
+            console.error('Login request failed:', error);
+            throw error;
+        }
     },
     signup: (userData) => api.post('/api/auth/signup', userData),
     logout: () => api.post('/api/auth/logout'),
-    checkAuth: () => api.get('/api/auth/check-auth'), // Fixed endpoint name
+    checkAuth: () => api.get('/api/auth/check-auth')
 };
 
 export const userAPI = {
