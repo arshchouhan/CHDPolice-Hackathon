@@ -59,8 +59,8 @@
 
             // Function to handle token refresh and verification
             const refreshSession = async () => {
-                const baseUrl = window.location.origin;
-                const apiUrl = `${baseUrl}/api/auth/check-auth`;
+                const baseUrl = getBaseUrl();
+                const apiUrl = `${baseUrl}/auth/check-auth`;
                 console.log('Checking auth at:', apiUrl);
                 
                 try {
@@ -70,11 +70,12 @@
                             'Authorization': `Bearer ${localStorage.getItem('token')}`,
                             'Accept': 'application/json'
                         },
-                        credentials: 'include'
+                        credentials: 'include',
+                        mode: 'cors'
                     });
 
                     if (!response.ok) {
-                        console.error('Auth check failed:', response.status);
+                        console.error('Auth check failed:', response.status, await response.text());
                         throw new Error('Token verification failed');
                     }
 
@@ -88,6 +89,7 @@
                     
                     if (data.token) {
                         localStorage.setItem('token', data.token);
+                        localStorage.setItem('user', JSON.stringify(data.user));
                         console.log('Token updated');
                     }
                     

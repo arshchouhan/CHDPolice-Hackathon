@@ -85,7 +85,7 @@ api.interceptors.response.use(
 
             try {
                 // Try to refresh the session
-                const response = await api.post('/api/auth/refresh');
+                const response = await api.post('/auth/refresh');
                 const { token } = response.data;
 
                 // Update localStorage
@@ -112,7 +112,7 @@ api.interceptors.response.use(
 export const authAPI = {
     login: async (credentials) => {
         console.log('Making login request:', {
-            url: '/api/auth/login',
+            url: '/auth/login',
             method: 'POST',
             baseURL,
             credentials
@@ -122,7 +122,7 @@ export const authAPI = {
             // Explicitly set method and URL
             const response = await api.request({
                 method: 'POST',
-                url: '/api/auth/login',
+                url: '/auth/login',
                 data: credentials,
                 headers: {
                     'Content-Type': 'application/json',
@@ -137,9 +137,9 @@ export const authAPI = {
             throw error;
         }
     },
-    signup: (userData) => api.post('/api/auth/signup', userData),
-    logout: () => api.post('/api/auth/logout'),
-    checkAuth: () => api.get('/api/auth/check-auth')
+    signup: (userData) => api.post('/auth/signup', userData),
+    logout: () => api.post('/auth/logout'),
+    checkAuth: () => api.get('/auth/check-auth')
 };
 
 export const userAPI = {
