@@ -10,7 +10,7 @@
 const API_CONFIG = {
     production: {
         render: 'https://chdpolice-hackathon.onrender.com',
-        vercel: 'https://email-detection-api.onrender.com'
+        vercel: 'https://chdpolice-hackathon.onrender.com' // Same as render since we're not using separate API domain
     },
     development: {
         api: 'http://localhost:3000'
