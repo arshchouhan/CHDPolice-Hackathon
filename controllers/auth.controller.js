@@ -5,11 +5,10 @@ const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const getCookieConfig = require('../utils/cookieConfig');
 
-// Login controller (shared for both Admin and User)
-// Google OAuth client
+// Initialize Google OAuth client
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Token generation utility
+// Token generation utility with consistent payload structure
 const generateToken = (user, role) => {
     return jwt.sign(
         { 
@@ -23,579 +22,307 @@ const generateToken = (user, role) => {
     );
 };
 
-// Verify Google token
-async function verifyGoogleToken(token) {
-    try {
-        const ticket = await client.verifyIdToken({
-            idToken: token,
-            audience: process.env.GOOGLE_CLIENT_ID
-        });
-        return ticket.getPayload();
-    } catch (error) {
-        console.error('Error verifying Google token:', error);
-        return null;
-    }
-}
+// Set authentication cookies utility
+const setAuthCookies = (res, token, cookieConfig) => {
+    // Set auth token cookie
+    res.cookie('token', token, cookieConfig);
+    
+    // Set session indicator cookie (non-httpOnly for client-side checks)
+    const sessionCookie = {
+        ...cookieConfig,
+        httpOnly: false
+    };
+    res.cookie('sessionActive', 'true', sessionCookie);
+};
 
-// Handle Google Sign In
+// Clear authentication cookies utility
+const clearAuthCookies = (res, cookieConfig) => {
+    const cookieOptions = {
+        ...cookieConfig,
+        expires: new Date(0)
+    };
+    delete cookieOptions.maxAge;
+
+    ['token', 'sessionActive'].forEach(cookieName => {
+        // Clear with domain
+        res.clearCookie(cookieName, { ...cookieOptions, path: '/' });
+        // Clear without domain
+        const localOptions = { ...cookieOptions };
+        delete localOptions.domain;
+        res.clearCookie(cookieName, { ...localOptions, path: '/' });
+    });
+};
+
+// Login controller
+exports.login = async (req, res) => {
+    try {
+        const { emailOrUsername, password } = req.body;
+        
+        if (!emailOrUsername || !password) {
+            return res.status(400).json({ message: 'Email/username and password are required' });
+        }
+
+        const isEmail = emailOrUsername.includes('@');
+        let account;
+        let role;
+
+        // Check for admin account first
+        if (emailOrUsername === 'admin@emaildetection.com') {
+            account = await Admin.findOne({ _id: '68286e17b547fe6cfc8df917' }) ||
+                     await Admin.findOne({ email: 'admin@emaildetection.com' });
+            role = 'admin';
+        } else {
+            // Check admin collection
+            account = await Admin.findOne(
+                isEmail ? { email: emailOrUsername } : { username: emailOrUsername }
+            );
+            if (account) {
+                role = 'admin';
+            } else {
+                // Check user collection
+                account = await User.findOne(
+                    isEmail ? { email: emailOrUsername } : { username: emailOrUsername }
+                );
+                role = 'user';
+            }
+        }
+
+        if (!account) {
+            return res.status(404).json({ message: 'Account not found' });
+        }
+
+        const isValidPassword = await bcrypt.compare(password, account.password);
+        if (!isValidPassword) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        const token = generateToken(account, role);
+        const cookieConfig = getCookieConfig(req);
+        setAuthCookies(res, token, cookieConfig);
+
+        return res.status(200).json({
+            success: true,
+            token,
+            user: {
+                id: account._id,
+                username: account.username,
+                email: account.email,
+                role
+            }
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error during login'
+        });
+    }
+};
+
+// Signup controller
+exports.signup = async (req, res) => {
+    try {
+        const { username, email, password } = req.body;
+
+        if (!username || !email || !password) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+
+        // Check existing user
+        const existingUser = await User.findOne({
+            $or: [{ email }, { username }]
+        });
+
+        if (existingUser) {
+            return res.status(409).json({
+                message: existingUser.email === email ? 
+                    'Email already registered' : 'Username already taken'
+            });
+        }
+
+        const newUser = new User({ username, email, password });
+        await newUser.save();
+
+        const token = generateToken(newUser, 'user');
+        const cookieConfig = getCookieConfig(req);
+        setAuthCookies(res, token, cookieConfig);
+
+        return res.status(201).json({
+            success: true,
+            message: 'User registered successfully',
+            token,
+            user: {
+                id: newUser._id,
+                username: newUser.username,
+                email: newUser.email,
+                role: 'user'
+            }
+        });
+    } catch (error) {
+        console.error('Signup error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error during signup'
+        });
+    }
+};
+
+// Google Sign In controller
 exports.googleSignIn = async (req, res) => {
     try {
-        console.log('Google sign-in request received:', {
-            method: req.method,
-            query: req.query,
-            body: req.body
-        });
+        const { credential } = req.body;
         
-        // Handle OAuth redirect flow (GET request)
-        if (req.method === 'GET') {
-            console.log('Processing Google OAuth redirect');
-            
-            if (req.query.error) {
-                console.error('Google OAuth error:', req.query.error);
-                return res.redirect('/login.html?error=' + encodeURIComponent(req.query.error));
-            }
-            
-            if (req.query.code) {
-                // This is the OAuth code exchange flow
-                // For simplicity in this implementation, we'll redirect to login 
-                // with a message to use the direct login flow
-                console.log('Google OAuth code received, redirecting to login');
-                return res.redirect('/login.html?message=please_use_google_button');
-            }
-            
-            // If we get here without a code or credential, redirect to login
-            return res.redirect('/login.html');
-        }
-        
-        // Handle direct sign-in flow (POST request)
-        let credential;
-        
-        if (req.body.credential) {
-            // One-tap or popup mode - credential comes directly in request body
-            credential = req.body.credential;
-        } else {
-            console.log('No credential found in request', req.body);
-            return res.status(400).json({ message: 'Google credential not found' });
+        if (!credential) {
+            return res.status(400).json({ message: 'Google credential required' });
         }
 
-        // Verify Google token
         const ticket = await client.verifyIdToken({
             idToken: credential,
             audience: process.env.GOOGLE_CLIENT_ID
         });
-        
-        const payload = ticket.getPayload();
-        if (!payload.email) {
-            return res.status(400).json({ message: 'Invalid Google account' });
-        }
 
-        const email = payload.email;
-        console.log('Successfully verified Google token for:', email);
+        const { email, name, picture, sub: googleId } = ticket.getPayload();
 
-        // Check if user exists
         let user = await User.findOne({ email });
-
-        // If user doesn't exist, create new user
         if (!user) {
             user = new User({
-                username: payload.name,
-                email: payload.email,
-                password: await bcrypt.hash(Math.random().toString(36), 10), // Random password for Google users
-                googleId: payload.sub,
-                profilePicture: payload.picture
+                username: name,
+                email,
+                password: await bcrypt.hash(Math.random().toString(36), 10),
+                googleId,
+                profilePicture: picture
             });
             await user.save();
         }
 
-        // Generate JWT token
-        const role = 'user'; // Default role for Google sign-in
-        const token = generateToken(user, role);
+        const token = generateToken(user, 'user');
+        const cookieConfig = getCookieConfig(req);
+        setAuthCookies(res, token, cookieConfig);
 
-        // Get consistent cookie configuration
-        const cookieOptions = getCookieConfig(req);
-        
-        // Set auth token cookie
-        res.cookie('token', token, cookieOptions);
-        
-        // Set a session indicator cookie (non-httpOnly for client-side checks)
-        const sessionCookie = {
-            ...cookieOptions,
-            httpOnly: false
-        };
-        res.cookie('sessionActive', 'true', sessionCookie);
-
+        // Return HTML with client-side storage and redirect
         const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Redirecting...</title>
-            <script>
-            // Store the token in localStorage
-            localStorage.setItem('token', '${token}');
-            console.log('Token saved to localStorage');
-            // Store user role
-            localStorage.setItem('userRole', 'user');
-            console.log('User role saved to localStorage');
-            // Redirect to dashboard using relative URL
-            window.location.href = '/index.html';
-            </script>
-        </head>
-        <body>
-            <p>Signing you in... Please wait.</p>
-        </body>
-        </html>
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Redirecting...</title>
+                <script>
+                    localStorage.setItem('token', '${token}');
+                    localStorage.setItem('userRole', 'user');
+                    window.location.replace('/index.html');
+                </script>
+            </head>
+            <body>
+                <p>Signing you in... Please wait.</p>
+            </body>
+            </html>
         `;
-        
         return res.send(html);
-
     } catch (error) {
         console.error('Google sign in error:', error);
-        return res.status(500).json({ message: 'Server error during Google sign in' });
+        return res.status(500).json({
+            success: false,
+            message: 'Server error during Google sign in'
+        });
     }
 };
 
-exports.login = async (req, res) => {
-  try {
-    console.log('Login attempt:', req.body);
-    
-    // Handle both the old 'email' parameter and the new 'emailOrUsername' parameter
-    // This makes the API backwards compatible with existing clients
-    const emailOrUsername = req.body.emailOrUsername || req.body.email;
-    const password = req.body.password;
-    
-    console.log('Normalized credentials:', { emailOrUsername, password: '****' });
-
-    if (!emailOrUsername || !password) {
-      console.log('Missing credentials');
-      return res.status(400).json({ message: 'Username/Email and password are required.' });
-    }
-
-    // Check if the input is an email (contains @ symbol)
-    const isEmail = emailOrUsername.includes('@');
-    console.log('Input is identified as:', isEmail ? 'email' : 'username');
-    let account;
-    let role;
-
-    // Special handling for admin@emaildetection.com
-    if (emailOrUsername === 'admin@emaildetection.com') {
-      console.log('Admin login attempt detected');
-      
-      // Try to find admin with the specific ID first
-      account = await Admin.findOne({ _id: '68286e17b547fe6cfc8df917' });
-      
-      // If not found by ID, try by email as fallback
-      if (!account) {
-        console.log('Admin not found by specific ID, trying by email');
-        account = await Admin.findOne({ email: 'admin@emaildetection.com' });
-      }
-      
-      if (account) {
-        role = 'admin';
-      }
-    } else {
-      // Regular flow for non-admin users
-      // Check for admin first
-      if (isEmail) {
-        account = await Admin.findOne({ email: emailOrUsername });
-      } else {
-        account = await Admin.findOne({ username: emailOrUsername });
-      }
-
-      if (account) {
-        role = 'admin';
-      } else {
-        // If not admin, check if it's a regular user
-        if (isEmail) {
-          account = await User.findOne({ email: emailOrUsername });
-        } else {
-          account = await User.findOne({ username: emailOrUsername });
-        }
-        role = 'user';
-      }
-    }
-
-    // If no account found
-    if (!account) {
-      console.log('Account not found:', { emailOrUsername });
-      return res.status(404).json({ message: 'Account not found.' });
-    }
-
-    // Compare password
-    const isMatch = await bcrypt.compare(password, account.password);
-    if (!isMatch) {
-      console.log('Invalid password for:', { emailOrUsername });
-      return res.status(401).json({ message: 'Invalid credentials.' });
-    }
-
-    // Generate JWT token
-    let tokenPayload;
-    
-    // Special handling for admin token to ensure consistent ID
-    if (role === 'admin' && account.email === 'admin@emaildetection.com') {
-      console.log('Creating admin token with fixed ID');
-      tokenPayload = { 
-        id: '68286e17b547fe6cfc8df917', 
-        email: account.email, 
-        role: 'admin' 
-      };
-    } else {
-      tokenPayload = { id: account._id, email: account.email, role };
-    }
-    
-    const token = generateToken(account, role);
-
-    // Get consistent cookie configuration
-    const cookieOptions = getCookieConfig(req);
-    
-    // Set auth token cookie
-    res.cookie('token', token, cookieOptions);
-    
-    // Set a session indicator cookie (non-httpOnly for client-side checks)
-    const sessionCookie = {
-        ...cookieOptions,
-        httpOnly: false
-    };
-    res.cookie('sessionActive', 'true', sessionCookie);
-
-    const response = {
-      success: true,
-      token: token, // Include the token in the response for the client
-      user: {
-        id: account._id,
-        username: account.username,
-        email: account.email,
-        role
-      }
-    };
-    console.log('Sending response:', response);
-    return res.status(200).json(response);
-
-  } catch (error) {
-    console.error('Login error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error. Please try again later.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-exports.signup = async (req, res) => {
-  try {
-    console.log('Signup attempt:', { username: req.body.username, email: req.body.email });
-    const { username, email, password } = req.body;
-
-    if (!username || !email || !password) {
-      return res.status(400).json({ message: 'Username, email, and password are required.' });
-    }
-
-    // Check if the user already exists
-    let existingUser = await User.findOne({ username });
-    if (existingUser) {
-      return res.status(409).json({ message: 'Username already taken.' });
-    }
-
-    existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(409).json({ message: 'Email already registered.' });
-    }
-
-    // Create new user
-    const newUser = new User({ username, email, password });
-    await newUser.save();
-    console.log('New user created:', { id: newUser._id, username, email });
-
-    // Automatically log the user in by creating a token
-    const token = generateToken(newUser, 'user');
-
-    // Get consistent cookie configuration
-    const cookieOptions = getCookieConfig(req);
-    
-    // Set auth token cookie
-    res.cookie('token', token, cookieOptions);
-    
-    // Set a session indicator cookie (non-httpOnly for client-side checks)
-    const sessionCookie = {
-        ...cookieOptions,
-        httpOnly: false
-    };
-    res.cookie('sessionActive', 'true', sessionCookie);
-
-    // Return success with token
-    return res.status(201).json({ 
-      success: true,
-      message: 'User registered successfully.',
-      token: token,
-      user: {
-        id: newUser._id,
-        username: newUser.username,
-        email: newUser.email,
-        role: 'user'
-      }
-    });
-
-  } catch (error) {
-    console.error('Signup error:', error.message);
-    return res.status(500).json({ message: 'Server error. Please try again later.' });
-  }
-};
-
-// Logout function
+// Logout controller
 exports.logout = async (req, res) => {
     try {
-        // Get base cookie options from utility
-        const baseOptions = getCookieConfig(req);
-        
-        // Modify for logout (set expires instead of maxAge)
-        const cookieOptions = {
-            ...baseOptions,
-            expires: new Date(0) // Immediate expiration
-        };
-        delete cookieOptions.maxAge; // Remove maxAge as we're using expires
+        const cookieConfig = getCookieConfig(req);
+        clearAuthCookies(res, cookieConfig);
 
-        // Clear all authentication-related cookies
-        const cookiesToClear = ['token', 'sessionActive'];
-        
-        cookiesToClear.forEach(cookieName => {
-            // Clear with path
-            res.clearCookie(cookieName, { ...cookieOptions, path: '/' });
-            
-            // Also try clearing without domain for local cookies
-            const localOptions = { ...cookieOptions };
-            delete localOptions.domain;
-            res.clearCookie(cookieName, { ...localOptions, path: '/' });
-        });
-
-        console.log('All auth cookies cleared');
-
-        return res.status(200).json({ 
-            success: true, 
+        return res.status(200).json({
+            success: true,
             message: 'Logged out successfully',
-            clearLocalStorage: true // Signal client to clear localStorage
+            clearLocalStorage: true
         });
     } catch (error) {
         console.error('Logout error:', error);
-        return res.status(500).json({ 
-            success: false, 
-            message: 'Error during logout',
-            error: error.message
+        return res.status(500).json({
+            success: false,
+            message: 'Error during logout'
         });
     }
 };
 
-// Check if user is authenticated
+// Check Authentication controller
 exports.checkAuth = async (req, res) => {
-  try {
-    console.log('Check auth request:', { 
-      cookies: req.cookies, 
-      authorization: req.headers.authorization ? 'Present' : 'Not present',
-      method: req.method,
-      url: req.url
-    });
-    
-    const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
-
-    if (!token) {
-      console.log('No token provided in cookies or authorization header');
-      return res.status(401).json({ 
-        authenticated: false, 
-        message: 'No token provided',
-        redirectTo: '/login.html'
-      });
-    }
-
-    // Verify token format
-    if (typeof token !== 'string' || token.trim() === '') {
-      console.warn('Invalid token format received');
-      return res.status(401).json({ 
-        authenticated: false, 
-        message: 'Invalid token format',
-        redirectTo: '/login.html'
-      });
-    }
-
-    // Verify the token
-    let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-      console.log('Token decoded successfully:', { id: decoded.id, email: decoded.email });
-      
-      // Check token expiration
-      const now = Math.floor(Date.now() / 1000);
-      const timeToExpire = decoded.exp - now;
-      console.log(`Token expires in ${timeToExpire} seconds`);
-      
-      // If token expires in less than 1 hour, issue a new one
-      if (timeToExpire < 3600) {
-        console.log('Token close to expiry, issuing new token');
-        const user = await User.findById(decoded.id);
-        if (user) {
-          const newToken = generateToken(user, decoded.role);
-          const cookieOptions = getCookieConfig(req);
-          res.cookie('token', newToken, cookieOptions);
-          console.log('New token issued with 7-day expiration');
-          token = newToken; // Update token for response
-        }
-      }
-    } catch (tokenError) {
-      console.error('Token verification failed:', tokenError.message);
-      
-      // Clear invalid token from cookies
-      res.clearCookie('token', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-      });
-      
-      return res.status(401).json({ 
-        authenticated: false, 
-        message: 'Your session has expired. Please log in again.',
-        error: 'token_expired',
-        redirectTo: '/login.html'
-      });
-    }
-    
-    // Check if the user is an admin
-    let user = null;
-    let role = null;
-    
-    try {
-      // Handle specific admin ID case
-      if (decoded.id === '68286e17b547fe6cfc8df917') {
-        console.log('Found specific admin ID match');
-        user = await Admin.findOne({ _id: '68286e17b547fe6cfc8df917' });
-        if (user) {
-          role = 'admin';
-        } else {
-          // Try to find by email if ID lookup fails
-          user = await Admin.findOne({ email: 'admin@emaildetection.com' });
-          if (user) {
-            role = 'admin';
-            console.log('Found admin by email instead of ID');
-          }
-        }
-      } else {
-        // Normal flow for other users
-        user = await Admin.findById(decoded.id);
-        if (user) {
-          role = 'admin';
-        } else {
-          // If not admin, check if it's a regular user
-          user = await User.findById(decoded.id);
-          if (user) {
-            role = 'user';
-          }
-        }
-      }
-    } catch (dbError) {
-      console.error('Database error when finding user:', dbError);
-      return res.status(500).json({ 
-        authenticated: false, 
-        message: 'Database error when verifying user',
-        redirectTo: '/login.html'
-      });
-    }
+        const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
 
-    if (!user) {
-      console.warn('User not found for id:', decoded.id);
-      
-      // Check if we have email in token to try recovery
-      if (decoded.email) {
+        if (!token) {
+            return res.status(401).json({
+                authenticated: false,
+                message: 'No token provided',
+                redirectTo: '/login.html'
+            });
+        }
+
+        let decoded;
         try {
-          // Try to find user by email as fallback
-          user = await Admin.findOne({ email: decoded.email });
-          if (user) {
-            role = 'admin';
-            console.log('Recovered admin user by email:', decoded.email);
-          } else {
-            user = await User.findOne({ email: decoded.email });
-            if (user) {
-              role = 'user';
-              console.log('Recovered regular user by email:', decoded.email);
-              
-              // Generate new token with correct role
-              const newToken = generateToken(user, role);
-              
-              // Get consistent cookie configuration
-              const cookieOptions = getCookieConfig(req);
-              
-              // Set auth token cookie
-              res.cookie('token', newToken, cookieOptions);
-              
-              // Set session indicator cookie
-              const sessionCookie = {
-                  ...cookieOptions,
-                  httpOnly: false
-              };
-              res.cookie('sessionActive', 'true', sessionCookie);
-            }
-          }
-        } catch (recoveryError) {
-          console.error('Error during user recovery attempt:', recoveryError);
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (tokenError) {
+            const cookieConfig = getCookieConfig(req);
+            clearAuthCookies(res, cookieConfig);
+            
+            return res.status(401).json({
+                authenticated: false,
+                message: 'Session expired',
+                redirectTo: '/login.html?error=session_expired'
+            });
         }
-      }
-      
-      // If still no user, authentication fails
-      if (!user) {
-        return res.status(401).json({ 
-          authenticated: false, 
-          message: 'User account not found',
-          redirectTo: '/login.html?error=' + encodeURIComponent('account_not_found')
-        });
-      }
-    }
 
-    // Send back user info including role
-    const userData = {
-      id: user._id,
-      username: user.username || user.name || 'User',
-      email: user.email,
-      role: role
-    };
-    
-    // Create a new token with consistent data and longer expiration
-    const newToken = jwt.sign(
-      { 
-        id: user._id, 
-        email: user.email, 
-        role: role,
-        iat: Math.floor(Date.now() / 1000)
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' } // Extended to 7 days
-    );
-    
-    // Set the new token in cookie with same expiration
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    };
-    
-    res.cookie('token', newToken, cookieOptions);
-    console.log('User authenticated successfully:', userData.email);
-    
-    // Set a session cookie as well
-    res.cookie('sessionActive', 'true', {
-      ...cookieOptions,
-      httpOnly: false // Allow JavaScript access
-    });
-    
-    return res.status(200).json({ 
-      authenticated: true, 
-      message: 'User is authenticated',
-      user: userData,
-      token: newToken, // Return token in response for client storage
-      expiresIn: 7 * 24 * 60 * 60 // Send expiration time to client
-    });
-  } catch (error) {
-    console.error('Unexpected error in checkAuth:', error);
-    return res.status(500).json({ 
-      authenticated: false, 
-      message: 'Authentication error',
-      error: error.message,
-      redirectTo: '/login.html'
-    });
-  }
+        // Find user and handle role-specific logic
+        let user;
+        let role = decoded.role;
+
+        if (decoded.id === '68286e17b547fe6cfc8df917' || decoded.email === 'admin@emaildetection.com') {
+            user = await Admin.findOne({
+                $or: [{ _id: '68286e17b547fe6cfc8df917' }, { email: 'admin@emaildetection.com' }]
+            });
+            role = 'admin';
+        } else {
+            user = role === 'admin' ?
+                await Admin.findById(decoded.id) :
+                await User.findById(decoded.id);
+        }
+
+        if (!user) {
+            const cookieConfig = getCookieConfig(req);
+            clearAuthCookies(res, cookieConfig);
+            
+            return res.status(401).json({
+                authenticated: false,
+                message: 'User not found',
+                redirectTo: '/login.html?error=user_not_found'
+            });
+        }
+
+        // Check token expiration and refresh if needed
+        const timeToExpire = decoded.exp - Math.floor(Date.now() / 1000);
+        if (timeToExpire < 3600) { // Less than 1 hour
+            const newToken = generateToken(user, role);
+            const cookieConfig = getCookieConfig(req);
+            setAuthCookies(res, newToken, cookieConfig);
+        }
+
+        return res.status(200).json({
+            authenticated: true,
+            user: {
+                id: user._id,
+                username: user.username || user.name,
+                email: user.email,
+                role
+            },
+            token: timeToExpire < 3600 ? newToken : token
+        });
+    } catch (error) {
+        console.error('Check auth error:', error);
+        return res.status(500).json({
+            authenticated: false,
+            message: 'Server error during authentication check',
+            redirectTo: '/login.html'
+        });
+    }
 };
