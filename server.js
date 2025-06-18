@@ -90,6 +90,7 @@ app.use((req, res, next) => {
 // Authentication middleware
 const authenticateUser = (req, res, next) => {
     // Skip auth for public routes and static files
+    // Skip auth for public routes and static files
     if (
         req.path === '/' ||
         req.path === '/login' ||
@@ -98,8 +99,11 @@ const authenticateUser = (req, res, next) => {
         req.path === '/health' ||
         req.path.endsWith('.html') ||
         req.path.endsWith('.css') ||
-        req.path.endsWith('.js')
+        req.path.endsWith('.js') ||
+        // Allow health checks without auth
+        (req.path === '/' && req.method === 'HEAD')
     ) {
+        console.log('Skipping auth for public path:', req.path);
         return next();
     }
 
@@ -133,12 +137,16 @@ const authenticateUser = (req, res, next) => {
                 { expiresIn: '7d' }
             );
 
-            res.cookie('token', newToken, {
+            const cookieOptions = {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                maxAge: 7 * 24 * 60 * 60 * 1000
-            });
+                secure: true, // Always use secure in production
+                sameSite: 'none', // Required for cross-origin
+                maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+                domain: '.onrender.com' // Allow sharing between subdomains
+            };
+            
+            console.log('Setting cookie with options:', cookieOptions);
+            res.cookie('token', newToken, cookieOptions);
         }
 
         next();
@@ -201,9 +209,25 @@ app.use(express.static(path.join(__dirname, 'public'), {
     index: false
 }));
 
+// API root route with version info
+app.get('/', (req, res) => {
+    res.json({
+        name: 'Email Detection API',
+        version: '1.0.0',
+        status: 'online',
+        environment: process.env.NODE_ENV,
+        timestamp: new Date().toISOString(),
+        endpoints: {
+            api: '/api',
+            auth: '/auth',
+            health: '/health',
+            docs: '/api/docs'
+        }
+    });
+});
+
 // HTML routes
 const htmlRoutes = [
-    { path: '/', file: 'index.html' },
     { path: '/dashboard', file: 'index.html' },
     { path: '/admin', file: 'admin-dashboard.html' },
     { path: '/login', file: 'login.html' },
@@ -212,10 +236,12 @@ const htmlRoutes = [
 
 htmlRoutes.forEach(route => {
     app.get(route.path, (req, res) => {
+        console.log(`Serving ${route.file} for path ${route.path}`);
         res.sendFile(path.join(__dirname, 'public', route.file));
     });
     // Also handle .html extension
     app.get(`${route.path}.html`, (req, res) => {
+        console.log(`Serving ${route.file} for path ${route.path}.html`);
         res.sendFile(path.join(__dirname, 'public', route.file));
     });
 });
