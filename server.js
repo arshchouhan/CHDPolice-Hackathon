@@ -818,9 +818,12 @@ async function startServer() {
         console.log('MongoDB connected successfully');
 
         // Start the Express server
-        const port = process.env.PORT || 5000;
-        const serverInstance = app.listen(port, () => {
-            console.log(`Server is running on port ${port}`);
+        const PORT = process.env.PORT || 3000;
+        const HOST = '0.0.0.0'; // Required for Render deployment
+
+        const serverInstance = app.listen(PORT, HOST, () => {
+            console.log(`Server running at http://${HOST}:${PORT}/`);
+            console.log('Environment:', process.env.NODE_ENV);
             if (isRender) {
                 console.log('Running on Render platform');
             }
