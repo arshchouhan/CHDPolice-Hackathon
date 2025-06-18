@@ -347,9 +347,25 @@ exports.refresh = async (req, res) => {
 // Check Authentication controller
 exports.checkAuth = async (req, res) => {
     try {
-        const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+        // Get token from cookie or Authorization header
+        let token = req.cookies?.token;
+        
+        // Check Authorization header if no cookie token
+        if (!token && req.headers.authorization) {
+            const authHeader = req.headers.authorization;
+            if (authHeader.startsWith('Bearer ')) {
+                token = authHeader.substring(7);
+            }
+        }
+
+        console.log('[Auth Check] Token source:', {
+            hasCookieToken: !!req.cookies?.token,
+            hasAuthHeader: !!req.headers.authorization,
+            finalToken: token ? 'present' : 'missing'
+        });
 
         if (!token) {
+            console.log('[Auth Check] No token found');
             return res.status(401).json({
                 authenticated: false,
                 message: 'No token provided',
@@ -360,13 +376,20 @@ exports.checkAuth = async (req, res) => {
         let decoded;
         try {
             decoded = jwt.verify(token, process.env.JWT_SECRET);
+            console.log('[Auth Check] Token verified:', {
+                userId: decoded.id,
+                role: decoded.role,
+                expiresIn: new Date(decoded.exp * 1000).toISOString()
+            });
         } catch (tokenError) {
+            console.error('[Auth Check] Token verification failed:', tokenError.message);
             const cookieConfig = getCookieConfig(req);
             clearAuthCookies(res, cookieConfig);
             
             return res.status(401).json({
                 authenticated: false,
                 message: 'Session expired',
+                error: process.env.NODE_ENV === 'development' ? tokenError.message : undefined,
                 redirectTo: '/login.html?error=session_expired'
             });
         }
@@ -399,7 +422,13 @@ exports.checkAuth = async (req, res) => {
 
         // Check token expiration and refresh if needed
         const timeToExpire = decoded.exp - Math.floor(Date.now() / 1000);
+        console.log('[Auth Check] Token expiry:', {
+            expiresIn: timeToExpire,
+            needsRefresh: timeToExpire < 3600
+        });
+
         if (timeToExpire < 3600) { // Less than 1 hour
+            console.log('[Auth Check] Refreshing token');
             const newToken = generateToken(user, role);
             const cookieConfig = getCookieConfig(req);
             setAuthCookies(res, newToken, cookieConfig);
