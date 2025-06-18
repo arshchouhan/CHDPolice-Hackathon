@@ -147,16 +147,32 @@ app.use((req, res, next) => {
 
 // Apply strict CORS to all other routes
 app.use(cors({
-    origin: (origin, callback) => {
+    origin: function(origin, callback) {
+        // Get request details from this context
+        const req = this.req;
+        const path = req?.path || '';
+        const userAgent = req?.headers?.['user-agent'] || '';
+
+        // Log the CORS request
+        console.log('[CORS Request]', {
+            origin: origin || 'No origin',
+            path,
+            method: req?.method,
+            userAgent
+        });
+
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) {
             if (process.env.NODE_ENV === 'development') {
+                console.log('[Development] Allowing no origin request');
                 callback(null, true);
                 return;
             }
             // In production, check if it's a health check or internal request
-            const userAgent = req?.headers?.['user-agent'] || '';
-            if (userAgent.includes('Render') || userAgent.includes('render-health-check')) {
+            if (path === '/health' || path === '/' || 
+                userAgent.includes('Render') || 
+                userAgent.includes('render-health-check')) {
+                console.log('[Production] Allowing internal request:', { path, userAgent });
                 callback(null, true);
                 return;
             }
@@ -164,8 +180,10 @@ app.use(cors({
         
         // Check against allowed origins
         if (allowedOrigins.includes(origin)) {
+            console.log('[CORS] Allowing origin:', origin);
             callback(null, true);
         } else {
+            console.log('[CORS] Blocking origin:', origin);
             callback(new Error(`Origin ${origin} not allowed`));
         }
     },

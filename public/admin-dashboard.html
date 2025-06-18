@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com?v=3.3.0"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <!-- Load the unified base URL handler first -->
-    <script src="/js/base-url.js"></script>
+    <script src="/utils/getBaseUrl.js"></script>
     <!-- Force reload CSS -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
@@ -53,14 +53,14 @@
             
             if (!token || !userStr) {
                 console.error('No authentication token or user data found');
-                window.location.href = '/login.html?error=not_authenticated&redirect=admin';
+                window.location.href = './login.html?error=not_authenticated&redirect=admin';
                 return false;
             }
 
             // Function to handle token refresh and verification
             const refreshSession = async () => {
                 const baseUrl = getBaseUrl();
-                const apiUrl = `${baseUrl}/auth/check-auth`;
+                const apiUrl = `${baseUrl}/api/auth/check-auth`;
                 console.log('Checking auth at:', apiUrl);
                 
                 try {
