@@ -381,70 +381,94 @@ const connectDB = async () => {
             retryWrites: true,
             w: 'majority', // Ensure writes are acknowledged by majority
             wtimeoutMS: 30000 // 30 second timeout for write operations
-        };
 
-        await mongoose.connect(mongoURI, options);
+// Connect to MongoDB with retry logic
+async function connectToMongoDB() {
+    try {
+        await mongoose.connect(MONGODB_URI, mongooseOptions);
         console.log('✅ MongoDB connected successfully');
-        
-        // Set up connection event handlers
-        mongoose.connection.on('error', (err) => {
-            console.error('MongoDB connection error:', err);
-            // Don't exit in production, try to recover
-            if (process.env.NODE_ENV !== 'production') {
-                console.error('MongoDB error in development mode, exiting...');
-                process.exit(1);
-            }
-        });
-        
-        mongoose.connection.on('disconnected', () => {
-            console.log('MongoDB disconnected, attempting to reconnect...');
-            setTimeout(() => connectWithRetry(0), 5000);
-        });
-        
-        mongoose.connection.on('connected', () => {
-            console.log('MongoDB reconnected successfully');
-        });
-        
-        return true;
     } catch (err) {
-        console.error('MongoDB connection error:', err);
-        
-        // In production, log the error but allow the server to start
-        if (process.env.NODE_ENV === 'production') {
-            console.error('WARNING: Starting server without MongoDB connection. Some features will be unavailable.');
-            return false;
+        console.error('❌ MongoDB connection error:', err);
+        if (!isRender) {
+            console.error('Not running on Render, exiting process...');
+            process.exit(1);
         }
-        
-        throw err;
     }
-};
+}
 
-// Retry connection with exponential backoff and Render-specific handling
-const connectWithRetry = (retryCount = 0) => {
-    const maxRetryDelay = process.env.RENDER ? 60000 : 30000; // 60s max delay on Render, 30s elsewhere
-    const initialDelay = process.env.RENDER ? 10000 : 0; // 10s initial delay on Render
-    
-    const attemptConnection = () => {
-        connectDB().catch(err => {
-            const retryDelay = Math.min(Math.pow(2, retryCount) * 1000, maxRetryDelay);
-            console.log(`Failed to connect to MongoDB, retrying in ${retryDelay/1000} seconds... (attempt ${retryCount + 1})`);
-            console.error('Connection error:', err.message);
-            setTimeout(() => connectWithRetry(retryCount + 1), retryDelay);
-        });
-    };
-    
-    if (retryCount === 0 && initialDelay > 0) {
-        console.log(`Adding initial delay of ${initialDelay/1000}s before MongoDB connection attempt...`);
-        setTimeout(attemptConnection, initialDelay);
-    } else {
-        attemptConnection();
-    }
-};
+// Handle MongoDB connection events
+mongoose.connection.on('error', (err) => {
+console.error('MongoDB connection error:', err);
+});
 
-connectWithRetry();
+mongoose.connection.on('disconnected', () => {
+console.log('MongoDB connection disconnected');
+if (!process.env.RENDER) {
+    console.log('Not running on Render, attempting to reconnect...');
+    connectToMongoDB().catch(err => {
+        console.error('Reconnection failed:', err);
+    });
+}
+});
+
+// Initial MongoDB connection
+connectToMongoDB();
 
 // Enhanced health check endpoint for Render with detailed diagnostics
 app.get('/health', async (req, res) => {
+    // Check MongoDB connection
+    const mongoStatus = {
+        readyState: mongoose.connection.readyState,
+        status: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown'
+    };
+
+    // Check environment variables (without exposing sensitive values)
+    const envVars = {
+        NODE_ENV: process.env.NODE_ENV || 'not set',
+        PORT: process.env.PORT || 'not set',
+        MONGO_URI: process.env.MONGODB_URI ? 'set' : 'not set',
+        JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'not set',
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'set' : 'not set',
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'set' : 'not set',
+        PROD_REDIRECT_URI: process.env.PROD_REDIRECT_URI || 'not set'
+    };
+
+    // Check platform detection
+    const platform = {
+        isRender: !!process.env.RENDER,
+        isVercel: !!process.env.VERCEL,
+        hostname: req.hostname,
+        originalUrl: req.originalUrl
+    };
+
+    // Check file system access
+    let fileSystemStatus;
+    try {
+        const publicDir = path.join(__dirname, 'public');
+        const files = require('fs').readdirSync(publicDir);
+        fileSystemStatus = {
+            status: 'ok',
+            publicDir,
+            fileCount: files.length,
+            hasIndexHtml: files.includes('index.html'),
+            hasLoginHtml: files.includes('login.html')
+        };
+    } catch (err) {
+        fileSystemStatus = {
+            status: 'error',
+            error: err.message
+        };
+    }
+
+    // Send health check response
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        mongo: mongoStatus,
+        environment: envVars,
+        platform,
+        fileSystem: fileSystemStatus
+    });
     // Check MongoDB connection
     const mongoStatus = {
         readyState: mongoose.connection.readyState,
@@ -502,6 +526,129 @@ app.get('/health', async (req, res) => {
     });
 });
 
+// Create and start HTTP server
+function startServer() {
+    const PORT = process.env.PORT || 3000;
+    const HOST = '0.0.0.0'; // Always use 0.0.0.0 for Render
+
+    // Log deployment information
+    console.log('Starting server with configuration:');
+    console.log(`- Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`- Port: ${PORT}`);
+    console.log(`- Platform: ${isRender ? 'Render' : isVercel ? 'Vercel' : 'Local/Other'}`);
+
+    // Create HTTP server
+    const server = app.listen(PORT, HOST, () => {
+        console.log(`✅ Server running on port ${PORT}`);
+        if (process.env.NODE_ENV === 'production') {
+            if (isRender) {
+                console.log('Render deployment URL: https://chdpolice-hackathon.onrender.com');
+            } else if (isVercel) {
+                console.log('Vercel deployment URL: https://chd-police-hackathon.vercel.app');
+            }
+        }
+    });
+
+    // Handle server errors
+    server.on('error', (error) => {
+        console.error('Server error:', error);
+        if (error.code === 'EADDRINUSE') {
+            console.error(`Port ${PORT} is already in use`);
+            if (!isRender) process.exit(1);
+        }
+    });
+
+    // Graceful shutdown handler
+    async function gracefulShutdown(signal) {
+        console.log(`${signal} received, initiating graceful shutdown...`);
+        
+        server.close(async () => {
+            console.log('Server closed, no longer accepting connections');
+            
+            try {
+                if (!isRender && mongoose.connection.readyState === 1) {
+                    console.log('Closing MongoDB connection...');
+                    await mongoose.disconnect();
+                    console.log('MongoDB disconnected successfully');
+                } else {
+                    console.log('Running on Render - keeping MongoDB connection alive');
+                }
+                
+                if (!isRender) {
+                    console.log('Exiting process...');
+                    process.exit(0);
+                } else {
+                    console.log('Running on Render - letting platform handle process management');
+                }
+            } catch (err) {
+                console.error('Error during shutdown:', err);
+                if (!isRender) process.exit(1);
+            }
+        });
+
+        // Force shutdown after timeout (only for non-Render environments)
+        if (!isRender) {
+            setTimeout(() => {
+                console.error('Could not close connections in time, forcefully shutting down');
+                process.exit(1);
+            }, 10000).unref();
+        }
+    }
+
+    // Register shutdown handlers
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    return server;
+}
+
+// Start the server
+startServer();
+
+// Graceful shutdown handler
+async function gracefulShutdown(signal) {
+    console.log(`${signal} received, initiating graceful shutdown...`);
+    
+    // First stop accepting new connections
+    server.close(async () => {
+        console.log('Server closed, no longer accepting connections');
+        
+        try {
+            if (!process.env.RENDER && mongoose.connection.readyState === 1) {
+                console.log('Closing MongoDB connection...');
+                await mongoose.disconnect();
+                console.log('MongoDB disconnected successfully');
+            } else if (process.env.RENDER) {
+                console.log('Running on Render - keeping MongoDB connection alive');
+            }
+            
+            // Give time for existing connections to complete
+            if (!process.env.RENDER) {
+                console.log('Waiting for existing connections to complete...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                console.log('Exiting process...');
+                process.exit(0);
+            } else {
+                console.log('Running on Render - letting platform handle process management');
+            }
+        } catch (err) {
+            console.error('Error during shutdown:', err);
+            if (!process.env.RENDER) process.exit(1);
+        }
+    });
+
+    // Force shutdown after timeout (only for non-Render environments)
+    if (!process.env.RENDER) {
+        setTimeout(() => {
+            console.error('Could not close connections in time, forcefully shutting down');
+            process.exit(1);
+        }, 10000).unref();
+    }
+}
+
+// Register shutdown handlers
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 app.get('/signup', (req, res) => {
     console.log('Serving signup page');
@@ -538,8 +685,6 @@ app.use((req, res) => {
     res.status(404).json({ message: 'API endpoint not found' });
 });
 
-
-
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -549,60 +694,6 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Server start - Always listen on 0.0.0.0 for Render compatibility
-const PORT = process.env.PORT || 10000;
-const HOST = '0.0.0.0'; // Always use 0.0.0.0 for Render
-
-const startServer = () => {
-    try {
-        // Log deployment information
-        console.log('Starting server with the following configuration:');
-        console.log(`- Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`- Port: ${PORT}`);
-        console.log(`- Host: ${HOST}`);
-        console.log(`- Platform: ${process.env.RENDER ? 'Render' : process.env.VERCEL ? 'Vercel' : 'Local/Other'}`);
-        
-        // Create HTTP server
-        const server = app.listen(PORT, HOST, () => {
-            console.log(`✅ Server running on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
-            
-            // Log important URLs
-            if (process.env.NODE_ENV === 'production') {
-                if (process.env.RENDER) {
-                    console.log('Render deployment URL: https://chdpolice-hackathon.onrender.com');
-                } else if (process.env.VERCEL) {
-                    console.log('Vercel deployment URL: https://chd-police-hackathon.vercel.app');
-                }
-            } else {
-                console.log('Local development URL: http://localhost:3000');
-            }
-        });
-        
-        // Handle server errors
-        server.on('error', (error) => {
-            console.error('Server error:', error);
-            if (error.code === 'EADDRINUSE') {
-                console.error(`Port ${PORT} is already in use. Trying again in 10 seconds...`);
-                setTimeout(startServer, 10000);
-            }
-        });
-        
-        // Set up graceful shutdown handler
-        process.on('SIGTERM', async () => {
-            console.log('SIGTERM received, initiating graceful shutdown...');
-            try {
-                // First close the server to stop accepting new connections
-                await new Promise((resolve) => {
-                    server.close(() => {
-                        console.log('Server closed');
-                        resolve();
-                    });
-                });
-
-                // On Render, we don't close MongoDB connections or exit the process
-                // This allows Render to manage container lifecycle and handle reconnections
-                if (process.env.RENDER) {
-                    console.log('Running on Render - skipping MongoDB disconnect and process exit');
                     return;
                 }
 
