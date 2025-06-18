@@ -39,24 +39,23 @@ if (!process.env.NODE_ENV) {
 app.use(express.json());
 app.use(cookieParser());
 
-// CORS Configuration
+// CORS configuration
+const isProd = process.env.NODE_ENV === 'production';
+
 const corsOptions = {
     origin: function(origin, callback) {
-        const isProd = process.env.NODE_ENV === 'production';
-        
         // Development origins
         const devOrigins = [
             'http://localhost:3000',
-            'http://localhost:5000',
             'http://127.0.0.1:3000',
-            'http://127.0.0.1:5000'
+            'http://localhost:5173',  // Vite dev server
+            'http://127.0.0.1:5173'   // Vite dev server
         ];
         
-        // Production origins - include both Vercel and Render domains
+        // Production origins
         const prodOrigins = [
-            'https://chdpolice-hackathon.onrender.com',      // Render backend
-            'https://chd-police-hackathon.vercel.app',       // Vercel frontend
-            'https://email-detection.onrender.com'           // Alternative Render domain
+            'https://chdpolice-hackathon.onrender.com',  // Render backend
+            'https://chd-police-hackathon.vercel.app'    // Vercel frontend
         ];
         
         // Select origins based on environment
@@ -64,26 +63,25 @@ const corsOptions = {
         
         // Log request details for debugging
         console.log('CORS Request Details:', {
-            origin: origin || 'No origin (direct access)',
+            origin: origin || 'No origin',
             environment: process.env.NODE_ENV,
-            host: this.req?.headers?.host,
-            allowedOrigins: allowedOrigins
+            allowedOrigins
         });
         
-        // Handle requests with no origin (like mobile apps or Postman)
+        // Handle requests with no origin
         if (!origin) {
+            console.log('No origin, allowing request');
             callback(null, true);
             return;
         }
         
         // Check if origin is allowed
-        const isAllowed = allowedOrigins.includes(origin);
-        
-        if (isAllowed) {
+        if (allowedOrigins.includes(origin)) {
+            console.log('Origin allowed:', origin);
             callback(null, true);
         } else {
-            console.log(`CORS blocked origin: ${origin}`);
-            callback(new Error('Not allowed by CORS'));
+            console.log('Origin blocked:', origin);
+            callback(new Error('CORS: Origin not allowed'));
         }
     },
     credentials: true,                 // Required for cookies
@@ -93,13 +91,13 @@ const corsOptions = {
         'Authorization',
         'X-Requested-With'
     ],
-    exposedHeaders: ['Authorization'],  // We don't need to expose Set-Cookie
+    exposedHeaders: ['Set-Cookie'],     // Required for cross-origin cookies
     maxAge: 24 * 60 * 60,              // 24 hours in seconds
     optionsSuccessStatus: 204,          // Standard OPTIONS success status
     preflightContinue: false            // Don't pass OPTIONS to routes
 };
 
-// Apply CORS middleware
+// Apply CORS middleware early in the middleware chain
 app.use(cors(corsOptions));
 
 // Request logging middleware
