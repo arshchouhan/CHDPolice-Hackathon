@@ -42,10 +42,25 @@ app.use(cookieParser());
 // CORS configuration
 const isProd = process.env.NODE_ENV === 'production';
 
+// Define allowed origins based on environment
+const allowedOrigins = isProd ? [
+    'https://chd-police-hackathon.vercel.app',    // Vercel frontend
+    'https://chdpolice-hackathon.onrender.com'     // Render backend
+] : [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173'
+];
+
+// Log environment and origins
+console.log('CORS Configuration:', {
+    environment: process.env.NODE_ENV,
+    allowedOrigins
+});
+
 const corsOptions = {
     origin: function(origin, callback) {
-        const allowedOrigins = isProd ? prodOrigins : devOrigins;
-        
         // Log request details
         console.log('CORS Request Details:', {
             origin: origin || 'No origin',
@@ -54,7 +69,7 @@ const corsOptions = {
             headers: this.req?.headers
         });
         
-        // Handle requests with no origin
+        // Handle requests with no origin (like Postman or direct access)
         if (!origin) {
             console.log('No origin, allowing request');
             callback(null, true);
@@ -67,7 +82,7 @@ const corsOptions = {
             callback(null, true);
         } else {
             console.log('Origin blocked:', origin);
-            callback(new Error('CORS: Origin not allowed'));
+            callback(new Error(`CORS: Origin ${origin} not allowed`));
         }
     },
     credentials: true,                 // Required for cookies
