@@ -44,28 +44,14 @@ const isProd = process.env.NODE_ENV === 'production';
 
 const corsOptions = {
     origin: function(origin, callback) {
-        // Development origins
-        const devOrigins = [
-            'http://localhost:3000',
-            'http://127.0.0.1:3000',
-            'http://localhost:5173',  // Vite dev server
-            'http://127.0.0.1:5173'   // Vite dev server
-        ];
-        
-        // Production origins
-        const prodOrigins = [
-            'https://chdpolice-hackathon.onrender.com',  // Render backend
-            'https://chd-police-hackathon.vercel.app'    // Vercel frontend
-        ];
-        
-        // Select origins based on environment
         const allowedOrigins = isProd ? prodOrigins : devOrigins;
         
-        // Log request details for debugging
+        // Log request details
         console.log('CORS Request Details:', {
             origin: origin || 'No origin',
             environment: process.env.NODE_ENV,
-            allowedOrigins
+            allowedOrigins,
+            headers: this.req?.headers
         });
         
         // Handle requests with no origin
@@ -89,7 +75,8 @@ const corsOptions = {
     allowedHeaders: [
         'Content-Type',
         'Authorization',
-        'X-Requested-With'
+        'X-Requested-With',
+        'Accept'
     ],
     exposedHeaders: ['Set-Cookie'],     // Required for cross-origin cookies
     maxAge: 24 * 60 * 60,              // 24 hours in seconds
@@ -97,8 +84,21 @@ const corsOptions = {
     preflightContinue: false            // Don't pass OPTIONS to routes
 };
 
-// Apply CORS middleware early in the middleware chain
+// Apply CORS middleware early in the chain
 app.use(cors(corsOptions));
+
+// Log all requests in development
+if (!isProd) {
+    app.use((req, res, next) => {
+        console.log(`${req.method} ${req.url}`, {
+            headers: req.headers,
+            secure: req.secure,
+            protocol: req.protocol,
+            'x-forwarded-proto': req.get('x-forwarded-proto')
+        });
+        next();
+    });
+}
 
 // Request logging middleware
 app.use((req, res, next) => {
