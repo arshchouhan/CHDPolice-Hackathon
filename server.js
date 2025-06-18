@@ -102,14 +102,28 @@ console.log('[CORS Config]', {
 
 const corsOptions = {
     origin: function(origin, callback) {
-        // Log CORS request without req object
+        const req = this?.req;
+        const method = req?.method;
+        const path = req?.path || '';
+        const userAgent = req?.headers?.['user-agent'] || '';
+
+        // Enhanced logging
         console.log('[CORS Request]', {
             origin: origin || 'No origin',
             environment: process.env.NODE_ENV,
             allowedOrigins,
-            userAgent: this?.req?.headers?.['user-agent'] || 'Unknown'
+            userAgent,
+            method,
+            path
         });
         
+        // Always allow HEAD requests to root and health endpoints
+        if (method === 'HEAD' && (path === '/' || path === '/health')) {
+            console.log('[CORS] Allowing HEAD request to:', path);
+            callback(null, true);
+            return;
+        }
+
         // Handle requests with no origin
         if (!origin) {
             // Allow requests with no origin in development
@@ -119,12 +133,13 @@ const corsOptions = {
                 return;
             }
             
-            // In production, check if it's a health check or internal request
-            const userAgent = this?.req?.headers?.['user-agent'] || '';
-            const path = this?.req?.path || '';
+            // In production, allow specific cases
+            const isHealthCheck = path === '/health';
+            const isRenderRequest = userAgent.includes('Render') || userAgent.includes('render-health-check');
+            const isPreflightRequest = method === 'OPTIONS';
             
-            if (path === '/health' || userAgent.includes('Render') || userAgent.includes('render-health-check')) {
-                console.log('[Production Mode] Allowing internal/health check request');
+            if (isHealthCheck || isRenderRequest || isPreflightRequest) {
+                console.log('[Production Mode] Allowing internal request:', { path, method, userAgent });
                 callback(null, true);
                 return;
             }
