@@ -56,6 +56,25 @@ const allowedOrigins = isProd ? [
     'http://127.0.0.1:5173'
 ];
 
+// Create different CORS configurations
+const strictCorsOptions = {
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+};
+
+const permissiveCorsOptions = {
+    origin: true,
+    credentials: true
+};
+
 // Enhanced logging function
 const logRequest = (req, type, details = {}) => {
     if (!req) {
@@ -100,65 +119,57 @@ console.log('[CORS Config]', {
     cookieSecure: isProd
 });
 
-const corsOptions = {
-    origin: function(origin, callback) {
-        const req = this?.req;
-        const method = req?.method;
-        const path = req?.path || '';
-        const userAgent = req?.headers?.['user-agent'] || '';
+// Configure routes that need permissive CORS first
+const healthRoutes = ['/', '/health'];
+healthRoutes.forEach(route => {
+    app.options(route, cors(permissiveCorsOptions));
+    app.head(route, cors(permissiveCorsOptions));
+    app.get(route, cors(permissiveCorsOptions), (req, res, next) => {
+        console.log(`[Health Check] ${req.method} ${req.path}`);
+        next();
+    });
+});
 
-        // Enhanced logging
-        console.log('[CORS Request]', {
-            origin: origin || 'No origin',
-            environment: process.env.NODE_ENV,
-            allowedOrigins,
-            userAgent,
-            method,
-            path
-        });
-        
-        // Always allow HEAD requests to root and health endpoints
-        if (method === 'HEAD' && (path === '/' || path === '/health')) {
-            console.log('[CORS] Allowing HEAD request to:', path);
-            callback(null, true);
-            return;
+// Log all requests
+app.use((req, res, next) => {
+    console.log('[Request]', {
+        method: req.method,
+        path: req.path,
+        origin: req.headers.origin || 'No origin',
+        userAgent: req.headers['user-agent'] || 'Unknown',
+        headers: {
+            ...req.headers,
+            authorization: req.headers.authorization ? 'present' : 'none'
         }
+    });
+    next();
+});
 
-        // Handle requests with no origin
+// Apply strict CORS to all other routes
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) {
-            // Allow requests with no origin in development
             if (process.env.NODE_ENV === 'development') {
-                console.log('[Development Mode] Allowing no origin');
                 callback(null, true);
                 return;
             }
-            
-            // In production, allow specific cases
-            const isHealthCheck = path === '/health';
-            const isRenderRequest = userAgent.includes('Render') || userAgent.includes('render-health-check');
-            const isPreflightRequest = method === 'OPTIONS';
-            
-            if (isHealthCheck || isRenderRequest || isPreflightRequest) {
-                console.log('[Production Mode] Allowing internal request:', { path, method, userAgent });
+            // In production, check if it's a health check or internal request
+            const userAgent = req?.headers?.['user-agent'] || '';
+            if (userAgent.includes('Render') || userAgent.includes('render-health-check')) {
                 callback(null, true);
                 return;
             }
-            
-            console.log('[Production Mode] Blocking no origin request');
-            callback(new Error('Origin required in production'));
-            return;
         }
         
-        // Check if origin is allowed
+        // Check against allowed origins
         if (allowedOrigins.includes(origin)) {
-            console.log('[CORS] Origin Allowed:', origin);
             callback(null, true);
         } else {
-            console.log('[CORS] Origin Blocked:', origin);
-            callback(new Error(`CORS: Origin ${origin} not allowed`));
+            callback(new Error(`Origin ${origin} not allowed`));
         }
     },
-    credentials: true,                 // Required for cookies
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
         'Content-Type',
@@ -166,13 +177,12 @@ const corsOptions = {
         'X-Requested-With',
         'Accept'
     ],
-    exposedHeaders: ['Set-Cookie', 'Authorization'],     // Required for cross-origin cookies and auth
-    maxAge: 24 * 60 * 60,               // 24 hours in seconds
-    optionsSuccessStatus: 204,          // Standard OPTIONS success status
-    preflightContinue: false            // Don't pass OPTIONS to routes
-};
+    exposedHeaders: [
+        'Set-Cookie',
+        'Authorization'
+    ]
+}));
 
-// Apply CORS middleware early in the chain
 // Request logging middleware
 app.use((req, res, next) => {
     // Skip logging for OPTIONS requests
@@ -186,7 +196,8 @@ app.use((req, res, next) => {
 });
 
 // Apply CORS configuration
-app.use(cors(corsOptions));
+// Apply strict CORS to all other routes
+app.use(cors(strictCorsOptions));
 
 // Log all requests in development
 if (!isProd) {
