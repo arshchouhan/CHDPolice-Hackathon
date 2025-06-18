@@ -44,6 +44,8 @@ const corsOptions = {
     origin: function(origin, callback) {
         const allowedOrigins = [
             'https://chdpolice-hackathon.onrender.com',
+            'https://email-detection-api.onrender.com',
+            'https://chd-police-hackathon.vercel.app',
             'http://localhost:3000',
             'http://localhost:5000'
         ];
