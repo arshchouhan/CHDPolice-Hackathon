@@ -61,9 +61,9 @@ if (process.env.NODE_ENV !== 'production') {
 // Request interceptor
 api.interceptors.request.use(
     (config) => {
-        // Get token from localStorage as fallback
+        // We'll primarily rely on cookies, but use localStorage as fallback
         const token = localStorage.getItem('token');
-        if (token) {
+        if (token && !document.cookie.includes('token=')) {
             config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
@@ -146,11 +146,18 @@ export const authAPI = {
                 method: 'POST',
                 url: '/auth/login',
                 data: credentials,
+                withCredentials: true,
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 }
             });
+
+            // Store token in localStorage as fallback
+            if (response.data.token) {
+                localStorage.setItem('token', response.data.token);
+                localStorage.setItem('user', JSON.stringify(response.data.user));
+            }
 
             console.log('Login response:', response);
             return response;

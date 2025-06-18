@@ -27,23 +27,32 @@ const setAuthCookies = (res, token, cookieConfig) => {
     // Set auth token cookie with secure settings
     res.cookie('token', token, {
         ...cookieConfig,
-        httpOnly: true        // Prevent JavaScript access
+        httpOnly: true,        // Prevent JavaScript access
+        sameSite: 'None',     // Required for cross-site
+        secure: true          // Required for sameSite: 'None'
     });
     
     // Set session indicator cookie (non-httpOnly for client-side checks)
     res.cookie('sessionActive', 'true', {
         ...cookieConfig,
         httpOnly: false,      // Allow JavaScript access for UI state
+        sameSite: 'None',    // Required for cross-site
+        secure: true,        // Required for sameSite: 'None'
         maxAge: cookieConfig.maxAge
     });
 
     // Set Authorization header for API clients
     res.setHeader('Authorization', `Bearer ${token}`);
+    res.setHeader('Access-Control-Expose-Headers', 'Authorization');
 
     // Log cookie settings
     console.log('Setting auth cookies with config:', {
         token: 'present',
-        cookieConfig,
+        cookieConfig: {
+            ...cookieConfig,
+            sameSite: 'None',
+            secure: true
+        },
         headers: res.getHeaders()
     });
 };
@@ -355,6 +364,9 @@ exports.checkAuth = async (req, res) => {
             const authHeader = req.headers.authorization;
             if (authHeader.startsWith('Bearer ')) {
                 token = authHeader.substring(7);
+                // If token came from Authorization header, set it as a cookie
+                const cookieConfig = getCookieConfig(req);
+                setAuthCookies(res, token, cookieConfig);
             }
         }
 
