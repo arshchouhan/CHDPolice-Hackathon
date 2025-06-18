@@ -10,11 +10,21 @@
 const API_CONFIG = {
     production: {
         render: 'https://chdpolice-hackathon.onrender.com',
-        vercel: 'https://chdpolice-hackathon.onrender.com' // Same as render since we're not using separate API domain
+        vercel: 'https://chdpolice-hackathon.onrender.com'
     },
     development: {
-        api: 'http://localhost:3000'
+        api: 'http://localhost:5000'  // Match the actual backend port
     }
+};
+
+// Fetch configuration for cross-origin requests
+const FETCH_CONFIG = {
+    credentials: 'include',  // Required for cookies
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    },
+    mode: 'cors'  // Explicit CORS mode
 };
 
 // Token storage with domain validation
@@ -86,23 +96,45 @@ window.getApiBaseUrl = function() {
             return API_CONFIG.development.api;
         }
 
-        // Production environment
-        if (hostname.includes('vercel.app')) {
-            console.log('Vercel environment detected');
-            return API_CONFIG.production.vercel;
-        }
-
-        if (hostname.includes('onrender.com')) {
-            console.log('Render environment detected');
-            return API_CONFIG.production.render;
-        }
-
-        // Fallback to development
-        console.warn('Unknown environment, falling back to development API');
-        return API_CONFIG.development.api;
+        // Production environment - always use Render backend
+        console.log('Production environment detected');
+        return API_CONFIG.production.render;
     } catch (error) {
         console.error('Error determining API base URL:', error);
         return API_CONFIG.production.render; // Safe fallback
+    }
+};
+
+// Helper function for API requests
+window.apiRequest = async function(endpoint, options = {}) {
+    const baseUrl = window.getApiBaseUrl();
+    const url = `${baseUrl}${endpoint}`;
+    
+    // Merge default config with provided options
+    const config = {
+        ...FETCH_CONFIG,
+        ...options,
+        headers: {
+            ...FETCH_CONFIG.headers,
+            ...options.headers
+        }
+    };
+    
+    console.log('Making API request:', {
+        url,
+        method: options.method || 'GET',
+        headers: config.headers
+    });
+    
+    try {
+        const response = await fetch(url, config);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('API request failed:', error);
+        throw error;
     }
 };
 
