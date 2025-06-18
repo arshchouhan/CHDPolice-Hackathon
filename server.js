@@ -58,16 +58,36 @@ const allowedOrigins = isProd ? [
 
 // Enhanced logging function
 const logRequest = (req, type, details = {}) => {
-    console.log(`[${new Date().toISOString()}] ${type}:`, {
+    if (!req) {
+        console.log(`[${new Date().toISOString()}] ${type}:`, details);
+        return;
+    }
+
+    const logData = {
         method: req.method,
         path: req.path,
-        origin: req.get('origin'),
+        origin: req.get ? req.get('origin') : req.headers?.origin,
         cookies: req.cookies ? 'present' : 'none',
-        headers: {
+        headers: {}
+    };
+
+    // Safely get headers
+    if (req.get) {
+        logData.headers = {
             'content-type': req.get('content-type'),
             'accept': req.get('accept'),
             'authorization': req.get('authorization') ? 'present' : 'none'
-        },
+        };
+    } else if (req.headers) {
+        logData.headers = {
+            'content-type': req.headers['content-type'],
+            'accept': req.headers.accept,
+            'authorization': req.headers.authorization ? 'present' : 'none'
+        };
+    }
+
+    console.log(`[${new Date().toISOString()}] ${type}:`, {
+        ...logData,
         ...details
     });
 };
@@ -82,10 +102,8 @@ console.log('[CORS Config]', {
 
 const corsOptions = {
     origin: function(origin, callback) {
-        const req = this.req;
-        
-        // Log CORS request
-        logRequest(req, 'CORS Request', {
+        // Log CORS request without req object
+        console.log('[CORS Request]', {
             origin: origin || 'No origin',
             environment: process.env.NODE_ENV,
             allowedOrigins
@@ -94,21 +112,21 @@ const corsOptions = {
         // Handle requests with no origin (like Postman or direct access)
         if (!origin) {
             if (process.env.NODE_ENV === 'development') {
-                logRequest(req, 'Development Mode - Allowing no origin');
+                console.log('[Development Mode] Allowing no origin');
                 callback(null, true);
                 return;
             }
-            logRequest(req, 'Production Mode - Blocking no origin');
+            console.log('[Production Mode] Blocking no origin');
             callback(new Error('Origin required in production'));
             return;
         }
         
         // Check if origin is allowed
         if (allowedOrigins.includes(origin)) {
-            logRequest(req, 'Origin Allowed', { origin });
+            console.log('[CORS] Origin Allowed:', origin);
             callback(null, true);
         } else {
-            logRequest(req, 'Origin Blocked', { origin });
+            console.log('[CORS] Origin Blocked:', origin);
             callback(new Error(`CORS: Origin ${origin} not allowed`));
         }
     },
@@ -129,10 +147,13 @@ const corsOptions = {
 // Apply CORS middleware early in the chain
 // Request logging middleware
 app.use((req, res, next) => {
-    logRequest(req, 'Incoming request', {
-        query: req.query,
-        body: req.method !== 'GET' ? req.body : undefined
-    });
+    // Skip logging for OPTIONS requests
+    if (req.method !== 'OPTIONS') {
+        logRequest(req, 'Incoming request', {
+            query: req.query,
+            body: req.method !== 'GET' ? req.body : undefined
+        });
+    }
     next();
 });
 
