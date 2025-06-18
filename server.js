@@ -145,49 +145,10 @@ app.use((req, res, next) => {
     next();
 });
 
-// Apply strict CORS to all other routes
+// Apply CORS middleware
 app.use(cors({
-    origin: function(origin, callback) {
-        // Get request details from this context
-        const req = this.req;
-        const path = req?.path || '';
-        const userAgent = req?.headers?.['user-agent'] || '';
-
-        // Log the CORS request
-        console.log('[CORS Request]', {
-            origin: origin || 'No origin',
-            path,
-            method: req?.method,
-            userAgent
-        });
-
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) {
-            if (process.env.NODE_ENV === 'development') {
-                console.log('[Development] Allowing no origin request');
-                callback(null, true);
-                return;
-            }
-            // In production, check if it's a health check or internal request
-            if (path === '/health' || path === '/' || 
-                userAgent.includes('Render') || 
-                userAgent.includes('render-health-check')) {
-                console.log('[Production] Allowing internal request:', { path, userAgent });
-                callback(null, true);
-                return;
-            }
-        }
-        
-        // Check against allowed origins
-        if (allowedOrigins.includes(origin)) {
-            console.log('[CORS] Allowing origin:', origin);
-            callback(null, true);
-        } else {
-            console.log('[CORS] Blocking origin:', origin);
-            callback(new Error(`Origin ${origin} not allowed`));
-        }
-    },
-    credentials: true,
+    origin: true, // Allow all origins in development
+    credentials: true, // Allow credentials (cookies)
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
         'Content-Type',
