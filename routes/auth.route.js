@@ -30,5 +30,6 @@ router.post('/google', asyncHandler(authController.googleSignIn));
 router.get('/google', asyncHandler(authController.googleSignIn));
 router.post('/logout', asyncHandler(authController.logout));
 router.get('/check-auth', asyncHandler(authController.checkAuth));
+router.post('/refresh', asyncHandler(authController.refresh));
 
 module.exports = router;

@@ -266,6 +266,84 @@ exports.logout = async (req, res) => {
     }
 };
 
+// Refresh token controller
+exports.refresh = async (req, res) => {
+    try {
+        const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided',
+                redirectTo: '/login.html'
+            });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (tokenError) {
+            const cookieConfig = getCookieConfig(req);
+            clearAuthCookies(res, cookieConfig);
+            
+            return res.status(401).json({
+                success: false,
+                message: 'Session expired',
+                redirectTo: '/login.html?error=session_expired'
+            });
+        }
+
+        // Find user and handle role-specific logic
+        let user;
+        let role = decoded.role;
+
+        if (decoded.id === '68286e17b547fe6cfc8df917' || decoded.email === 'admin@emaildetection.com') {
+            user = await Admin.findOne({
+                $or: [{ _id: '68286e17b547fe6cfc8df917' }, { email: 'admin@emaildetection.com' }]
+            });
+            role = 'admin';
+        } else {
+            user = role === 'admin' ?
+                await Admin.findById(decoded.id) :
+                await User.findById(decoded.id);
+        }
+
+        if (!user) {
+            const cookieConfig = getCookieConfig(req);
+            clearAuthCookies(res, cookieConfig);
+            
+            return res.status(401).json({
+                success: false,
+                message: 'User not found',
+                redirectTo: '/login.html?error=user_not_found'
+            });
+        }
+
+        // Generate new token
+        const newToken = generateToken(user, role);
+        const cookieConfig = getCookieConfig(req);
+        setAuthCookies(res, newToken, cookieConfig);
+
+        return res.status(200).json({
+            success: true,
+            token: newToken,
+            user: {
+                id: user._id,
+                username: user.username || user.name,
+                email: user.email,
+                role
+            }
+        });
+    } catch (error) {
+        console.error('Token refresh error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error during token refresh',
+            redirectTo: '/login.html'
+        });
+    }
+};
+
 // Check Authentication controller
 exports.checkAuth = async (req, res) => {
     try {

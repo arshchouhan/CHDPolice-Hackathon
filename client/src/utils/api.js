@@ -84,22 +84,44 @@ api.interceptors.response.use(
             originalRequest._retry = true;
 
             try {
+                console.log('Attempting to refresh token...');
                 // Try to refresh the session
-                const response = await api.post('/auth/refresh');
-                const { token } = response.data;
+                const response = await api.request({
+                    method: 'POST',
+                    url: '/auth/refresh',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    withCredentials: true
+                });
 
-                // Update localStorage
-                if (token) {
-                    localStorage.setItem('token', token);
+                if (!response.data.success) {
+                    throw new Error('Token refresh failed');
                 }
 
-                // Retry the original request
+                const { token, user } = response.data;
+                console.log('Token refresh successful');
+
+                // Update localStorage
+                localStorage.setItem('token', token);
+                localStorage.setItem('user', JSON.stringify(user));
+
+                // Update all future requests
+                api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+                // Retry the original request with new token
                 originalRequest.headers.Authorization = `Bearer ${token}`;
                 return api(originalRequest);
             } catch (refreshError) {
-                // If refresh fails, redirect to login
+                console.error('Token refresh failed:', refreshError);
+                // Clear auth state
                 localStorage.removeItem('token');
-                window.location.href = '/login?error=session_expired';
+                localStorage.removeItem('user');
+                
+                // Redirect to login
+                window.location.href = '/login.html?error=session_expired';
                 return Promise.reject(refreshError);
             }
         }
