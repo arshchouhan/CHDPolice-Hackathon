@@ -664,18 +664,47 @@
         // Check for existing session on page load
         window.addEventListener('DOMContentLoaded', async () => {
             console.log('Page loaded, checking authentication...');
-            const user = await checkExistingAuth();
             
+            // Parse URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            const redirect = urlParams.get('redirect');
+            
+            // Store redirect URL if provided
+            if (redirect) {
+                let redirectUrl = decodeURIComponent(redirect);
+                // Ensure redirect URL starts with /
+                if (!redirectUrl.startsWith('/')) {
+                    redirectUrl = '/' + redirectUrl;
+                }
+                console.log('Storing redirect URL:', redirectUrl);
+                sessionStorage.setItem('returnUrl', redirectUrl);
+            }
+            
+            const user = await checkExistingAuth();
             if (user) {
                 console.log('User already authenticated:', user);
-                const redirectUrl = user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                // Get stored return URL or use default
+                const returnUrl = sessionStorage.getItem('returnUrl');
+                let redirectUrl;
+                
+                if (returnUrl) {
+                    redirectUrl = returnUrl;
+                    sessionStorage.removeItem('returnUrl'); // Clear after use
+                } else {
+                    redirectUrl = user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
+                }
+                
+                // Ensure proper URL format
+                if (redirectUrl.startsWith('/')) {
+                    redirectUrl = window.location.origin + redirectUrl;
+                }
+                
                 console.log('Redirecting to:', redirectUrl);
                 window.location.replace(redirectUrl);
             } else {
                 console.log('No active session found');
-                // Check URL parameters for error messages
-                const urlParams = new URLSearchParams(window.location.search);
-                const error = urlParams.get('error');
+                // Handle error messages
                 if (error) {
                     let message = 'An error occurred';
                     switch(error) {
@@ -687,6 +716,9 @@
                             break;
                         case 'not_authorized':
                             message = 'You are not authorized to access that page.';
+                            break;
+                        case 'oauth_error':
+                            message = 'Failed to authenticate with Google. Please try again.';
                             break;
                     }
                     displayErrorMessage(message);
