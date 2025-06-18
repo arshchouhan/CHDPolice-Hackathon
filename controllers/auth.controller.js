@@ -24,33 +24,50 @@ const generateToken = (user, role) => {
 
 // Set authentication cookies utility
 const setAuthCookies = (res, token, cookieConfig) => {
+    // Ensure secure cookie settings
+    const secureConfig = {
+        ...cookieConfig,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+    };
+
     // Set auth token cookie
-    res.cookie('token', token, cookieConfig);
+    res.cookie('token', token, secureConfig);
     
     // Set session indicator cookie (non-httpOnly for client-side checks)
     const sessionCookie = {
-        ...cookieConfig,
+        ...secureConfig,
         httpOnly: false
     };
     res.cookie('sessionActive', 'true', sessionCookie);
+
+    // Set Authorization header for API clients
+    res.setHeader('Authorization', `Bearer ${token}`);
 };
 
 // Clear authentication cookies utility
 const clearAuthCookies = (res, cookieConfig) => {
     const cookieOptions = {
         ...cookieConfig,
-        expires: new Date(0)
+        expires: new Date(0),
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
     };
     delete cookieOptions.maxAge;
 
     ['token', 'sessionActive'].forEach(cookieName => {
         // Clear with domain
         res.clearCookie(cookieName, { ...cookieOptions, path: '/' });
-        // Clear without domain
-        const localOptions = { ...cookieOptions };
-        delete localOptions.domain;
-        res.clearCookie(cookieName, { ...localOptions, path: '/' });
+        // Clear without domain for local development
+        if (process.env.NODE_ENV !== 'production') {
+            const localOptions = { ...cookieOptions };
+            delete localOptions.domain;
+            res.clearCookie(cookieName, { ...localOptions, path: '/' });
+        }
     });
+
+    // Clear Authorization header
+    res.setHeader('Authorization', '');
 };
 
 // Login controller

@@ -49,21 +49,30 @@ const corsOptions = {
             'http://localhost:5000'
         ];
         
-        // Log request details
+        // Log request details for debugging
         console.log('CORS Request Details:', {
             origin: origin || 'No origin (direct access)',
             referer: this.req?.headers?.referer,
-            host: this.req?.headers?.host
+            host: this.req?.headers?.host,
+            secure: this.req?.secure,
+            protocol: this.req?.protocol
         });
         
-        // Allow undefined origin for direct access and same-origin requests
+        // Development mode - allow all origins
+        if (process.env.NODE_ENV !== 'production') {
+            callback(null, true);
+            return;
+        }
+        
+        // Production mode - strict origin checking
         if (!origin) {
+            // Allow requests with no origin (like mobile apps or curl requests)
             callback(null, true);
             return;
         }
         
         // Check against allowed origins
-        if (allowedOrigins.includes(origin)) {
+        if (allowedOrigins.some(allowed => origin.startsWith(allowed))) {
             callback(null, true);
             return;
         }
@@ -81,10 +90,11 @@ const corsOptions = {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Set-Cookie'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cookie'],
+    exposedHeaders: ['Set-Cookie', 'Authorization'],
     maxAge: 86400, // 24 hours
-    optionsSuccessStatus: 204
+    optionsSuccessStatus: 204,
+    preflightContinue: false
 };
 
 // Apply CORS middleware
