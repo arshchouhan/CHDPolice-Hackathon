@@ -272,22 +272,41 @@
                 
                 try {
                     console.log('Attempting login...');
-                    const response = await window.apiRequest('/api/auth/login', {
+                    
+                    // Check for URL parameters
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const redirectParam = urlParams.get('redirect');
+                    if (redirectParam) {
+                        // Store for after login
+                        sessionStorage.setItem('returnUrl', redirectParam);
+                    }
+                    
+                    // Make login request with credentials
+                    const response = await fetch(`${window.getApiBaseUrl()}/api/auth/login`, {
                         method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
                         body: JSON.stringify({ emailOrUsername, password }),
                         credentials: 'include'
                     });
                     
-                    console.log('Login response:', response);
+                    // Parse response
+                    const data = await response.json();
+                    console.log('Login response:', data);
                     
-                    if (response.success) {
-                        // Token and user data are automatically stored by apiRequest
-                        // Just verify we have them
-                        const token = localStorage.getItem('token');
-                        const user = localStorage.getItem('user');
+                    if (!response.ok) {
+                        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+                    }
+                    
+                    if (data.success) {
+                        // Store token and user data in localStorage as fallback
+                        if (data.token) {
+                            localStorage.setItem('token', data.token);
+                        }
                         
-                        if (!token || !user) {
-                            throw new Error('Authentication succeeded but token/user data missing');
+                        if (data.user) {
+                            localStorage.setItem('user', JSON.stringify(data.user));
                         }
                         
                         // Get return URL if exists
@@ -296,13 +315,18 @@
                         
                         // Determine redirect URL
                         let redirectUrl = returnUrl || 
-                            (response.user.role === 'admin' ? '/admin-dashboard.html' : '/index.html');
+                            (data.user.role === 'admin' ? '/admin-dashboard.html' : '/index.html');
                         
-                        console.log('Redirecting to:', redirectUrl);
-                        window.location.replace(redirectUrl);
+                        // Ensure redirect URL starts with a slash
+                        if (!redirectUrl.startsWith('/')) {
+                            redirectUrl = '/' + redirectUrl;
+                        }
+                        
+                        console.log('Authentication successful. Redirecting to:', redirectUrl);
+                        window.location.href = redirectUrl;
                         return;
                     } else {
-                        throw new Error(response.message || 'Login failed');
+                        throw new Error(data.message || 'Login failed');
                     }
                 } catch (error) {
                     console.error('Login error:', error);

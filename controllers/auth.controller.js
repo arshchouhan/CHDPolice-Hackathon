@@ -137,6 +137,15 @@ exports.login = async (req, res) => {
         const token = generateToken(account, role);
         const cookieConfig = getCookieConfig(req);
         setAuthCookies(res, token, cookieConfig);
+        
+        // Prepare user data for response
+        const userData = {
+            id: account._id,
+            email: account.email,
+            username: account.username,
+            role: role,
+            name: account.firstName ? `${account.firstName} ${account.lastName || ''}`.trim() : account.username
+        };
 
         return res.status(200).json({
             success: true,

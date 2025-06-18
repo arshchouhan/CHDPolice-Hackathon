@@ -13,7 +13,7 @@ const API_CONFIG = {
         vercel: 'https://chdpolice-hackathon.onrender.com'
     },
     development: {
-        api: 'http://localhost:5000'  // Match the actual backend port
+        api: 'http://localhost:3000'  // Match the actual backend port we're now using
     }
 };
 
@@ -29,23 +29,22 @@ const FETCH_CONFIG = {
 
 // Token storage with domain validation
 window.TokenStorage = {
-    setToken: function(token, expiresIn) {
-        const tokenData = {
-            token: token,
-            domain: window.location.hostname,
-            expires: Date.now() + (expiresIn || 7 * 24 * 60 * 60 * 1000) // Default 7 days
-        };
-        localStorage.setItem('authToken', JSON.stringify(tokenData));
+    setToken: function(token, user) {
+        // Store in localStorage as backup
+        localStorage.setItem('token', token);
+        if (user) {
+            localStorage.setItem('user', JSON.stringify(user));
+        }
         
-        // Set a session flag cookie
-        document.cookie = 'sessionActive=true; path=/; secure; samesite=lax';
+        console.log('Token stored in localStorage');
     },
     getToken: function() {
         try {
-            // First check if session is active via cookie
-            if (!document.cookie.includes('sessionActive=true')) {
-                console.log('No active session cookie found');
-                this.clearToken();
+            // Check if there's a server-set sessionActive cookie - will be checked by backend
+            // or fall back to localStorage
+            const token = localStorage.getItem('token');
+            if (!token) {
+                console.log('No token found in localStorage');
                 return null;
             }
             
@@ -110,36 +109,49 @@ window.apiRequest = async function(endpoint, options = {}) {
     const baseUrl = window.getApiBaseUrl();
     const url = `${baseUrl}${endpoint}`;
     
-    // Merge default config with provided options
+    // Always include credentials in requests
     const config = {
         ...FETCH_CONFIG,
         ...options,
+        credentials: 'include', // Always include credentials
         headers: {
             ...FETCH_CONFIG.headers,
             ...options.headers
         }
     };
     
+    // Add auth header if we have a token in localStorage
+    const token = localStorage.getItem('token');
+    if (token && !config.headers['Authorization']) {
+        config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    
     console.log('Making API request:', {
         url,
         method: options.method || 'GET',
-        headers: config.headers
+        withCredentials: true
     });
     
     try {
         const response = await fetch(url, config);
+        
+        // If we get a 401 on a token-requiring endpoint, redirect to login
+        if (response.status === 401 && !endpoint.includes('login')) {
+            console.warn('Authentication failed - redirecting to login');
+            window.location.href = '/login.html?error=session_expired&redirect=' + 
+                encodeURIComponent(window.location.pathname.replace(/^\//, ''));
+            throw new Error('Authentication failed');
+        }
+        
         const data = await response.json();
         
         if (!response.ok) {
             throw new Error(data.message || `HTTP error! status: ${response.status}`);
         }
         
-        // Handle successful response
+        // Handle successful response with auth data
         if (data.token) {
-            localStorage.setItem('token', data.token);
-            if (data.user) {
-                localStorage.setItem('user', JSON.stringify(data.user));
-            }
+            window.TokenStorage.setToken(data.token, data.user);
         }
         
         return data;
