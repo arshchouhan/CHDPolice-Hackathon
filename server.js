@@ -53,27 +53,21 @@ const corsOptions = {
         console.log('Request origin:', origin || 'No origin (direct access)');
         
         if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, origin);
+            callback(null, true);
         } else {
             console.log('CORS blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: [
-        'Content-Type', 
-        'Authorization', 
-        'Origin', 
-        'Accept',
-        'X-Requested-With',
-        'Access-Control-Allow-Origin',
-        'Access-Control-Allow-Credentials'
-    ],
-    exposedHeaders: ['Set-Cookie', 'Authorization'],
-    maxAge: 86400
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Set-Cookie'],
+    maxAge: 86400, // 24 hours
+    optionsSuccessStatus: 204
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
 
 // Request logging middleware
