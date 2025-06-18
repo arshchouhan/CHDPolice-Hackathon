@@ -700,9 +700,7 @@ startServer()
         process.exit(1);
     });
 
-// Export app for testing
-module.exports = app;
-
+// Register static file routes
 app.get('/dashboard', (req, res) => {
     console.log('Serving dashboard page');
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -723,21 +721,6 @@ app.get('/admin-dashboard.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
 });
 
-// Handle 404 for unknown API routes
-app.use((req, res) => {
-    res.status(404).json({ message: 'API endpoint not found' });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({
-        success: false,
-        message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
-    });
-});
-
-// Register routes
 app.get('/signup', (req, res) => {
     console.log('Serving signup page');
     res.sendFile(path.join(__dirname, 'public', 'signup.html'));
@@ -746,26 +729,6 @@ app.get('/signup', (req, res) => {
 app.get('/signup.html', (req, res) => {
     console.log('Serving signup.html');
     res.sendFile(path.join(__dirname, 'public', 'signup.html'));
-});
-
-app.get('/dashboard', (req, res) => {
-    console.log('Serving dashboard page');
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.get('/index.html', (req, res) => {
-    console.log('Serving index.html');
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.get('/admin', (req, res) => {
-    console.log('Serving admin page');
-    res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
-});
-
-app.get('/admin-dashboard.html', (req, res) => {
-    console.log('Serving admin-dashboard.html');
-    res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
 });
 
 // Handle 404 for unknown API routes
@@ -840,6 +803,35 @@ process.on('uncaughtException', (error) => {
         process.exit(1);
     }
 });
+
+// Start server function
+async function startServer() {
+    try {
+        // Connect to MongoDB first
+        await mongoose.connect(process.env.MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            wtimeoutMS: 30000
+        });
+        console.log('MongoDB connected successfully');
+
+        // Start the Express server
+        const port = process.env.PORT || 5000;
+        const serverInstance = app.listen(port, () => {
+            console.log(`Server is running on port ${port}`);
+            if (isRender) {
+                console.log('Running on Render platform');
+            }
+        });
+
+        return serverInstance;
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        throw error;
+    }
+}
 
 // Start the server
 startServer()
