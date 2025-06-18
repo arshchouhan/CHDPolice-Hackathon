@@ -49,14 +49,35 @@ const corsOptions = {
             'http://localhost:5000'
         ];
         
-        console.log('Request origin:', origin || 'No origin (direct access)');
+        // Log request details
+        console.log('CORS Request Details:', {
+            origin: origin || 'No origin (direct access)',
+            referer: this.req?.headers?.referer,
+            host: this.req?.headers?.host
+        });
         
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow undefined origin for direct access and same-origin requests
+        if (!origin) {
             callback(null, true);
-        } else {
-            console.log('CORS blocked origin:', origin);
-            callback(new Error('Not allowed by CORS'));
+            return;
         }
+        
+        // Check against allowed origins
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+            return;
+        }
+        
+        // Check if origin matches host (same-origin)
+        const host = this.req?.headers?.host;
+        if (host && origin.includes(host)) {
+            callback(null, true);
+            return;
+        }
+        
+        // Block other origins
+        console.log('CORS blocked origin:', origin);
+        callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

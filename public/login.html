@@ -304,9 +304,13 @@
                                 redirectUrl = data.user.role === 'admin' ? '/admin-dashboard.html' : '/index.html';
                             }
                             
-                            // Add base URL if needed
-                            if (!redirectUrl.startsWith('http')) {
-                                redirectUrl = baseUrl + redirectUrl;
+                            // Handle redirect URL
+                            if (redirectUrl.startsWith('/')) {
+                                // Use current origin for relative paths
+                                redirectUrl = window.location.origin + redirectUrl;
+                            } else if (!redirectUrl.startsWith('http')) {
+                                // Fallback to base URL for non-absolute paths
+                                redirectUrl = baseUrl + '/' + redirectUrl;
                             }
                             
                             console.log('Redirecting to:', redirectUrl);
