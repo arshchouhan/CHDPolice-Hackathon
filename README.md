@@ -1,119 +1,151 @@
-# Email Detection System
+# Crime Scene Image Analysis & Reconstruction Assistant
 
-A comprehensive email security and phishing detection platform developed for the CHD Police Hackathon. The system provides real-time email analysis, attachment scanning, and browser-based security features.
+An AI-powered forensic analysis platform developed for the Chandigarh Police Cyberthon. The system provides automated crime scene analysis, event reconstruction, and digital courtroom presentation capabilities.
 
-## Features
+## Key Features
 
-- **Email Analysis**
-  - Real-time phishing detection
-  - Header analysis
-  - Link scanning
-  - Content analysis using Google's Gemini AI
+- **AI-Powered Scene Analysis**
+  - State-of-the-art BLIP-2 vision-language model integration
+  - Automated caption generation from crime scene images
+  - Comprehensive visual evidence interpretation
 
-- **Attachment Analysis**
-  - File type detection
-  - Malware scanning
-  - Content inspection
+- **Semantic Matching & Analysis**
+  - SBERT-based forensic fact matching
+  - Contextual data mapping
+  - Bias-free evidence evaluation
 
-- **Browser Security**
-  - Real-time URL scanning
-  - Domain reputation checking
-  - SSL certificate validation
+- **Event Reconstruction**
+  - Timeline-based scene reconstruction
+  - Narrated event sequences
+  - Sub-minute processing time with GPU acceleration
 
-- **Authentication & Security**
-  - JWT-based authentication
-  - Role-based access control
-  - Session persistence
-  - Google OAuth integration
+- **Digital Presentation**
+  - Courtroom-ready visualizations
+  - 2D/3D scene layout (planned)
+  - Interactive evidence presentation
 
-## Tech Stack
+## Technology Stack
 
-- **Backend**: Node.js, Express.js
-- **Database**: MongoDB
-- **Authentication**: JWT, Google OAuth
-- **AI/ML**: Google Gemini AI
-- **Deployment**: Render (Backend), Vercel (Frontend)
+- **Vision AI**: BLIP-2 Vision-Language Model
+- **NLP**: Sentence-BERT (SBERT)
+- **Processing**: GPU-accelerated computing
+- **Architecture**: Modular, field-ready design
+- **Deployment**: Mobile and tablet compatible
 
-## Getting Started
+## Technical Architecture
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/arshchouhan/CHDPolice-Hackathon.git
-   cd email-detection
-   ```
+### Server Architecture
+- **Route Handling**: Express.js with modular route definitions
+- **Authentication**: JWT-based middleware with role-based access control
+- **Headers**: 
+  - CORS configuration for secure cross-origin requests
+  - Content-Type validation for JSON and multipart data
+  - Authorization header parsing for JWT tokens
+  - Custom headers for tracking request sources
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+### Data Management
+- **Timestamps**: 
+  - ISO 8601 format with UTC timezone
+  - Created/Updated timestamps for all records
+  - Request processing time tracking
+  - Email analysis duration metrics
 
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
+### File Handling
+- **Hashing**: 
+  - SHA-256 for file integrity verification
+  - MD5 checksums for quick duplicate detection
+  - Unique file identifiers based on content hash
 
-4. **Start the development server**
-   ```bash
-   npm run dev
-   ```
+### Sandbox Environment
+- **URL Analysis**:
+  - Automated extraction of URLs from emails
+  - Risk scoring based on domain reputation
+  - Pattern matching for suspicious URL structures
 
-## API Documentation
+- **Browser Automation**:
+  - Headless Chrome for URL analysis
+  - Screenshot capture of suspicious pages
+  - DOM analysis for malicious patterns
+  - Network request monitoring
+  - Isolation using Docker containers
 
-### Authentication
+- **Analysis Pipeline**:
+  1. URL extraction and initial scoring
+  2. Domain reputation check
+  3. Automated browser analysis
+  4. Screenshot and DOM capture
+  5. Network behavior analysis
+  6. Final risk assessment report
 
-- `POST /api/auth/login` - User login
-- `POST /api/auth/signup` - User registration
-- `POST /api/auth/google` - Google OAuth sign-in
-- `POST /api/auth/logout` - User logout
-- `GET /api/auth/check` - Check authentication status
+## Implementation Approach
 
-### Email Analysis
+1. **Visual Understanding Module**
+   - BLIP-2 integration for image caption generation
+   - Automated feature extraction
+   - Multi-angle scene interpretation
 
-- `POST /api/email/analyze` - Analyze email content
-- `POST /api/email/headers` - Analyze email headers
-- `POST /api/email/links` - Scan email links
+2. **Semantic Reasoning Module**
+   - SBERT-based forensic fact matching
+   - Contextual evidence mapping
+   - Pattern recognition and analysis
 
-### Attachment Analysis
+3. **Narrative Generation Module**
+   - Structured timeline creation
+   - Before-During-After event sequencing
+   - Automated report generation
 
-- `POST /api/attachment/scan` - Scan email attachments
-- `GET /api/attachment/report/:id` - Get scan report
+4. **Field Deployment**
+   - Mobile-first design
+   - Offline capability
+   - Secure data handling
 
-### Browser Security
+## Future Requirements
 
-- `POST /api/browser/scan-url` - Real-time URL scanning
-- `GET /api/browser/domain/:domain` - Get domain reputation
+### Additional Datasets
 
-## Deployment
+- High-quality forensic image collections
+- Crime scene metadata (blood spatter, weapons, GPS)
+- Multi-language forensic vocabularies
+- Chain-of-custody documentation
+- Field deployment imagery
 
-### Backend (Render)
+### System Enhancements
 
-1. Fork this repository
-2. Create a new Web Service on Render
-3. Connect your GitHub repository
-4. Configure environment variables
-5. Deploy
+- 3D scene reconstruction capabilities
+- Real-time drone feed integration
+- Body camera compatibility
+- Advanced evidence chain tracking
+- Multi-device synchronization
 
-### Frontend (Vercel)
+### Training & Integration
 
-1. Navigate to the client directory
-2. Configure environment variables on Vercel
-3. Deploy using Vercel CLI or GitHub integration
+- Role-based microlearning modules
+- Field officer training programs
+- Legal expert system guides
+- Department integration protocols
+- Performance monitoring tools
 
-## Contributing
+## Team Information
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+### Project Details
+- **Team Name**: Rohan Raghav
+- **Institution**: Army Institute of Technology, Pune
+- **Category**: Usecase
+- **Competition**: Cyberthon
 
-## License
+### Team Members
+- Rohan Raghav (rohanraghav81@gmail.com)
+- Tarveen Kaur (tarveenkaur384@gmail.com)
+- Siddharth (sidd24472@gmail.com)
+- Sonu Kumar (soinfirad0299@gmail.com)
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Collaboration
+- Original project developed for Cyberthon Hackathon
+- Open for future collaboration with Chandigarh Police
+- IP rights sharing agreement accepted
 
 ## Acknowledgments
 
-- CHD Police Department for the opportunity
-- Google Cloud Platform for AI/ML services
-- Open-source community for various tools and libraries
+- Chandigarh Police Department
+- Army Institute of Technology, Pune
+- Open-source AI/ML community
