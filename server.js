@@ -428,14 +428,31 @@ const startServer = async () => {
     try {
         await connectDB();
         
-        const PORT = process.env.PORT || 5000; // Backend port changed to 5000
-        const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
-
-        server = app.listen(PORT, HOST, () => {
-            const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
-            console.log(`Server running at http://${displayHost}:${PORT}/`);
+        // Render expects port 3000 or process.env.PORT
+        const PORT = process.env.PORT || 3000;
+        console.log('Starting server with port:', PORT);
+        
+        const server = app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
             console.log('Environment:', process.env.NODE_ENV);
-            if (isRender) console.log('Running on Render platform');
+            console.log('MongoDB URI:', process.env.MONGODB_URI ? 'Set' : 'Not set');
+            if (process.env.RENDER) console.log('Running on Render platform');
+        });
+
+        // Graceful shutdown
+        process.on('SIGTERM', () => {
+            console.log('SIGTERM received, initiating graceful shutdown...');
+            server.close(() => {
+                console.log('Server closed');
+                if (process.env.RENDER) {
+                    console.log('Running on Render - keeping MongoDB connection alive');
+                } else {
+                    mongoose.connection.close(false, () => {
+                        console.log('MongoDB connection closed');
+                        process.exit(0);
+                    });
+                }
+            });
         });
 
         return server;
