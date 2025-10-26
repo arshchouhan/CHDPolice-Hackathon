@@ -17,13 +17,24 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-// Log loaded environment variables for debugging
-console.log('Environment variables loaded:', {
-  NODE_ENV: process.env.NODE_ENV,
-  GEMINI_API_KEY: process.env.GEMINI_API_KEY ? '***' + process.env.GEMINI_API_KEY.slice(-4) : 'Not set',
-  MONGO_URI: process.env.MONGO_URI ? '***' + process.env.MONGO_URI.split('@').pop() : 'Not set',
-  JWT_SECRET: process.env.JWT_SECRET ? '***' + process.env.JWT_SECRET.slice(-4) : 'Not set'
-});
+// Log loaded environment variables for debugging (sensitive values are hidden)
+if (process.env.NODE_ENV !== 'test') {
+  console.log('Environment variables loaded.');
+  
+  // Only check for essential variables
+  const requiredVars = ['JWT_SECRET', 'MONGO_URI'];
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  
+  if (missingVars.length > 0) {
+    console.error('Missing required environment variables:', missingVars.join(', '));
+  } else {
+    console.log('Essential configurations are set.');
+  }
+  
+  // Check if Google OAuth is configured (informational only, not required)
+  const hasGoogleAuth = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI;
+  console.log(`Google OAuth: ${hasGoogleAuth ? 'Configured' : 'Not configured'}`);
+}
 
 // Export configuration
 module.exports = {

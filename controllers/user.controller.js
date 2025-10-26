@@ -1,4 +1,4 @@
-const User = require('../models/Users');
+const User = require('../models/User');  // Fixed: Using correct filename (singular)
 const Email = require('../models/Email');
 const mongoose = require('mongoose');
 

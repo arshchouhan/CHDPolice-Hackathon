@@ -1,116 +1,261 @@
-const express = require('express');
-const router = express.Router();
-const requireAdmin = require('../middlewares/requireAdmin');
-const adminController = require('../controllers/admin.controller');
+import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import Admin from '../models/admin.model.js';
+import User from '../models/User.js';
+import Email from '../models/Email.js';
+import { requireAdmin } from '../middlewares/auth.js';
+import jwt from 'jsonwebtoken';
 
-// Apply admin middleware to all routes
-router.use(requireAdmin);
+const router = Router();
 
-/**
- * @route   GET /api/admin/dashboard
- * @desc    Get admin dashboard statistics
- * @access  Private/Admin
- */
-router.get('/dashboard', adminController.dashboard);
+// Admin registration route
+router.post('/register', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    console.log('Registration attempt for:', email);
 
-/**
- * @route   GET /api/admin/emails
- * @desc    Get all emails with filtering and pagination
- * @access  Private/Admin
- */
-router.get('/emails', adminController.getAllEmails);
+    const existingAdmin = await Admin.findOne({ email });
+    if (existingAdmin) {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin already exists'
+      });
+    }
 
-/**
- * @route   GET /api/admin/emails/:id
- * @desc    Get email by ID
- * @access  Private/Admin
- */
-router.get('/emails/:id', adminController.getEmailById);
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const admin = new Admin({
+      email,
+      password: hashedPassword
+    });
 
-/**
- * @route   PATCH /api/admin/emails/:id
- * @desc    Update email status
- * @access  Private/Admin
- */
-router.patch('/emails/:id', adminController.updateEmailStatus);
+    await admin.save();
+    console.log('Admin registered successfully:', email);
 
-/**
- * @route   GET /api/admin/users
- * @desc    Get all users
- * @access  Private/Admin
- */
-router.get('/users', adminController.getUsers);
-
-/**
- * @route   GET /api/admin/users/:id
- * @desc    Get user by ID
- * @access  Private/Admin
- */
-router.get('/users/:id', adminController.getUserById);
-
-/**
- * @route   DELETE /api/admin/users/:id
- * @desc    Delete a user
- * @access  Private/Admin
- */
-router.delete('/users/:id', adminController.deleteUser);
-
-/**
- * @route   GET /api/admin/verify-connection/:id
- * @desc    Verify Gmail connection for a user
- * @access  Private/Admin
- */
-router.get('/verify-connection/:id', adminController.verifyGmailConnection);
-
-/**
- * @route   POST /api/admin/sync-emails/:id
- * @desc    Sync emails for a specific user
- * @access  Private/Admin
- */
-router.post('/sync-emails/:id', adminController.syncUserEmails);
-
-/**
- * @route   GET /api/admin/email-stats
- * @desc    Get email statistics
- * @access  Private/Admin
- */
-router.get('/email-stats', adminController.getEmailStats);
-
-/**
- * @route   GET /api/admin/health
- * @desc    Health check endpoint for admin
- * @access  Private/Admin
- */
-router.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    user: req.user ? {
-      id: req.user._id,
-      email: req.user.email,
-      role: 'admin'
-    } : null
-  });
+    res.status(201).json({
+      success: true,
+      message: 'Admin registered successfully'
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Registration failed'
+    });
+  }
 });
 
-// Handle 404 for admin routes
-router.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Admin API endpoint not found',
-    path: req.originalUrl
-  });
+// Admin login with enhanced logging
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    console.log('Login attempt for:', email);
+
+    const admin = await Admin.findOne({ email });
+    console.log('Admin found:', !!admin);
+
+    if (!admin) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    const isMatch = password === admin.password || await bcrypt.compare(password, admin.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    const token = jwt.sign(
+      { id: admin._id, email: admin.email },
+      process.env.JWT_SECRET || 'jwt-secret',
+      { expiresIn: '24h' }
+    );
+
+    // Set token in header first
+    res.setHeader('Authorization', `Bearer ${token}`);
+
+    // Then set in cookie
+    res.cookie('token', token, {
+      httpOnly: false,
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000
+    });
+
+    // Store in session
+    req.session.token = token;
+    req.session.adminId = admin._id;
+    await req.session.save();
+
+    console.log('Token set in:', {
+      header: !!res.getHeader('Authorization'),
+      cookie: !!token,
+      session: !!req.session.token
+    });
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      admin: {
+        id: admin._id,
+        email: admin.email
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Login failed: ' + error.message
+    });
+  }
 });
 
-// Error handling middleware for admin routes
-router.use((err, req, res, next) => {
-  console.error('Admin route error:', err);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-  });
+// Update verify-token to check multiple token locations
+router.get('/verify-token', async (req, res) => {
+  try {
+    const token = 
+      req.headers.authorization?.split(' ')[1] ||
+      req.cookies.token ||
+      req.session?.token;
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        authenticated: false,
+        message: 'No token found'
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'jwt-secret');
+    const admin = await Admin.findById(decoded.id);
+
+    if (!admin) {
+      return res.status(401).json({
+        success: false,
+        authenticated: false,
+        message: 'Invalid token'
+      });
+    }
+
+    res.json({
+      success: true,
+      authenticated: true,
+      admin: {
+        id: admin._id,
+        email: admin.email
+      }
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(401).json({
+      success: false,
+      authenticated: false,
+      message: error.message
+    });
+  }
 });
 
-module.exports = router;
+// Get admin dashboard data
+router.get('/dashboard', requireAdmin, async (req, res) => {
+  try {
+    // Get total users count
+    const totalUsers = await User.countDocuments();
+    
+    // Get active users (users who logged in within the last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const activeUsers = await User.countDocuments({ lastLogin: { $gte: thirtyDaysAgo } });
+    
+    // Get email statistics (replace with your actual email model)
+    const emailStats = await Email.aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          phishing: {
+            $sum: {
+              $cond: [{ $eq: ['$isPhishing', true] }, 1, 0]
+            }
+          },
+          clean: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ['$isPhishing', false] }, { $ne: ['$riskScore', null] }] },
+                1,
+                0
+              ]
+            }
+          },
+          suspicious: {
+            $sum: {
+              $cond: [
+                { $and: [{ $ne: ['$riskScore', null] }, { $gte: ['$riskScore', 50] }, { $lt: ['$riskScore', 80] }] },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    // Get recent users
+    const recentUsers = await User.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('-password');
+
+    // Get recent emails (replace with your actual email model)
+    const recentEmails = await Email.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .populate('user', 'name email');
+
+    // Format the response
+    const stats = {
+      totalUsers,
+      activeUsers,
+      emailsAnalyzed: emailStats[0]?.total || 0,
+      threatsDetected: emailStats[0]?.phishing || 0,
+      emailStats: {
+        total: emailStats[0]?.total || 0,
+        phishing: emailStats[0]?.phishing || 0,
+        clean: emailStats[0]?.clean || 0,
+        suspicious: emailStats[0]?.suspicious || 0
+      },
+      recentUsers,
+      recentEmails: recentEmails.map(email => ({
+        id: email._id,
+        subject: email.subject || 'No Subject',
+        from: email.from,
+        riskScore: email.riskScore || 0,
+        isPhishing: email.isPhishing || false,
+        date: email.createdAt,
+        user: email.user ? {
+          id: email.user._id,
+          name: email.user.name,
+          email: email.user.email
+        } : null
+      }))
+    };
+
+    res.json({
+      success: true,
+      ...stats
+    });
+  } catch (error) {
+    console.error('Error fetching admin dashboard data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch dashboard data',
+      error: error.message
+    });
+  }
+});
+
+export default router;

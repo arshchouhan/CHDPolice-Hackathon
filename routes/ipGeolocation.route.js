@@ -1,26 +1,13 @@
-/**
- * IP Geolocation Routes
- * Routes for IP resolution, geolocation, and data center detection
- */
-
-const express = require('express');
-const router = express.Router();
+const { Router } = require('express');
+const { requireAuth } = require('../middlewares/auth');
 const ipGeolocationController = require('../controllers/ipGeolocation.controller');
-const authenticateUser = require('../middlewares/auth.middleware');
 
-// Apply authentication middleware to all routes
-router.use(authenticateUser);
+const router = Router();
 
-// Resolve domain to IP address
-router.get('/resolve-domain', ipGeolocationController.resolveDomain);
+// IP Geolocation routes (protected)
+router.use(requireAuth);
 
-// Get geolocation data for an IP address
-router.get('/ip-info', ipGeolocationController.getIpGeolocation);
-
-// Analyze a URL for IP and geolocation data
-router.post('/analyze-url', ipGeolocationController.analyzeUrl);
-
-// Get URL IP analysis history
-router.get('/history', ipGeolocationController.getAnalysisHistory);
+router.get('/lookup/:ip', ipGeolocationController.lookupIP);
+router.get('/history', ipGeolocationController.getLookupHistory);
 
 module.exports = router;

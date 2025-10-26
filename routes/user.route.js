@@ -1,20 +1,12 @@
-const express = require('express');
-const router = express.Router();
-const { requireRole } = require('../middlewares/requireRole');
+const { Router } = require('express');
+const { requireAuth } = require('../middlewares/auth');
 const userController = require('../controllers/user.controller');
 
-// Dashboard route
-router.get('/dashboard', requireRole('user'), userController.dashboard);
+const router = Router();
 
-// User profile and Gmail status
-router.get('/profile', requireRole('user'), userController.getProfile);
-router.get('/gmail-status', requireRole('user'), userController.getGmailStatus);
-
-// Get current user info - used for authentication verification
-router.get('/me', requireRole('user'), userController.getCurrentUser);
-
-// User emails
-router.get('/emails', requireRole('user'), userController.getUserEmails);
-router.get('/email-stats', requireRole('user'), userController.getUserEmailStats);
+// User routes
+router.get('/', requireAuth, userController.getProfile);
+// Note: updateUserProfile function doesn't exist in the controller yet
+// router.put('/', requireAuth, userController.updateUserProfile);
 
 module.exports = router;
