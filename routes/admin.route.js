@@ -1,8 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import Admin from '../models/admin.model.js';
-import User from '../models/User.js';
-import Email from '../models/Email.js';
 import { requireAdmin } from '../middlewares/auth.js';
 import jwt from 'jsonwebtoken';
 
@@ -44,15 +42,14 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Admin login with enhanced logging
+// Admin login with enhanced logging and refresh token
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     console.log('Login attempt for:', email);
 
     const admin = await Admin.findOne({ email });
-    console.log('Admin found:', !!admin);
-
+    
     if (!admin) {
       return res.status(401).json({
         success: false,
@@ -68,33 +65,25 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    // Generate tokens
     const token = jwt.sign(
-      { id: admin._id, email: admin.email },
+      { id: admin._id, email: admin.email, role: 'admin' },
       process.env.JWT_SECRET || 'jwt-secret',
-      { expiresIn: '24h' }
+      { expiresIn: '7d' } // Extend token validity
     );
 
-    // Set token in header first
-    res.setHeader('Authorization', `Bearer ${token}`);
-
-    // Then set in cookie
-    res.cookie('token', token, {
-      httpOnly: false,
-      secure: false,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 24 * 60 * 60 * 1000
-    });
-
-    // Store in session
-    req.session.token = token;
+    // Store more data in session
     req.session.adminId = admin._id;
+    req.session.adminEmail = admin.email;
+    req.session.token = token;
     await req.session.save();
 
-    console.log('Token set in:', {
-      header: !!res.getHeader('Authorization'),
-      cookie: !!token,
-      session: !!req.session.token
+    // Set cookie with extended expiry
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
     res.json({
@@ -103,159 +92,168 @@ router.post('/login', async (req, res) => {
       token,
       admin: {
         id: admin._id,
-        email: admin.email
+        email: admin.email,
+        role: 'admin'
       }
     });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Login failed: ' + error.message
+      message: 'Login failed'
     });
   }
 });
 
-// Update verify-token to check multiple token locations
+// Force logout - clear all sessions and tokens
+router.post('/force-logout', (req, res) => {
+  try {
+    // Clear session
+    req.session.destroy();
+    
+    // Clear cookies
+    res.clearCookie('token');
+    res.clearCookie('refreshToken');
+    res.clearCookie('connect.sid');
+    
+    res.status(200).json({
+      success: true,
+      message: 'Successfully logged out from all sessions'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Logout failed',
+      error: error.message
+    });
+  }
+});
+
+// Update verify-token to handle token refresh
 router.get('/verify-token', async (req, res) => {
   try {
     const token = 
       req.headers.authorization?.split(' ')[1] ||
       req.cookies.token ||
       req.session?.token;
-    
+
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        authenticated: false,
-        message: 'No token found'
-      });
+      throw new Error('No token found');
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'jwt-secret');
     const admin = await Admin.findById(decoded.id);
 
     if (!admin) {
-      return res.status(401).json({
-        success: false,
-        authenticated: false,
-        message: 'Invalid token'
-      });
+      throw new Error('Admin not found');
     }
+
+    // Refresh token if needed
+    const newToken = jwt.sign(
+      { id: admin._id, email: admin.email, role: 'admin' },
+      process.env.JWT_SECRET || 'jwt-secret',
+      { expiresIn: '7d' }
+    );
+
+    res.cookie('token', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
 
     res.json({
       success: true,
       authenticated: true,
+      token: newToken,
+      admin: {
+        id: admin._id,
+        email: admin.email,
+        role: 'admin'
+      }
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    return res.status(401).json({
+      success: false,
+      authenticated: false,
+      message: 'Token verification failed'
+    });
+  }
+});
+
+// Refresh token endpoint
+router.post('/refresh-token', async (req, res) => {
+  try {
+    const token = req.cookies?.token || req.session?.token;
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No refresh token available'
+      });
+    }
+
+    // Verify the existing token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'jwt-secret', { ignoreExpiration: true });
+    
+    // Check if the admin still exists
+    const admin = await Admin.findById(decoded.id);
+    if (!admin) {
+      return res.status(401).json({
+        success: false,
+        message: 'Admin not found'
+      });
+    }
+
+    // Issue a new token
+    const newToken = jwt.sign(
+      { id: admin._id, email: admin.email },
+      process.env.JWT_SECRET || 'jwt-secret',
+      { expiresIn: '24h' }
+    );
+
+    // Update the token in the session and cookies
+    req.session.token = newToken;
+    await req.session.save();
+
+    res.cookie('token', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax', // Changed from 'none' to 'lax' for better compatibility
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+
+    res.json({
+      success: true,
+      token: newToken,
       admin: {
         id: admin._id,
         email: admin.email
       }
     });
   } catch (error) {
-    console.error('Token verification error:', error);
+    console.error('Token refresh error:', error);
+    
+    // Clear invalid tokens
+    if (req.session) {
+      req.session.destroy();
+    }
+    res.clearCookie('token');
+    
     res.status(401).json({
       success: false,
-      authenticated: false,
-      message: error.message
+      message: 'Invalid or expired refresh token',
+      error: error.message
     });
   }
 });
 
-// Get admin dashboard data
-router.get('/dashboard', requireAdmin, async (req, res) => {
-  try {
-    // Get total users count
-    const totalUsers = await User.countDocuments();
-    
-    // Get active users (users who logged in within the last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const activeUsers = await User.countDocuments({ lastLogin: { $gte: thirtyDaysAgo } });
-    
-    // Get email statistics (replace with your actual email model)
-    const emailStats = await Email.aggregate([
-      {
-        $group: {
-          _id: null,
-          total: { $sum: 1 },
-          phishing: {
-            $sum: {
-              $cond: [{ $eq: ['$isPhishing', true] }, 1, 0]
-            }
-          },
-          clean: {
-            $sum: {
-              $cond: [
-                { $and: [{ $eq: ['$isPhishing', false] }, { $ne: ['$riskScore', null] }] },
-                1,
-                0
-              ]
-            }
-          },
-          suspicious: {
-            $sum: {
-              $cond: [
-                { $and: [{ $ne: ['$riskScore', null] }, { $gte: ['$riskScore', 50] }, { $lt: ['$riskScore', 80] }] },
-                1,
-                0
-              ]
-            }
-          }
-        }
-      }
-    ]);
-
-    // Get recent users
-    const recentUsers = await User.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select('-password');
-
-    // Get recent emails (replace with your actual email model)
-    const recentEmails = await Email.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate('user', 'name email');
-
-    // Format the response
-    const stats = {
-      totalUsers,
-      activeUsers,
-      emailsAnalyzed: emailStats[0]?.total || 0,
-      threatsDetected: emailStats[0]?.phishing || 0,
-      emailStats: {
-        total: emailStats[0]?.total || 0,
-        phishing: emailStats[0]?.phishing || 0,
-        clean: emailStats[0]?.clean || 0,
-        suspicious: emailStats[0]?.suspicious || 0
-      },
-      recentUsers,
-      recentEmails: recentEmails.map(email => ({
-        id: email._id,
-        subject: email.subject || 'No Subject',
-        from: email.from,
-        riskScore: email.riskScore || 0,
-        isPhishing: email.isPhishing || false,
-        date: email.createdAt,
-        user: email.user ? {
-          id: email.user._id,
-          name: email.user.name,
-          email: email.user.email
-        } : null
-      }))
-    };
-
-    res.json({
-      success: true,
-      ...stats
-    });
-  } catch (error) {
-    console.error('Error fetching admin dashboard data:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch dashboard data',
-      error: error.message
-    });
-  }
+// Protected admin route example
+router.get('/dashboard', requireAdmin, (req, res) => {
+  res.json({ success: true, message: 'Welcome to admin dashboard' });
 });
 
 export default router;

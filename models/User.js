@@ -39,15 +39,25 @@ const userSchema = new mongoose.Schema(
       type: Boolean, 
       default: false 
     },
-    gmail_email: { 
+    gmailStatus: {
+      type: String,
+      enum: ['disconnected', 'pending', 'connected', 'failed'],
+      default: 'disconnected'
+    },
+    gmailEmail: { 
       type: String, 
       default: null 
     },
-    gmail_tokens: { 
-      type: Object, 
-      default: null 
+    gmailConnectionInitiatedAt: {
+      type: Date,
+      default: null
     },
-    last_email_sync: { 
+    gmailTokens: { 
+      type: Object, 
+      default: null,
+      select: false
+    },
+    lastGmailSync: { 
       type: Date, 
       default: null 
     }

@@ -122,15 +122,22 @@ const allowedOrigins = [
 ];
 
 const corsOptions = {
-  origin: true, // Allow all origins in development
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Set-Cookie'],
-  exposedHeaders: ['Set-Cookie', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Authorization'],
+  maxAge: 86400,
 };
 
+// Apply CORS before routes
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+
+// Ensure JSON responses
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
 
 // Request logging with route debugging
 app.use((req, res, next) => {
@@ -146,12 +153,18 @@ import authRoutes from './routes/auth.route.js';
 import adminRoutes from './routes/admin.route.js';
 import dashboardRoutes from './routes/dashboard.route.js';
 import gmailRoutes from './routes/gmail.route.js';
+import gmailConnectionRoutes from './routes/gmail-connection.route.js';
 
 // API Routes - Mount all routes with their respective base paths
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+
+// Gmail OAuth routes (existing)
 app.use('/api/gmail', gmailRoutes);
+
+// Gmail connection management routes (new)
+app.use('/api/user', gmailConnectionRoutes);
 
 // Debug route to check if API is working
 app.get('/api/health', (req, res) => {
