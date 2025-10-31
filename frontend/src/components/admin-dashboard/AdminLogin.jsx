@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const AdminLogin = () => {
@@ -6,7 +6,42 @@ const AdminLogin = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const navigate = useNavigate();
+
+  // Check if already authenticated when component mounts
+  useEffect(() => {
+    checkAuthentication();
+  }, []);
+
+  const checkAuthentication = async () => {
+    try {
+      const apiUrl = process.env.NODE_ENV === 'development' 
+        ? 'http://localhost:3000/api/admin/verify-token' 
+        : '/api/admin/verify-token';
+
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.authenticated) {
+          console.log('Already authenticated, redirecting to dashboard...');
+          navigate('/admin/dashboard', { replace: true });
+          return;
+        }
+      }
+    } catch (error) {
+      console.log('Not authenticated:', error.message);
+    } finally {
+      setCheckingAuth(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -16,7 +51,6 @@ const AdminLogin = () => {
     try {
       console.log('Attempting login with email:', email);
       
-      // Construct the API URL based on environment
       const apiUrl = process.env.NODE_ENV === 'development' 
         ? 'http://localhost:3000/api/admin/login' 
         : '/api/admin/login';
@@ -27,7 +61,7 @@ const AdminLogin = () => {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        credentials: 'include', // Important for cookies/sessions
+        credentials: 'include', // Important for cookies
         body: JSON.stringify({ email, password }),
       });
 
@@ -40,7 +74,6 @@ const AdminLogin = () => {
         console.error('Non-JSON response:', {
           status: response.status,
           statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries()),
           body: text
         });
         throw new Error('Server returned an invalid response. Please try again.');
@@ -49,20 +82,24 @@ const AdminLogin = () => {
       const data = await response.json();
       console.log('Login response data:', data);
 
+      // Check if login was successful
       if (!response.ok) {
-        throw new Error(data.message || `Login failed (${response.status}): ${response.statusText}`);
+        throw new Error(data.message || 'Invalid credentials');
       }
 
-      if (data.token) {
-        // Store tokens
-        localStorage.setItem('adminToken', data.token);
-        sessionStorage.setItem('adminToken', data.token);
+      if (data.success && data.token) {
+        console.log('Login successful, token received');
         
-        console.log('Login successful, redirecting to dashboard...');
-        // Redirect to admin dashboard
-        navigate('/admin/dashboard');
+        // Store token in localStorage as backup (cookie is primary)
+        localStorage.setItem('adminToken', data.token);
+        
+        // Small delay to ensure cookie is set
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        console.log('Redirecting to dashboard...');
+        navigate('/admin/dashboard', { replace: true });
       } else {
-        throw new Error('No authentication token received in response');
+        throw new Error(data.message || 'Login failed - no token received');
       }
     } catch (err) {
       console.error('Login error:', {
@@ -72,15 +109,16 @@ const AdminLogin = () => {
         timestamp: new Date().toISOString()
       });
       
-      // Provide more user-friendly error messages
+      // Provide user-friendly error messages
       let errorMessage = 'Failed to log in. Please check your credentials and try again.';
       
       if (err.message.includes('NetworkError') || err.message.includes('Failed to fetch')) {
-        errorMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
+        errorMessage = 'Unable to connect to the server. Please check your internet connection.';
+      } else if (err.message.includes('Invalid credentials')) {
+        errorMessage = 'Invalid email or password. Please try again.';
       } else if (err.message.includes('401')) {
         errorMessage = 'Invalid email or password. Please try again.';
       } else if (err.message) {
-        // Use the error message from the server if available
         errorMessage = err.message;
       }
       
@@ -89,6 +127,21 @@ const AdminLogin = () => {
       setIsLoading(false);
     }
   };
+
+  // Show loading state while checking authentication
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
+        <div className="text-white text-center">
+          <svg className="animate-spin h-8 w-8 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p>Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center p-4">
@@ -119,6 +172,7 @@ const AdminLogin = () => {
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                   placeholder="admin@example.com"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
@@ -139,13 +193,14 @@ const AdminLogin = () => {
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                   placeholder="••••••••"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-lg transition duration-200 flex items-center justify-center"
+                className="w-full py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-lg transition duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>

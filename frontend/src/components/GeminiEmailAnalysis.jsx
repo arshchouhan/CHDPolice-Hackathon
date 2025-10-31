@@ -9,7 +9,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 // Import the GeminiEmailAnalyzer component
-import GeminiEmailAnalyzer from '../components/GeminiEmailAnalyzer';
+import GeminiEmailAnalyzer from './GeminiEmailAnalyzer';
 
 export default function GeminiEmailAnalysis() {
   const navigate = useNavigate();
