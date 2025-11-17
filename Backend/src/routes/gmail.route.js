@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import User from '../models/User.js';
-import { requireAuth } from '../middlewares/auth.js';
+import { authMiddleware as requireAuth } from '../middlewares/authMiddleware.js';
 import config from '../config/config.js';
 const { 
   jwtSecret: JWT_SECRET, 

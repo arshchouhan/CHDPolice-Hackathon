@@ -15,39 +15,55 @@ import {
   FaDatabase,
   FaCreditCard,
   FaClock,
-  FaExclamationTriangle,
   FaCloud,
-  FaSignOutAlt, 
   FaGoogle
 } from 'react-icons/fa';
-import { Line, Doughnut } from 'react-chartjs-2';
+import { Line } from 'react-chartjs-2';
 import 'chart.js/auto';
 import '../../assets/css/user-dashboard.css';
 import { toast } from 'react-toastify';
+import SignOutButton from '../../components/common/SignOutButton';
+import { useAuth } from '../../context/AuthContext';
 
 const UserDashboard = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState({ name: 'User', email: 'user@example.com' });
   const [riskScore, setRiskScore] = useState(72);
   const [activeTab, setActiveTab] = useState('week');
   const [gmailStatus, setGmailStatus] = useState('disconnected');
   const [isConnecting, setIsConnecting] = useState(false);
   const navigate = useNavigate();
-
-  // Get API URL from environment variable or use default
+  const { user, loading, authChecked } = useAuth();
+  
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-  // Check Gmail connection status on component mount
+  // Redirect to login if not authenticated and auth check is complete
   useEffect(() => {
+    if (authChecked && !user) {
+      navigate('/login', { replace: true });
+    }
+  }, [user, authChecked, navigate]);
+
+  // Show loading state while checking auth
+  if (loading || !authChecked) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Check Gmail connection (only when authenticated)
+  useEffect(() => {
+    if (!user) return;
+
     const checkGmailStatus = async () => {
       try {
         const token = localStorage.getItem('token');
-        if (!token) {
-          console.log('No token found, redirecting to login');
-          navigate('/login');
-          return;
-        }
+        if (!token) return;
 
         const response = await fetch(`${API_URL}/api/user/connection-status`, {
           headers: { 
@@ -58,15 +74,17 @@ const UserDashboard = () => {
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          if (response.status === 401 || response.status === 403) {
+            setIsAuthenticated(false);
+            localStorage.removeItem('token');
+            navigate('/login', { replace: true });
+          }
+          return;
         }
 
         const data = await response.json();
-        console.log('Gmail connection status:', data);
-        
         if (data.success) {
           setGmailStatus(data.status || 'disconnected');
-          // Update user data if available
           if (data.user) {
             setUser(prev => ({
               ...prev,
@@ -75,40 +93,24 @@ const UserDashboard = () => {
             }));
           }
         } else {
-          console.error('Failed to get Gmail status:', data.message);
           toast.error(data.message || 'Failed to check Gmail status');
         }
       } catch (error) {
-        console.error('Error checking Gmail status:', error);
-        if (error.message.includes('401') || error.message.includes('403')) {
-          // Token might be invalid, redirect to login
-          localStorage.removeItem('token');
-          navigate('/login');
-        } else {
-          toast.error('Failed to check Gmail connection status');
-        }
+        console.error('Gmail status check error:', error);
       }
     };
 
-    // Initial check
-    // checkGmailStatus();
-    
-    // Set up polling every 10 seconds
+    checkGmailStatus();
     const intervalId = setInterval(checkGmailStatus, 10000);
-    
-    // Clean up interval on component unmount
     return () => clearInterval(intervalId);
-  }, [API_URL, navigate]);
+  }, [API_URL, navigate, user]);
 
-  // Handle Gmail connection
+  // ✅ Handle Gmail connection
   const handleConnectGmail = async () => {
     try {
       setIsConnecting(true);
       const token = localStorage.getItem('token');
-      
-      if (!token) {
-        throw new Error('Authentication required. Please log in again.');
-      }
+      if (!token) throw new Error('Authentication required. Please log in again.');
 
       const response = await fetch(`${API_URL}/api/user/connect`, {
         method: 'POST',
@@ -125,15 +127,11 @@ const UserDashboard = () => {
       }
 
       const data = await response.json();
-      
       if (data.success) {
         setGmailStatus('pending');
-        toast.info('Gmail connection request has been sent to the server.');
-      } else {
-        throw new Error(data.message || 'Failed to connect Gmail');
-      }
+        toast.info('Gmail connection request sent.');
+      } else throw new Error(data.message || 'Failed to connect Gmail');
     } catch (error) {
-      console.error('Error connecting Gmail:', error);
       toast.error(error.message || 'Failed to connect Gmail');
       setGmailStatus('disconnected');
     } finally {
@@ -141,63 +139,26 @@ const UserDashboard = () => {
     }
   };
 
-  // Fetch user data on component mount
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          navigate('/login');
-          return;
-        }
+  // Get the logout function from useAuth at the component level
+  const { logout } = useAuth();
 
-        const response = await fetch(`${API_URL}/api/auth/verify-token`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          credentials: 'include'
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.authenticated && data.user) {
-            setUser({
-              name: data.user.name || 'User',
-              email: data.user.email || 'user@example.com'
-            });
-          } else {
-            throw new Error('User not authenticated');
-          }
-        } else {
-          // If token is invalid, redirect to login
-          localStorage.removeItem('token');
-          navigate('/login');
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        toast.error('Failed to load user data');
-      }
-    };
-
-    fetchUserData();
-  }, [navigate]);
-
-  // Handle sign out
+  // ✅ Handle sign out (prevents loop)
   const handleSignOut = async () => {
     try {
-      // Clear the token from localStorage
-      localStorage.removeItem('token');
-      
-      // Show success message
-      toast.success('Successfully signed out');
-      
-      // Redirect to login page
-      navigate('/login');
+      const result = await logout();
+      if (result && !result.success) {
+        throw new Error(result.error || 'Failed to sign out');
+      }
+      // Only navigate after successful logout
+      navigate('/login', { replace: true });
     } catch (error) {
-      console.error('Error signing out:', error);
-      toast.error('Error signing out. Please try again.');
+      console.error('Sign out error:', error);
+      toast.error(error.message || 'Failed to sign out');
+      // Still navigate to login even if there was an error, but show the error
+      navigate('/login', { replace: true });
     }
   };
 
-  // Navigation items
   const navItems = [
     { path: '/dashboard', icon: <FaHome className="mr-2" />, label: 'Dashboard' },
     { path: '/dashboard/emails', icon: <FaEnvelope className="mr-2" />, label: 'Threats' },
@@ -205,38 +166,12 @@ const UserDashboard = () => {
     { path: '/dashboard/settings', icon: <FaCog className="mr-2" />, label: 'Settings' },
   ];
 
-  // Data at risk items
   const dataAtRisk = [
-    {
-      id: 1,
-      title: 'cv-bucket',
-      icon: <FaDatabase className="text-orange-400" />,
-      emails: 1243,
-      creditCards: 87,
-      timeAgo: '1 day ago',
-      risk: 'High'
-    },
-    {
-      id: 2,
-      title: 'user-data',
-      icon: <FaUserCircle className="text-blue-400" />,
-      emails: 876,
-      creditCards: 23,
-      timeAgo: '2 days ago',
-      risk: 'Medium'
-    },
-    {
-      id: 3,
-      title: 'financial-records',
-      icon: <FaCreditCard className="text-green-400" />,
-      emails: 342,
-      creditCards: 156,
-      timeAgo: '3 days ago',
-      risk: 'Critical'
-    },
+    { id: 1, title: 'cv-bucket', icon: <FaDatabase className="text-orange-400" />, emails: 1243, creditCards: 87, timeAgo: '1 day ago', risk: 'High' },
+    { id: 2, title: 'user-data', icon: <FaUserCircle className="text-blue-400" />, emails: 876, creditCards: 23, timeAgo: '2 days ago', risk: 'Medium' },
+    { id: 3, title: 'financial-records', icon: <FaCreditCard className="text-green-400" />, emails: 342, creditCards: 156, timeAgo: '3 days ago', risk: 'Critical' },
   ];
 
-  // Chart data for risk trends
   const riskTrendsData = {
     labels: ['Nov 07', 'Nov 08', 'Nov 09', 'Nov 10', 'Nov 11', 'Nov 12', 'Nov 13'],
     datasets: [
@@ -255,208 +190,110 @@ const UserDashboard = () => {
     ],
   };
 
-  // Chart options
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
-      },
-    },
+    plugins: { legend: { display: false } },
     scales: {
-      y: {
-        grid: {
-          color: 'rgba(244, 241, 249, 0.1)',
-          drawBorder: false,
-        },
-        ticks: {
-          color: '#f4f1f9',
-        },
-      },
-      x: {
-        grid: {
-          display: false,
-        },
-        ticks: {
-          color: '#f4f1f9',
-        },
-      },
+      y: { grid: { color: 'rgba(244, 241, 249, 0.1)', drawBorder: false }, ticks: { color: '#f4f1f9' } },
+      x: { grid: { display: false }, ticks: { color: '#f4f1f9' } },
     },
   };
 
   return (
     <div className="min-h-screen bg-[#09050d] text-[#f4f1f9]">
-      {/* Top Navigation Bar */}
+      {/* Navigation Bar */}
       <nav className="bg-[#171719] border-b border-black">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 flex items-center">
-                <span className="text-2xl font-bold text-[#ffff]">
-                  CyberShield
-                </span>
-              </div>
-              
-              {/* Desktop Navigation */}
-              <div className="hidden sm:ml-8 sm:flex sm:space-x-2">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      window.location.pathname === item.path
-                        ? 'bg-[#171719] text-[#f4f1f9] shadow-lg shadow-[#ffff]/20'
-                        : 'text-[#f4f1f9]/80 hover:bg-[#ffff]/10 hover:text-[#ffff]'
-                    }`}
-                  >
-                    {item.icon}
-                    <span className="ml-2">{item.label}</span>
-                  </Link>
-                ))}
-              </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
+          <div className="flex items-center">
+            <span className="text-2xl font-bold text-[#ffff]">CyberShield</span>
+            <div className="hidden sm:ml-8 sm:flex sm:space-x-2">
+              {navItems.map(item => (
+                <Link key={item.path} to={item.path} className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all ${window.location.pathname === item.path ? 'bg-[#171719] text-[#f4f1f9] shadow-lg shadow-[#ffff]/20' : 'text-[#f4f1f9]/80 hover:bg-[#ffff]/10 hover:text-[#ffff]'}`}>
+                  {item.icon}
+                  <span className="ml-2">{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="hidden sm:flex sm:items-center space-x-4">
+            <div className="relative w-64">
+              <FaSearch className="absolute left-3 top-2.5 text-white h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Search threats, logs, devices..."
+                className="w-full pl-10 pr-3 py-2 border border-white rounded-lg bg-[#262529] text-white placeholder-white focus:outline-none focus:ring-2 focus:ring-[#ffff]"
+              />
             </div>
 
-            {/* Right side elements */}
-            <div className="hidden sm:ml-6 sm:flex sm:items-center space-x-4">
-              {/* Search bar */}
-              <div className="relative w-64">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FaSearch className="h-4 w-4 text-white" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search threats, logs, devices..."
-                  className="block w-full pl-10 pr-3 py-2 border border-white rounded-lg bg-[#262529] text-white placeholder-white focus:outline-none focus:ring-2 focus:ring-[#ffff] focus:border-transparent text-sm transition duration-150"
-                />
-              </div>
+            <button 
+              onClick={handleConnectGmail}
+              disabled={isConnecting || gmailStatus === 'pending'}
+              className={`flex items-center px-4 py-2 ${isConnecting || gmailStatus === 'pending' ? 'bg-gray-500/50 text-white/70 cursor-not-allowed' : 'bg-white/70 text-[#2f2b3a] hover:bg-white/90'} rounded-lg text-sm font-medium transition-all`}
+            >
+              {isConnecting || gmailStatus === 'pending' ? 'Wait' : (<><FaGoogle className="w-4 h-4 mr-2" /> Connect Gmail</>)}
+            </button>
 
-              {/* Connect Gmail Button */}
-              <button 
-                onClick={handleConnectGmail}
-                disabled={isConnecting || gmailStatus === 'pending'}
-                className={`flex items-center px-4 py-2 ${
-                  isConnecting || gmailStatus === 'pending'
-                    ? 'bg-gray-500/50 text-white/70 cursor-not-allowed'
-                    : 'bg-white/70 text-[#2f2b3a] hover:bg-white/90'
-                } rounded-lg text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-[#8a63f4] focus:ring-offset-2 focus:ring-offset-[#171719]`}
-              >
-                {isConnecting || gmailStatus === 'pending' ? (
-                  <>
-                    Wait
-                  </>
-                ) : (
-                  <>
-                    <FaGoogle className="w-4 h-4 mr-2" />
-                    Connect Gmail
-                  </>
-                )}
+            <button className="p-2 rounded-full text-[#ffff] hover:bg-[#ffff]/10 relative transition-all">
+              <FaBell className="h-5 w-5" />
+              <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-[#ffff] ring-2 ring-[#2f2b3a]"></span>
+            </button>
+
+            {/* Profile Dropdown */}
+            <div className="relative ml-2">
+              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center text-sm rounded-full focus:outline-none">
+                <div className="h-9 w-9 rounded-full bg-[#7f5ce4] flex items-center justify-center text-[#f4f1f9] font-medium">A</div>
               </button>
 
-              {/* Notifications */}
-              <button className="p-2 rounded-full text-[#ffff] hover:bg-[#ffff]/10 focus:outline-none focus:ring-2 focus:ring-[#ffff] relative transition-all">
-                <span className="sr-only">View notifications</span>
-                <FaBell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-[#ffff] ring-2 ring-[#2f2b3a]"></span>
-              </button>
-
-              {/* Profile dropdown */}
-              <div className="relative ml-2">
-                <div>
-                  <button
-                    onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    className="flex items-center text-sm rounded-full focus:outline-none focus:ring-1 focus:ring-[#ffff] focus:ring-offset-1 focus:ring-offset-[#ffff]"
-                    id="user-menu"
-                    aria-expanded="false"
-                    aria-haspopup="true"
-                  >
-                    <span className="sr-only">Open user menu</span>
-                    <div className="flex items-center">
-                      <div className="h-9 w-9 rounded-full bg-[#7f5ce4] flex items-center justify-center text-[#f4f1f9] font-medium">
-                        A
-                      </div>
-                    </div>
-                  </button>
-                </div>
-
-                {isProfileOpen && (
-                  <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-lg shadow-xl bg-[#171719] border border-[#8a63f4]/20 py-1 z-50" role="menu" aria-orientation="vertical" aria-labelledby="user-menu">
-                    <div className="px-4 py-3 border-b border-[#8a63f4]/20">
-                      <p className="text-sm text-[#f4f1f9]">{user.name}</p>
-                      <p className="text-xs font-medium text-[#f4f1f9]/60 truncate">{user.email}</p>
-                    </div>
-                    <a href="#" className="block px-4 py-2.5 text-sm text-[#f4f1f9]/80 hover:bg-[#ffff]/20 hover:text-[#f4f1f9] transition-colors" role="menuitem">
-                      Your Profile
-                    </a>
-                    <a href="#" className="block px-4 py-2.5 text-sm text-[#f4f1f9]/80 hover:bg-[#ffff]/20 hover:text-[#f4f1f9] transition-colors" role="menuitem">
-                      Settings
-                    </a>
-                    <div className="border-t border-[#8a63f4]/20 my-1"></div>
-                    <button 
-                      onClick={handleSignOut}
-                      className="w-full text-left px-4 py-2.5 text-sm text-[#ffff] hover:bg-[#ffff]/20 hover:text-[#ffff] transition-colors flex items-center"
-                      role="menuitem"
-                    >
-                      <FaSignOutAlt className="mr-2" />
-                      Sign out
-                    </button>
+              {isProfileOpen && (
+                <div className="absolute right-0 mt-2 w-56 rounded-lg shadow-xl bg-[#171719] border border-[#8a63f4]/20 py-1 z-50">
+                  <div className="px-4 py-3 border-b border-[#8a63f4]/20">
+                    <p className="text-sm text-[#f4f1f9]">{user.name}</p>
+                    <p className="text-xs text-[#f4f1f9]/60 truncate">{user.email}</p>
                   </div>
-                )}
-              </div>
+                  <a href="#" className="block px-4 py-2.5 text-sm text-[#f4f1f9]/80 hover:bg-[#ffff]/20">Your Profile</a>
+                  <a href="#" className="block px-4 py-2.5 text-sm text-[#f4f1f9]/80 hover:bg-[#ffff]/20">Settings</a>
+                  <div className="border-t border-[#8a63f4]/20 my-1"></div>
+                  <SignOutButton variant="desktop" onSignOut={handleSignOut} />
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* Mobile menu button */}
-            <div className="-mr-2 flex items-center sm:hidden">
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-              >
-                <span className="sr-only">Open main menu</span>
-                <FaBars className="block h-6 w-6" />
-              </button>
-            </div>
+          {/* Mobile menu button */}
+          <div className="-mr-2 flex sm:hidden">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+            >
+              <FaBars className="h-6 w-6" />
+            </button>
           </div>
         </div>
 
-        {/* Mobile menu */}
+        {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className="sm:hidden">
             <div className="pt-2 pb-3 space-y-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium"
-                >
-                  {item.icon}
-                  {item.label}
+              {navItems.map(item => (
+                <Link key={item.path} to={item.path} className="block pl-3 pr-4 py-2 border-l-4 text-base font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700">
+                  {item.icon}{item.label}
                 </Link>
               ))}
             </div>
             <div className="pt-4 pb-3 border-t border-gray-200">
               <div className="flex items-center px-4">
-                <div className="flex-shrink-0">
-                  <FaUserCircle className="h-10 w-10 text-gray-400" />
-                </div>
+                <FaUserCircle className="h-10 w-10 text-gray-400" />
                 <div className="ml-3">
                   <div className="text-base font-medium text-gray-200">{user.name}</div>
                   <div className="text-sm font-medium text-gray-400">{user.email}</div>
                 </div>
               </div>
               <div className="mt-3 space-y-1">
-                <a href="#" className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100">
-                  Your Profile
-                </a>
-                <a href="#" className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100">
-                  Settings
-                </a>
-                <button
-                  onClick={handleSignOut}
-                  className="w-full text-left px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 flex items-center"
-                >
-                  <FaSignOutAlt className="mr-2" />
-                  Sign out
-                </button>
+                <a href="#" className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100">Your Profile</a>
+                <a href="#" className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100">Settings</a>
+                <SignOutButton variant="mobile" onSignOut={handleSignOut} />
               </div>
             </div>
           </div>
@@ -472,13 +309,13 @@ const UserDashboard = () => {
               {/* Welcome Header */}
               <div className="bg-[#28282b] rounded-2xl p-6 border border-[#8a63f4]/20">
                 <div>
-            <h1 className="text-2xl font-bold text-[#ffff]">Welcome back, {user.name}</h1>
-            {gmailStatus === 'pending' && (
-              <p className="text-sm text-yellow-400 mt-1">
-                Request sent to server. Please wait for confirmation.
-              </p>
-            )}
-          </div>
+                  <h1 className="text-2xl font-bold text-[#ffff]">Welcome back, {user.name}</h1>
+                  {gmailStatus === 'pending' && (
+                    <p className="text-sm text-yellow-400 mt-1">
+                      Request sent to server. Please wait for confirmation.
+                    </p>
+                  )}
+                </div>
                 <p className="text-[#ffff]/40 mt-1">Here's what's happening with your security today</p>
               </div>
 

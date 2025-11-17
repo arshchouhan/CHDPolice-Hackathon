@@ -1,39 +1,84 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from '../../context/AuthContext';
-import AdminLogin from './components/admin-dashboard/AdminLogin';
-import AdminDashboard from './components/admin-dashboard/AdminDashboard';
-import AdminRoute from './components/admin-dashboard/AdminRoute';
+import React, { useEffect, useState } from 'react';
+import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 
-// Import other components as needed
-// import Home from './components/Home';
-// import NotFound from './components/NotFound';
+const AdminRoute = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(null); // null = loading
+  const navigate = useNavigate();
 
-function App() {
-  return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/admin/login" element={<AdminLogin />} />
-          
-          {/* Protected Admin Routes - wrapped with AdminRoute */}
-          <Route path="/admin" element={<AdminRoute />}>
-            <Route path="dashboard" element={<AdminDashboard />} />
-            {/* Add more protected admin routes here */}
-            {/* <Route path="users" element={<AdminUsers />} /> */}
-            {/* <Route path="settings" element={<AdminSettings />} /> */}
-            
-            {/* Default redirect from /admin to /admin/dashboard */}
-            <Route index element={<Navigate to="/admin/dashboard" replace />} />
-          </Route>
-          
-          {/* Other routes */}
-          {/* <Route path="/" element={<Home />} /> */}
-          {/* <Route path="*" element={<NotFound />} /> */}
-        </Routes>
-      </Router>
-    </AuthProvider>
-  );
-}
+  useEffect(() => {
+    const verifyToken = async () => {
+      try {
+        console.log('Verifying admin token...');
+        const token = localStorage.getItem('adminToken');
+        
+        if (!token) {
+          console.log('No admin token found, redirecting to login');
+          setIsAuthenticated(false);
+          return;
+        }
 
-export default App;
+        const apiUrl = process.env.NODE_ENV === 'development'
+          ? 'http://localhost:3000/api/admin/verify-token'
+          : '/api/admin/verify-token';
+
+        console.log('Making request to:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          credentials: 'include', // Important for cookies if using them
+        });
+
+        console.log('Verification response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Verification response data:', data);
+        
+        if (data.success && data.authenticated) {
+          console.log('Admin authenticated successfully');
+          setIsAuthenticated(true);
+        } else {
+          console.log('Admin not authenticated');
+          localStorage.removeItem('adminToken');
+          setIsAuthenticated(false);
+        }
+      } catch (err) {
+        console.error('Token verification error:', err);
+        localStorage.removeItem('adminToken');
+        setIsAuthenticated(false);
+      }
+    };
+
+    verifyToken();
+  }, [navigate]);
+
+  // Show loading state
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Verifying admin access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    console.log('Redirecting to /admin/login');
+    return <Navigate to="/admin/login" replace />;
+  }
+
+  // Render protected routes if authenticated
+  return <Outlet />;
+};
+
+export default AdminRoute;

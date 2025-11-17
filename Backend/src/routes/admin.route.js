@@ -1,259 +1,140 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
-import Admin from '../models/admin.model.js';
-import { requireAdmin } from '../middlewares/auth.js';
 import jwt from 'jsonwebtoken';
+import Admin from '../models/admin.model.js';
+import { generateToken } from '../utils/generateTokens.js';
+import config from '../config/config.js';
 
 const router = Router();
 
-// Admin registration route
-router.post('/register', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    console.log('Registration attempt for:', email);
-
-    const existingAdmin = await Admin.findOne({ email });
-    if (existingAdmin) {
-      return res.status(400).json({
-        success: false,
-        message: 'Admin already exists'
-      });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const admin = new Admin({
-      email,
-      password: hashedPassword
-    });
-
-    await admin.save();
-    console.log('Admin registered successfully:', email);
-
-    res.status(201).json({
-      success: true,
-      message: 'Admin registered successfully'
-    });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Registration failed'
-    });
-  }
-});
-
-// Admin login with enhanced logging and refresh token
+/**
+ * @route   POST /api/admin/login
+ * @desc    Authenticate admin and get token
+ * @access  Public
+ */
 router.post('/login', async (req, res) => {
   try {
+    console.log('Login attempt with email:', req.body.email);
     const { email, password } = req.body;
-    console.log('Login attempt for:', email);
 
-    const admin = await Admin.findOne({ email });
+    if (!email || !password) {
+      console.log('Missing email or password');
+      return res.status(400).json({ success: false, message: 'Please provide email and password' });
+    }
+
+    // 1️⃣ Find admin by email
+    console.log('Looking for admin with email:', email);
+    const admin = await Admin.findOne({ email }).select('+password');
     
     if (!admin) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
+      console.log('No admin found with email:', email);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid credentials',
+        details: 'No admin found with this email'
       });
     }
 
-    const isMatch = password === admin.password || await bcrypt.compare(password, admin.password);
+    console.log('Admin found, comparing passwords...');
+    
+    // 2️⃣ Compare password using the model method
+    const isMatch = await admin.comparePassword(password);
+    
     if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
+      console.log('Password does not match');
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid credentials',
+        details: 'Incorrect password'
       });
     }
 
-    // Generate tokens
-    const token = jwt.sign(
-      { id: admin._id, email: admin.email, role: 'admin' },
-      process.env.JWT_SECRET || 'jwt-secret',
-      { expiresIn: '7d' } // Extend token validity
-    );
+    // 3️⃣ Generate JWT
+    const token = generateToken(admin);
 
-    // Store more data in session
-    req.session.adminId = admin._id;
-    req.session.adminEmail = admin.email;
-    req.session.token = token;
-    await req.session.save();
-
-    // Set cookie with extended expiry
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
-
-    res.json({
+    // 4️⃣ Send success response
+    res.status(200).json({
       success: true,
-      message: 'Login successful',
       token,
       admin: {
         id: admin._id,
         email: admin.email,
-        role: 'admin'
-      }
+        name: admin.name,
+        role: 'admin',
+      },
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Login failed'
-    });
+    console.error('Admin login error:', error);
+    res.status(500).json({ success: false, message: 'Server error during admin login' });
   }
 });
 
-// Force logout - clear all sessions and tokens
-router.post('/force-logout', (req, res) => {
-  try {
-    // Clear session
-    req.session.destroy();
-    
-    // Clear cookies
-    res.clearCookie('token');
-    res.clearCookie('refreshToken');
-    res.clearCookie('connect.sid');
-    
-    res.status(200).json({
-      success: true,
-      message: 'Successfully logged out from all sessions'
-    });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Logout failed',
-      error: error.message
-    });
-  }
-});
-
-// Update verify-token to handle token refresh
+/**
+ * @route   GET /api/admin/verify-token
+ * @desc    Verify admin token and return admin data
+ * @access  Private
+ */
 router.get('/verify-token', async (req, res) => {
   try {
-    const token = 
-      req.headers.authorization?.split(' ')[1] ||
-      req.cookies.token ||
-      req.session?.token;
-
-    if (!token) {
-      throw new Error('No token found');
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'jwt-secret');
-    const admin = await Admin.findById(decoded.id);
-
-    if (!admin) {
-      throw new Error('Admin not found');
-    }
-
-    // Refresh token if needed
-    const newToken = jwt.sign(
-      { id: admin._id, email: admin.email, role: 'admin' },
-      process.env.JWT_SECRET || 'jwt-secret',
-      { expiresIn: '7d' }
-    );
-
-    res.cookie('token', newToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
-    res.json({
-      success: true,
-      authenticated: true,
-      token: newToken,
-      admin: {
-        id: admin._id,
-        email: admin.email,
-        role: 'admin'
-      }
-    });
-  } catch (error) {
-    console.error('Token verification error:', error);
-    return res.status(401).json({
-      success: false,
-      authenticated: false,
-      message: 'Token verification failed'
-    });
-  }
-});
-
-// Refresh token endpoint
-router.post('/refresh-token', async (req, res) => {
-  try {
-    const token = req.cookies?.token || req.session?.token;
+    // Get token from Authorization header
+    const authHeader = req.header('Authorization');
     
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'No refresh token available'
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'No token provided, authorization denied' 
       });
     }
 
-    // Verify the existing token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'jwt-secret', { ignoreExpiration: true });
+    const token = authHeader.split(' ')[1];
     
-    // Check if the admin still exists
-    const admin = await Admin.findById(decoded.id);
-    if (!admin) {
-      return res.status(401).json({
-        success: false,
-        message: 'Admin not found'
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'No token, authorization denied' 
       });
     }
 
-    // Issue a new token
-    const newToken = jwt.sign(
-      { id: admin._id, email: admin.email },
-      process.env.JWT_SECRET || 'jwt-secret',
-      { expiresIn: '24h' }
-    );
-
-    // Update the token in the session and cookies
-    req.session.token = newToken;
-    await req.session.save();
-
-    res.cookie('token', newToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Changed from 'none' to 'lax' for better compatibility
-      path: '/',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    });
-
-    res.json({
-      success: true,
-      token: newToken,
-      admin: {
-        id: admin._id,
-        email: admin.email
+    try {
+      // Verify token
+      const decoded = jwt.verify(token, config.jwtSecret);
+      
+      // Check if user exists and is admin
+      const admin = await Admin.findById(decoded.user.id).select('-password');
+      
+      if (!admin || admin.role !== 'admin') {
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Not authorized as admin' 
+        });
       }
-    });
-  } catch (error) {
-    console.error('Token refresh error:', error);
-    
-    // Clear invalid tokens
-    if (req.session) {
-      req.session.destroy();
+
+      // Return success with admin data
+      return res.json({
+        success: true,
+        authenticated: true,
+        admin: {
+          id: admin._id,
+          name: admin.name,
+          email: admin.email,
+          role: admin.role
+        }
+      });
+    } catch (error) {
+      console.error('Token verification error:', error);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Token is not valid',
+        error: error.message
+      });
     }
-    res.clearCookie('token');
-    
-    res.status(401).json({
+  } catch (error) {
+    console.error('Error in verify-token route:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Invalid or expired refresh token',
+      message: 'Server error during token verification',
       error: error.message
     });
   }
-});
-
-// Protected admin route example
-router.get('/dashboard', requireAdmin, (req, res) => {
-  res.json({ success: true, message: 'Welcome to admin dashboard' });
 });
 
 export default router;

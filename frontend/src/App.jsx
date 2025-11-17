@@ -1,36 +1,49 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './components/Login';
+import AdminLogin from './components/admin-dashboard/AdminLogin';
 import AdminDashboard from './components/admin-dashboard/AdminDashboard';
-import AdminRoute from './components/AdminRoute';
+import AdminRoute from './components/admin-dashboard/AdminRoute';
+import UserRoute from './components/UserRoute';
+import UserDashboard from './components/user-dashboard/UserDashboard';
 
 // Handle redirects for legacy routes
 const RedirectHandler = () => {
-  const { admin } = useAuth();
-  return <Navigate to={"/login"} replace />;
+  const { user } = useAuth();
+  return <Navigate to={user ? "/dashboard" : "/login"} replace />;
 };
 
 function App() {
   return (
-    <Routes>
-      {/* Public Routes */}
-      <Route path="/login" element={<Login />} />
-      
-      {/* Handle legacy /admin/login route */}
-      <Route path="/admin/login" element={<Navigate to="/login" replace />} />
-      
-      {/* Protected Admin Routes */}
-      <Route element={<AdminRoute />}>
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-      </Route>
-      
-      {/* Catch-all route for unknown paths */}
-      <Route path="*" element={<RedirectHandler />} />
-      
-      {/* Default redirect */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
-    </Routes>
+    <div className="min-h-screen bg-gray-50">
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/login" element={<Login />} />
+        
+        {/* Admin Login Route */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        
+        {/* Protected User Routes */}
+        <Route element={<UserRoute />}>
+          <Route path="/dashboard" element={<UserDashboard />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        </Route>
+        
+        {/* Protected Admin Routes */}
+        <Route path="/admin">
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route element={<AdminRoute />}>
+            <Route path="dashboard" element={<AdminDashboard />} />
+          </Route>
+        </Route>
+        
+        {/* Catch-all route for unknown paths */}
+        <Route path="*" element={<RedirectHandler />} />
+        
+        {/* Default redirect */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </div>
   );
 }
 

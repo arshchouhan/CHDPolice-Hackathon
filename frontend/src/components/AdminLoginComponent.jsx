@@ -17,7 +17,7 @@ const AdminLoginComponent = () => {
     setError('');
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const apiUrl = 'https://chdpolice-hackathon.onrender.com'; // Updated base URL
       const response = await fetch(`${apiUrl}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
