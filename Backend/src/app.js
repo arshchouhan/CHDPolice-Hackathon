@@ -31,6 +31,7 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'https://chdpolice-hackathon.onrender.com'
   ],
   credentials: true,
 }));
@@ -56,7 +57,8 @@ app.use('/api/user', gmailConnectionRoutes);
 app.use('/api/user/gmail/status', gmailStatusRoutes);
 
 // Health check
-// app.get('/', (req, res) => res.json({ status: 'ok' }));
+app.get('/', (req, res) => res.json({ status: 'ok', message: 'Email Detection API is running' }));
+app.get('/health', (req, res) => res.json({ status: 'healthy', timestamp: new Date().toISOString() }));
 
 // 404 handler
 app.use('/api/*', (req, res) => res.status(404).json({ message: 'Not found' }));
