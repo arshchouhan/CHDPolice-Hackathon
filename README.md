@@ -5,6 +5,8 @@
 
 ---
 
+![alt text](image.png)
+
 # 🛡️ CyberShield — Cybersecurity Monitoring Dashboard
 
 CyberShield is a modern and intuitive cybersecurity monitoring platform designed to help individuals and organizations track digital risk, device security, and data exposure in real time. The application provides centralized monitoring of threats, risk trends, and vulnerable assets while offering actionable recommendations to improve cyber hygiene.
