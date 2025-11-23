@@ -206,7 +206,7 @@ const UserDashboard = () => {
       <nav className="bg-[#171719] border-b border-black">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
           <div className="flex items-center">
-            <span className="text-2xl font-bold text-[#ffff]">CyberShield</span>
+            <span className="text-2xl font-bold text-[#ffff]">TrustMail</span>
             <div className="hidden sm:ml-8 sm:flex sm:space-x-2">
               {navItems.map(item => (
                 <Link key={item.path} to={item.path} className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all ${window.location.pathname === item.path ? 'bg-[#171719] text-[#f4f1f9] shadow-lg shadow-[#ffff]/20' : 'text-[#f4f1f9]/80 hover:bg-[#ffff]/10 hover:text-[#ffff]'}`}>
