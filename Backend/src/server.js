@@ -1,6 +1,7 @@
 // server.js
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import cors from 'cors';
 import app from './app.js';
 
 dotenv.config();
@@ -18,6 +19,26 @@ const mongoOptions = {
   w: 'majority',
   wtimeoutMS: 30000,
 };
+
+// CORS configuration
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://chdpolice-hackathon.onrender.com', // Add your frontend URL here
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // Allow cookies and credentials
+}));
 
 // Connect to MongoDB
 const connectDB = async () => {
