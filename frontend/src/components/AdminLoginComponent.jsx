@@ -17,7 +17,7 @@ const AdminLoginComponent = () => {
     setError('');
 
     try {
-      const apiUrl = 'https://chdpolice-hackathon.onrender.com'; // Updated base URL
+      const apiUrl = 'https://chdpolice-hackathon.onrender.com'; // Updated backend URL
       const response = await fetch(`${apiUrl}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

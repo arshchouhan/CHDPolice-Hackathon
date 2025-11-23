@@ -15,7 +15,7 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const API_URL = import.meta.env.VITE_API_URL || import.meta.env.API_URL || 'http://localhost:3000';
+  const API_URL = 'https://chdpolice-hackathon.onrender.com'; // Updated backend URL
 
   // Verify token once (only on /login)
   useEffect(() => {
