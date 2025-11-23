@@ -5,7 +5,7 @@
 
 ---
 
-![alt text](image.png)
+![alt text](frontend/public/Dashboard.png)
 
 # 🛡️ CyberShield — Cybersecurity Monitoring Dashboard
 
