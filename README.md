@@ -44,6 +44,10 @@ Track security posture improvement or degradation over time:
 
 ---
 
+
+<img width="521" height="918" alt="image" src="https://github.com/user-attachments/assets/edd605ea-39a4-4d0c-a160-c79a23b8cd30" />
+
+
 ## 🏗️ Tech Stack
 
 | Category | Technology |
