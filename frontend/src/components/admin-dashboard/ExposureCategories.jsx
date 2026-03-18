@@ -38,27 +38,30 @@ const ExposureCategories = () => {
   const labels = slices.map((s, i) => {
     const { x, y } = polar(s.pct);
     return (
-      <text key={i} x={x} y={y} fontSize="8" textAnchor="middle" dominantBaseline="middle" fill="#0b0e11">
+      <text key={i} x={x} y={y} fontSize="6" fontWeight="bold" textAnchor="middle" dominantBaseline="middle" fill="#ffffff">
         {s.pct}%
       </text>
     );
   });
 
   return (
-    <div className="bg-[#101214] border border-white/5 rounded-2xl p-4">
-      <div className="text-sm text-white/60 mb-3">Threat Exposures Categories</div>
-      <div className="flex items-center gap-6">
-        <svg className="w-32 h-32" viewBox="0 0 100 100">
-          {paths}
-          {labels}
-          <circle cx="50" cy="50" r="20" fill="#0b0e11" />
-          <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="10" fill="#e5e7eb">100</text>
-        </svg>
-        <ul className="space-y-1 text-xs text-white/70">
+    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+      <div className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-6">Threat Exposure Analysis</div>
+      <div className="flex items-center gap-10">
+        <div className="relative">
+          <svg className="w-36 h-36" viewBox="0 0 100 100">
+            {paths}
+            {labels}
+            <circle cx="50" cy="50" r="18" fill="white" />
+            <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#111827">100</text>
+          </svg>
+        </div>
+        <ul className="space-y-3 text-xs text-gray-600">
           {slices.map((s, i) => (
-            <li key={i} className="flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-sm" style={{ background: s.color }} />
-              {s.label} • {s.pct}%
+            <li key={i} className="flex items-center gap-3">
+              <span className="inline-block h-3 w-3 rounded border border-gray-100 shadow-sm" style={{ background: s.color }} />
+              <span className="font-semibold">{s.label}</span>
+              <span className="text-gray-400 ml-auto">• {s.pct}%</span>
             </li>
           ))}
         </ul>

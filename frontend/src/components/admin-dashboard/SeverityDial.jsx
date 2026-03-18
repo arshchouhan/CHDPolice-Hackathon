@@ -16,13 +16,13 @@ const SeverityDial = ({
   };
 
   return (
-    <div className="bg-[#101214] border border-white/5 rounded-2xl p-4">
-      <div className="text-sm text-white/60 mb-3">Threat Exposures Severity</div>
-      <div className="grid grid-cols-5 gap-4">
+    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+      <div className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-6">Threat Exposure Severity</div>
+      <div className="grid grid-cols-5 gap-6">
         {items.map((item, idx) => (
           <div key={idx} className="flex flex-col items-center">
-            <svg className="h-20 w-20 -rotate-90" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="36" stroke="#334155" strokeWidth="8" fill="none" />
+            <svg className="h-24 w-24 -rotate-90 filter drop-shadow-sm" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="36" stroke="#f3f4f6" strokeWidth="8" fill="none" />
               <circle
                 cx="40"
                 cy="40"
@@ -33,11 +33,11 @@ const SeverityDial = ({
                 {...ring(Math.min(100, item.total))}
                 strokeLinecap="round"
               />
-              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="12" fill="#e5e7eb" transform="rotate(90,40,40)">
+              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#111827" transform="rotate(90,40,40)">
                 {item.total}
               </text>
             </svg>
-            <div className="text-xs mt-2 text-white/70">{item.label}</div>
+            <div className="text-[10px] font-bold uppercase mt-3 text-gray-400 tracking-wider h-8 text-center">{item.label}</div>
           </div>
         ))}
       </div>

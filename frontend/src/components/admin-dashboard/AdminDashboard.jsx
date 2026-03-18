@@ -59,36 +59,36 @@ const AdminDashboard = () => {
       // Clear any remaining tokens to be extra sure
       localStorage.removeItem('token');
       localStorage.removeItem('adminToken');
-      navigate('/admin/login');
+      navigate('/login?admin=true');
     } catch (error) {
       console.error('Logout error:', error);
     }
   };
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white">
+    <div className="flex h-screen bg-gray-50 text-gray-900 font-sans">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 z-20 bg-black bg-opacity-50 lg:hidden"
+          className="fixed inset-0 z-20 bg-black/30 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
       
       {/* Sidebar */}
       <div 
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-gray-800 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex h-full flex-col">
-          <div className="flex h-16 items-center justify-between border-b border-gray-700 px-4">
+          <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
             <div className="flex items-center space-x-2">
-              <FiShield className="h-6 w-6 text-emerald-400" />
-              <span className="text-xl font-semibold">Admin Panel</span>
+              <FiShield className="h-6 w-6 text-gray-900" />
+              <span className="text-xl font-bold tracking-tight">Admin Console</span>
             </div>
             <button 
-              className="lg:hidden p-1 rounded-md hover:bg-gray-700"
+              className="lg:hidden p-1 rounded-md hover:bg-gray-100"
               onClick={() => setSidebarOpen(false)}
             >
               <FiX className="w-6 h-6" />
@@ -96,68 +96,73 @@ const AdminDashboard = () => {
           </div>
           
           <div className="p-4">
-            <div className="flex items-center space-x-3 p-2 rounded-lg bg-gray-700 mb-6">
-              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold">
+            <div className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50 border border-gray-200 mb-6">
+              <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center text-white font-bold">
                 {adminEmail ? adminEmail.charAt(0).toUpperCase() : 'A'}
               </div>
               <div>
-                <p className="font-medium">{adminEmail || 'Admin'}</p>
-                <p className="text-xs text-gray-400">Administrator</p>
+                <p className="font-semibold text-sm truncate w-32">{adminEmail || 'Admin'}</p>
+                <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Super Administrator</p>
               </div>
             </div>
           
           </div>
           
-          <nav className="space-y-1 px-4">
+          <nav className="space-y-1 px-4 flex-1">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center w-full px-4 py-3 text-left rounded-lg transition-colors ${
+                className={`flex items-center w-full px-4 py-3 text-left rounded-md transition-all ${
                   activeTab === item.id 
-                    ? 'bg-emerald-600 text-white' 
-                    : 'text-gray-300 hover:bg-gray-700'
+                    ? 'bg-gray-900 text-white shadow-sm' 
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
               >
                 <span className="mr-3">{item.icon}</span>
-                <span>{item.label}</span>
+                <span className="text-sm font-medium">{item.label}</span>
               </button>
             ))}
-            
+          </nav>
+          
+          <div className="p-4 border-t border-gray-100">
             <button
               onClick={handleLogout}
-              className="flex items-center w-full px-4 py-3 text-left text-gray-300 hover:bg-gray-700 rounded-lg transition-colors mt-4"
+              className="flex items-center w-full px-4 py-3 text-left text-gray-500 hover:bg-gray-50 hover:text-red-600 rounded-md transition-all"
             >
               <FiLogOut className="w-5 h-5 mr-3" />
-              <span>Logout</span>
+              <span className="text-sm font-medium">Log out</span>
             </button>
-          </nav>
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Navigation */}
-        <header className="bg-white shadow-sm z-10">
-          <div className="flex items-center justify-between p-4">
+        <header className="bg-white border-b border-gray-200 z-10 shadow-sm">
+          <div className="flex items-center justify-between p-4 px-8">
             <button 
-              className="lg:hidden p-2 rounded-md text-gray-600 hover:bg-gray-100"
+              className="lg:hidden p-2 rounded-md text-gray-600 hover:bg-gray-100 border border-gray-200"
               onClick={() => setSidebarOpen(true)}
             >
               <FiMenu className="w-6 h-6" />
             </button>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-6">
               <div className="relative">
-                <button className="p-2 rounded-full text-gray-600 hover:bg-gray-100">
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                  <FiServer className="w-6 h-6" />
+                <button className="p-2 rounded-full text-gray-400 hover:text-gray-900 border border-gray-100 bg-gray-50 transition-colors">
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                  <FiServer className="w-5 h-5" />
                 </button>
               </div>
-              <div className="h-8 w-px bg-gray-200"></div>
-              <div className="flex items-center">
-                <span className="text-sm text-gray-600 mr-2">{admin?.email || 'Admin'}</span>
-                <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold">
+              <div className="h-6 w-px bg-gray-200"></div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-gray-900">{admin?.email || 'Admin'}</p>
+                  <p className="text-[10px] text-gray-400 uppercase font-black">Authorized</p>
+                </div>
+                <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-300 flex items-center justify-center text-gray-900 font-bold">
                   {admin?.email?.charAt(0).toUpperCase() || 'A'}
                 </div>
               </div>
@@ -177,30 +182,32 @@ const AdminDashboard = () => {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                   <StatsCard 
-                    title="Total Scans" 
+                    label="Total Scans" 
                     value={stats.totalScans} 
-                    icon="scan"
-                    trend="+12% from last month"
+                    icon={<FiServer className="w-5 h-5 text-gray-400" />}
+                    subtitle="Last 30 Days"
+                    delta={{ value: "+12%", positive: true }}
                   />
                   <StatsCard 
-                    title="Threats Detected" 
+                    label="Threats Detected" 
                     value={stats.threatsDetected} 
-                    icon="shield"
-                    trend="+3 from yesterday"
-                    isDanger={stats.threatsDetected > 0}
+                    icon={<FiShield className="w-5 h-5 text-red-400" />}
+                    subtitle="Immediate Action"
+                    delta={{ value: "+3", positive: false }}
                   />
                   <StatsCard 
-                    title="Secure Domains" 
+                    label="Secure Domains" 
                     value={stats.secureDomains} 
-                    icon="lock"
-                    trend="98% secure"
+                    icon={<FiGlobe className="w-5 h-5 text-green-400" />}
+                    subtitle="Protected"
+                    delta={{ value: "98%", positive: true }}
                   />
                   <StatsCard 
-                    title="High Risk" 
+                    label="High Risk Assets" 
                     value={stats.highRisk} 
-                    icon="alert"
-                    trend="Needs attention"
-                    isDanger={stats.highRisk > 0}
+                    icon={<FiAlertCircle className="w-5 h-5 text-orange-400" />}
+                    subtitle="Warning State"
+                    delta={{ value: "12", positive: false }}
                   />
                 </div>
 
@@ -249,7 +256,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
             )}
-
+             
             {/* Network Tab */}
             {activeTab === 'network' && (
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">

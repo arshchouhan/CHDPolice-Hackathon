@@ -10,12 +10,17 @@ import ExposedPorts from './ExposedPorts';
 
 const AdminDashboard = () => {
   return (
-    <div className="min-h-screen bg-[#0b0e11] text-white p-4">
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans p-4">
       {/* Top bar */}
-      <header className="sticky top-0 z-10 backdrop-blur bg-[#0b0e11]/70 border-b border-white/5 mb-6 pb-4">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Attack Surface Dashboard</h1>
-          <div className="text-xs text-white/60">v1.0 • Mock data</div>
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-200 mb-8 rounded-b-xl shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
+              <span className="text-white text-xs font-black">A</span>
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-gray-900">Attack Surface Overview</h1>
+          </div>
+          <div className="px-3 py-1 rounded bg-gray-100 border border-gray-200 text-[10px] font-black uppercase text-gray-400 tracking-widest">v2.0 • Management Suite</div>
         </div>
       </header>
 
@@ -72,8 +77,14 @@ const AdminDashboard = () => {
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <ExposedPorts />
           {/* Empty slots for future widgets */}
-          <div className="rounded-2xl border border-dashed border-white/10 p-6 text-white/40">Add widget…</div>
-          <div className="rounded-2xl border border-dashed border-white/10 p-6 text-white/40">Add widget…</div>
+          <div className="rounded-xl border-2 border-dashed border-gray-200 p-8 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-100 transition-colors cursor-pointer group">
+            <div className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-300 group-hover:text-gray-500 transition-colors font-bold text-xl">+</div>
+            <span className="mt-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">Configure Extension</span>
+          </div>
+          <div className="rounded-xl border-2 border-dashed border-gray-200 p-8 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-100 transition-colors cursor-pointer group">
+            <div className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-300 group-hover:text-gray-500 transition-colors font-bold text-xl">+</div>
+            <span className="mt-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">Add Log View</span>
+          </div>
         </section>
       </main>
     </div>

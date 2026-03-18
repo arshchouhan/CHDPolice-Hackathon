@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './components/Login';
+import Signup from './components/Signup';
 import AdminLogin from './components/admin-dashboard/AdminLogin';
 import AdminDashboard from './components/admin-dashboard/AdminDashboard';
 import AdminRoute from './components/admin-dashboard/AdminRoute';
@@ -19,9 +20,10 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
         
-        {/* Admin Login Route */}
-        <Route path="/admin/login" element={<AdminLogin />} />
+        {/* Admin Login Route (Redirects to unified login page) */}
+        <Route path="/admin/login" element={<Navigate to="/login?admin=true" replace />} />
         
         {/* Protected User Routes */}
         <Route element={<UserRoute />}>

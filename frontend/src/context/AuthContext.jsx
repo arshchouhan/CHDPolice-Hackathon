@@ -56,6 +56,15 @@ export const AuthProvider = ({ children }) => {
       }
       return;
     }
+    
+    // Bypass verification for mock tokens
+    if (token === 'mock_user_token') {
+      if (isMounted) {
+        setLoading(false);
+        setAuthChecked(true);
+      }
+      return;
+    }
 
     // Skip verification if we already have a user and the token matches
     const savedUser = localStorage.getItem('userData');

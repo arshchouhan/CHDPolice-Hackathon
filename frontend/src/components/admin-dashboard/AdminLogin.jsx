@@ -56,27 +56,27 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white/5 backdrop-blur-lg rounded-2xl shadow-xl p-8 border border-white/10">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
+      <div className="w-full max-w-md bg-white rounded-lg shadow-sm p-8 border border-gray-200">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-white">Admin Login</h2>
-          <p className="text-gray-400 mt-2">Sign in to access the dashboard</p>
+          <h2 className="text-3xl font-bold text-gray-900">Admin Access</h2>
+          <p className="text-gray-500 mt-2">Sign in to the management console</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Administrator Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-gray-400 focus:border-gray-400 focus:outline-none transition-all"
               placeholder="admin@example.com"
               required
               disabled={isLoading}
@@ -84,12 +84,12 @@ const AdminLogin = () => {
           </div>
 
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Secure Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-gray-400 focus:border-gray-400 focus:outline-none transition-all"
               placeholder="••••••••"
               required
               disabled={isLoading}
@@ -99,11 +99,15 @@ const AdminLogin = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-lg transition duration-200 disabled:opacity-50"
+            className="w-full py-3 bg-gray-900 hover:bg-black text-white font-semibold rounded-md transition-all duration-200 disabled:bg-gray-400"
           >
-            {isLoading ? 'Signing in...' : 'Sign in to Dashboard'}
+            {isLoading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
+        
+        <div className="mt-8 text-center text-xs text-gray-400">
+          <p>Protected by advanced encryption • Admin Portal</p>
+        </div>
       </div>
     </div>
   );
